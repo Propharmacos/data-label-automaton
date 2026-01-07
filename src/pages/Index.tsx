@@ -4,16 +4,15 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import SearchRequisition from "@/components/SearchRequisition";
-import LabelPreview from "@/components/LabelPreview";
+import LabelCard from "@/components/LabelCard";
 import { useToast } from "@/hooks/use-toast";
 import { getPharmacyConfig, getLabelConfig } from "@/config/api";
 import { buscarRequisicao } from "@/services/requisicaoService";
-import { Requisicao, PharmacyConfig, LabelConfig } from "@/types/requisicao";
-
+import { RotuloItem, PharmacyConfig, LabelConfig } from "@/types/requisicao";
 
 const Index = () => {
   const [isLoading, setIsLoading] = useState(false);
-  const [requisicoes, setRequisicoes] = useState<Requisicao[]>([]);
+  const [rotulos, setRotulos] = useState<RotuloItem[]>([]);
   const [selectedLabels, setSelectedLabels] = useState<Set<string>>(new Set());
   const [searchedRequisition, setSearchedRequisition] = useState("");
   const [pharmacyConfig, setPharmacyConfig] = useState<PharmacyConfig>(getPharmacyConfig());
@@ -37,14 +36,14 @@ const Index = () => {
     const result = await buscarRequisicao(requisitionNumber);
     
     if (result.success && result.data && result.data.length > 0) {
-      setRequisicoes(result.data);
+      setRotulos(result.data);
       setSelectedLabels(new Set(result.data.map(r => r.id)));
       toast({
         title: "Requisição encontrada!",
         description: `${result.data.length} rótulo(s) pronto(s) para impressão.`,
       });
     } else {
-      setRequisicoes([]);
+      setRotulos([]);
       setSelectedLabels(new Set());
       toast({
         title: "Requisição não encontrada",
@@ -69,7 +68,7 @@ const Index = () => {
   };
 
   const selectAll = () => {
-    setSelectedLabels(new Set(requisicoes.map(r => r.id)));
+    setSelectedLabels(new Set(rotulos.map(r => r.id)));
   };
 
   const deselectAll = () => {
@@ -139,7 +138,7 @@ const Index = () => {
         </section>
 
         {/* Labels Section */}
-        {requisicoes.length > 0 && (
+        {rotulos.length > 0 && (
           <section>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
@@ -148,7 +147,7 @@ const Index = () => {
                     Rótulos da Requisição #{searchedRequisition}
                   </CardTitle>
                   <p className="text-sm text-muted-foreground mt-1">
-                    {selectedLabels.size} de {requisicoes.length} selecionados
+                    {selectedLabels.size} de {rotulos.length} selecionados
                   </p>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
@@ -173,13 +172,13 @@ const Index = () => {
               </CardHeader>
               <CardContent>
                 <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {requisicoes.map((requisicao) => (
-                    <LabelPreview
-                      key={requisicao.id}
-                      requisicao={requisicao}
+                  {rotulos.map((rotulo) => (
+                    <LabelCard
+                      key={rotulo.id}
+                      rotulo={rotulo}
                       pharmacyConfig={pharmacyConfig}
                       labelConfig={labelConfig}
-                      selected={selectedLabels.has(requisicao.id)}
+                      selected={selectedLabels.has(rotulo.id)}
                       onToggle={toggleLabel}
                     />
                   ))}
@@ -190,7 +189,7 @@ const Index = () => {
         )}
 
         {/* Empty State */}
-        {requisicoes.length === 0 && !isLoading && (
+        {rotulos.length === 0 && !isLoading && (
           <div className="text-center py-16">
             <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-accent flex items-center justify-center">
               <Printer className="h-12 w-12 text-primary" />

@@ -27,6 +27,26 @@ export interface Requisicao {
   produtos: Produto[];
 }
 
+// Rótulo individual por produto
+export interface RotuloItem {
+  id: string;
+  nrRequisicao: string;
+  produto: Produto;
+  nomePaciente: string;
+  prefixoCRM: string;
+  numeroCRM: string;
+  ufCRM: string;
+  nomeMedico: string;
+  dataFabricacao: string;
+  dataValidade: string;
+  numeroRegistro: string;
+  posologia: string;
+  tipoUso: string;
+  volume: string;
+  unidadeVolume: string;
+  observacoes: string;
+}
+
 export interface PharmacyConfig {
   nome: string;
   endereco: string;
