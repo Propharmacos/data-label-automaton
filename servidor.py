@@ -21,6 +21,47 @@ def get_db_connection():
 def health_check():
     return jsonify({"status": "ok"})
 
+# Rota de diagnóstico: lista todas as tabelas
+@app.route('/api/tabelas', methods=['GET'])
+def listar_tabelas():
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT RDB$RELATION_NAME 
+            FROM RDB$RELATIONS 
+            WHERE RDB$SYSTEM_FLAG = 0
+            ORDER BY RDB$RELATION_NAME
+        """)
+        tabelas = [row[0].strip() for row in cursor.fetchall()]
+        conn.close()
+        return jsonify({"success": True, "tabelas": tabelas})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+# Rota de diagnóstico: lista colunas de uma tabela
+@app.route('/api/colunas/<tabela>', methods=['GET'])
+def listar_colunas(tabela):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT RF.RDB$FIELD_NAME, F.RDB$FIELD_TYPE, F.RDB$FIELD_LENGTH
+            FROM RDB$RELATION_FIELDS RF
+            JOIN RDB$FIELDS F ON RF.RDB$FIELD_SOURCE = F.RDB$FIELD_NAME
+            WHERE RF.RDB$RELATION_NAME = ?
+            ORDER BY RF.RDB$FIELD_POSITION
+        """, (tabela.upper(),))
+        colunas = [{
+            "nome": row[0].strip(),
+            "tipo": row[1],
+            "tamanho": row[2]
+        } for row in cursor.fetchall()]
+        conn.close()
+        return jsonify({"success": True, "tabela": tabela, "colunas": colunas})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/api/requisicao/<nr_requisicao>', methods=['GET'])
 def buscar_requisicao(nr_requisicao):
     filial = request.args.get('filial', '1')
@@ -29,7 +70,7 @@ def buscar_requisicao(nr_requisicao):
         conn = get_db_connection()
         cursor = conn.cursor()
         
-        # Busca dados base da FC12100 (nomes de colunas corrigidos)
+        # Busca dados base da FC12100
         cursor.execute("""
             SELECT NRRQU, CDFIL, NOMEPA, PFCRM, NRCRM, UFCRM,
                    DTCAD, DTVAL, NRREG, POSOL, TPUSO, OBSERFIC,
@@ -51,7 +92,7 @@ def buscar_requisicao(nr_requisicao):
             "prefixoCRM": row[3] or "",
             "numeroCRM": row[4] or "",
             "ufCRM": row[5] or "",
-            "nomeMedico": "",  # Não existe nesta tabela
+            "nomeMedico": "",
             "dataFabricacao": row[6].strftime('%d/%m/%Y') if row[6] else "",
             "dataValidade": row[7].strftime('%d/%m/%Y') if row[7] else "",
             "numeroRegistro": row[8] or "",
@@ -62,7 +103,7 @@ def buscar_requisicao(nr_requisicao):
             "unidadeVolume": row[13] or "",
         }
         
-        # Busca produtos da FC12110 (nomes de colunas corrigidos)
+        # Busca produtos da FC12110
         cursor.execute("""
             SELECT DESCR, QUANT, UNIDA
             FROM FC12110
