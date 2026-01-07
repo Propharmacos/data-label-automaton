@@ -1,5 +1,5 @@
 import { getApiConfig } from "@/config/api";
-import { Requisicao, Produto } from "@/types/requisicao";
+import { Requisicao, Produto, RotuloItem } from "@/types/requisicao";
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -38,7 +38,31 @@ const mapearRequisicao = (data: any, index: number): Requisicao => ({
   produtos: Array.isArray(data.produtos) ? data.produtos.map(mapearProduto) : [],
 });
 
-export const buscarRequisicao = async (numeroRequisicao: string): Promise<ApiResponse<Requisicao[]>> => {
+// Converte uma requisição em múltiplos rótulos (1 por produto com tipoComponente === 'R')
+const converterParaRotulos = (requisicao: Requisicao): RotuloItem[] => {
+  const produtosMateriaPrima = requisicao.produtos.filter(p => p.tipoComponente === 'R');
+  
+  return produtosMateriaPrima.map((produto, index) => ({
+    id: `${requisicao.nrRequisicao}-${produto.itemId || index + 1}`,
+    nrRequisicao: requisicao.nrRequisicao,
+    produto,
+    nomePaciente: requisicao.nomePaciente,
+    prefixoCRM: requisicao.prefixoCRM,
+    numeroCRM: requisicao.numeroCRM,
+    ufCRM: requisicao.ufCRM,
+    nomeMedico: requisicao.nomeMedico,
+    dataFabricacao: requisicao.dataFabricacao,
+    dataValidade: requisicao.dataValidade,
+    numeroRegistro: requisicao.numeroRegistro,
+    posologia: requisicao.posologia,
+    tipoUso: requisicao.tipoUso,
+    volume: requisicao.volume,
+    unidadeVolume: requisicao.unidadeVolume,
+    observacoes: requisicao.observacoes,
+  }));
+};
+
+export const buscarRequisicao = async (numeroRequisicao: string): Promise<ApiResponse<RotuloItem[]>> => {
   const config = getApiConfig();
   
   try {
@@ -67,9 +91,12 @@ export const buscarRequisicao = async (numeroRequisicao: string): Promise<ApiRes
     // Extrair os dados reais do objeto result.data
     const rawData = result.data;
     const requisicoes = Array.isArray(rawData) ? rawData : [rawData];
-    const mappedData = requisicoes.map((item, index) => mapearRequisicao(item, index));
+    const mappedRequisicoes = requisicoes.map((item, index) => mapearRequisicao(item, index));
     
-    return { success: true, data: mappedData };
+    // Converter requisições em rótulos individuais por produto
+    const rotulos = mappedRequisicoes.flatMap(converterParaRotulos);
+    
+    return { success: true, data: rotulos };
   } catch (error) {
     console.error("Erro ao buscar requisição:", error);
     return { 
