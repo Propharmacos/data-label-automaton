@@ -1,5 +1,5 @@
 import { getApiConfig } from "@/config/api";
-import { Requisicao, Produto, RotuloItem } from "@/types/requisicao";
+import { RotuloItem } from "@/types/requisicao";
 
 export interface ApiResponse<T> {
   success: boolean;
@@ -7,19 +7,11 @@ export interface ApiResponse<T> {
   error?: string;
 }
 
-// Mapeia produto da API
-const mapearProduto = (data: any): Produto => ({
-  itemId: data.itemId || "",
-  codigoProduto: data.codigoProduto || "",
-  descricao: data.descricao || "",
-  quantidade: data.quantidade || "",
-  tipoComponente: data.tipoComponente || "",
-});
-
-// Mapeia resposta da API para o formato da interface Requisicao
-const mapearRequisicao = (data: any, index: number): Requisicao => ({
-  id: data.id || data.nrRequisicao || String(index + 1),
+// Mapeia cada fórmula da API para um rótulo
+const mapearRotulo = (data: any): RotuloItem => ({
+  id: data.id || `${data.nrRequisicao}-${data.nrItem || '0'}`,
   nrRequisicao: data.nrRequisicao || "",
+  nrItem: data.nrItem || "0",
   nomePaciente: data.nomePaciente || "",
   prefixoCRM: data.prefixoCRM || "",
   numeroCRM: data.numeroCRM || "",
@@ -34,33 +26,7 @@ const mapearRequisicao = (data: any, index: number): Requisicao => ({
   volume: data.volume || "",
   unidadeVolume: data.unidadeVolume || "",
   observacoes: data.observacoes || "",
-  codigoFilial: data.codigoFilial || "",
-  produtos: Array.isArray(data.produtos) ? data.produtos.map(mapearProduto) : [],
 });
-
-// Converte uma requisição em múltiplos rótulos (1 por produto com tipoComponente === 'R')
-const converterParaRotulos = (requisicao: Requisicao): RotuloItem[] => {
-  const produtosMateriaPrima = requisicao.produtos.filter(p => p.tipoComponente === 'R');
-  
-  return produtosMateriaPrima.map((produto, index) => ({
-    id: `${requisicao.nrRequisicao}-${produto.itemId || index + 1}`,
-    nrRequisicao: requisicao.nrRequisicao,
-    produto,
-    nomePaciente: requisicao.nomePaciente,
-    prefixoCRM: requisicao.prefixoCRM,
-    numeroCRM: requisicao.numeroCRM,
-    ufCRM: requisicao.ufCRM,
-    nomeMedico: requisicao.nomeMedico,
-    dataFabricacao: requisicao.dataFabricacao,
-    dataValidade: requisicao.dataValidade,
-    numeroRegistro: requisicao.numeroRegistro,
-    posologia: requisicao.posologia,
-    tipoUso: requisicao.tipoUso,
-    volume: requisicao.volume,
-    unidadeVolume: requisicao.unidadeVolume,
-    observacoes: requisicao.observacoes,
-  }));
-};
 
 export const buscarRequisicao = async (numeroRequisicao: string): Promise<ApiResponse<RotuloItem[]>> => {
   const config = getApiConfig();
@@ -83,18 +49,14 @@ export const buscarRequisicao = async (numeroRequisicao: string): Promise<ApiRes
 
     const result = await response.json();
     
-    // Verificar se a API retornou sucesso
     if (!result.success) {
       throw new Error(result.error || "Erro ao buscar requisição");
     }
     
-    // Extrair os dados reais do objeto result.data
+    // API agora retorna array de fórmulas diretamente
     const rawData = result.data;
-    const requisicoes = Array.isArray(rawData) ? rawData : [rawData];
-    const mappedRequisicoes = requisicoes.map((item, index) => mapearRequisicao(item, index));
-    
-    // Converter requisições em rótulos individuais por produto
-    const rotulos = mappedRequisicoes.flatMap(converterParaRotulos);
+    const formulas = Array.isArray(rawData) ? rawData : [rawData];
+    const rotulos = formulas.map(mapearRotulo);
     
     return { success: true, data: rotulos };
   } catch (error) {

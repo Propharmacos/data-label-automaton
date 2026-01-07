@@ -1,42 +1,14 @@
-export interface Produto {
-  itemId: string;
-  codigoProduto: string;
-  descricao: string;
-  quantidade: string;
-  tipoComponente: string;
-}
-
-export interface Requisicao {
-  id: string;
-  nrRequisicao: string;
-  nomePaciente: string;
-  prefixoCRM: string;
-  numeroCRM: string;
-  ufCRM: string;
-  nomeMedico: string;
-  formula: string;
-  dataFabricacao: string;
-  dataValidade: string;
-  numeroRegistro: string;
-  posologia: string;
-  tipoUso: string;
-  volume: string;
-  unidadeVolume: string;
-  observacoes: string;
-  codigoFilial: string;
-  produtos: Produto[];
-}
-
-// Rótulo individual por produto
+// Rótulo individual por fórmula (cada aba do Fórmula Certa)
 export interface RotuloItem {
   id: string;
   nrRequisicao: string;
-  produto: Produto;
+  nrItem: string;
   nomePaciente: string;
   prefixoCRM: string;
   numeroCRM: string;
   ufCRM: string;
   nomeMedico: string;
+  formula: string;           // TITROT - nome da fórmula (Lidocaína, Água, Alopécia)
   dataFabricacao: string;
   dataValidade: string;
   numeroRegistro: string;

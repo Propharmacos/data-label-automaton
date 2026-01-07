@@ -45,17 +45,17 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, selected, onToggle }: 
           {/* Cabeçalho da Farmácia */}
           <PharmacyHeader config={pharmacyConfig} compact />
           
-          {/* Dados do Produto */}
+          {/* Dados da Fórmula */}
           <div className="space-y-0.5">
-            {/* Nome do Produto */}
+            {/* Nome da Fórmula */}
             <p className="font-bold text-[9px] leading-tight text-primary">
-              {rotulo.produto.descricao}
+              {rotulo.formula}
             </p>
             
-            {/* Quantidade */}
-            {rotulo.produto.quantidade && (
+            {/* Volume */}
+            {rotulo.volume && (
               <p className="text-[7px] leading-tight">
-                <span className="text-muted-foreground">Qtd:</span> {rotulo.produto.quantidade}
+                <span className="text-muted-foreground">Vol:</span> {rotulo.volume} {rotulo.unidadeVolume}
               </p>
             )}
             
