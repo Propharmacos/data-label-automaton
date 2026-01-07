@@ -43,10 +43,16 @@ export const buscarRequisicao = async (numeroRequisicao: string): Promise<ApiRes
       throw new Error(`Erro HTTP: ${response.status}`);
     }
 
-    const data = await response.json();
+    const result = await response.json();
     
-    // API pode retornar array ou objeto único
-    const requisicoes = Array.isArray(data) ? data : [data];
+    // Verificar se a API retornou sucesso
+    if (!result.success) {
+      throw new Error(result.error || "Erro ao buscar requisição");
+    }
+    
+    // Extrair os dados reais do objeto result.data
+    const rawData = result.data;
+    const requisicoes = Array.isArray(rawData) ? rawData : [rawData];
     const mappedData = requisicoes.map((item, index) => mapearRequisicao(item, index));
     
     return { success: true, data: mappedData };
