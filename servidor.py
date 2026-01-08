@@ -60,6 +60,33 @@ def listar_colunas(tabela):
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
+# Debug: lista últimas requisições
+@app.route('/api/debug/ultimas-requisicoes', methods=['GET'])
+def debug_ultimas_requisicoes():
+    limite = request.args.get('limite', '20')
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(f"""
+            SELECT FIRST {limite} NRRQU, CDFIL, NOMEPA, DTCAD
+            FROM FC12100
+            ORDER BY NRRQU DESC
+        """)
+        
+        requisicoes = []
+        for row in cursor.fetchall():
+            requisicoes.append({
+                "nrRequisicao": str(row[0]),
+                "filial": str(row[1]),
+                "paciente": row[2],
+                "dataCad": row[3].strftime('%d/%m/%Y') if row[3] else None
+            })
+        
+        conn.close()
+        return jsonify({"success": True, "requisicoes": requisicoes})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/api/debug/formulas/<nr_requisicao>', methods=['GET'])
 def debug_formulas(nr_requisicao):
     filial = request.args.get('filial', '1')
