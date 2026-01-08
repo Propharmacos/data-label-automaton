@@ -111,13 +111,6 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, selected, onToggle, on
             </span>
           </div>
           
-          {/* Linha 4: Quantidade */}
-          {rotulo.quantidade && (
-            <p className="text-[10px] leading-tight mt-1 font-medium">
-              {rotulo.quantidade}
-            </p>
-          )}
-          
           {/* Linha 5: Tipo de Uso + Aplicação */}
           <div className="flex justify-between text-[10px] leading-tight mt-1">
             <span className="uppercase">{rotulo.tipoUso || "USO"}</span>
