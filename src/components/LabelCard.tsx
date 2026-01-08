@@ -158,6 +158,13 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, selected, onToggle, on
               <span className="text-muted-foreground">Posologia:</span> {rotulo.posologia}
             </p>
           )}
+          
+          {/* Observações do produto se houver */}
+          {rotulo.observacoes && (
+            <p className="text-[9px] leading-tight border-t border-dashed border-foreground/20 pt-1 mt-1 text-muted-foreground italic">
+              <span className="font-medium not-italic">Obs:</span> {rotulo.observacoes}
+            </p>
+          )}
         </div>
       </div>
     </Card>
