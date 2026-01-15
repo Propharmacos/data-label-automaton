@@ -243,6 +243,7 @@ const Index = () => {
               layout={layoutConfig} 
               onSave={handleLayoutEditorSave}
               onClose={() => setEditorOpen(false)}
+              previewData={rotulos.length > 0 ? rotulos[0] : undefined}
             />
           </DialogContent>
         </Dialog>
