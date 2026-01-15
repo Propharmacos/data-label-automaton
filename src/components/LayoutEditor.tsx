@@ -11,7 +11,7 @@ import PharmacyHeader from "./PharmacyHeader";
 
 // Constantes para dimensões (igual ao LabelCard)
 const FIELD_AREA_HEIGHT = 140; // px - altura base da área de campos
-const PREVIEW_SCALE = 1.8; // Escala visual para facilitar edição
+const PREVIEW_SCALE = 2.5; // Escala visual maior para facilitar edição
 
 interface LayoutEditorProps {
   layout: LayoutConfig;
@@ -232,7 +232,7 @@ const LayoutEditor = forwardRef<HTMLDivElement, LayoutEditorProps>(({
         </Button>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-2 gap-8">
         {/* Preview do rótulo - espelha LabelCard */}
         <div>
           <p className="text-sm text-muted-foreground mb-2 flex items-center gap-1">
@@ -311,8 +311,8 @@ const LayoutEditor = forwardRef<HTMLDivElement, LayoutEditorProps>(({
 
         {/* Painel de propriedades */}
         <div className="space-y-4">
-          <p className="text-sm font-medium">Campos do Rótulo</p>
-          <div className="max-h-[400px] overflow-y-auto space-y-2 pr-2">
+          <p className="text-sm font-medium text-foreground">Campos do Rótulo</p>
+          <div className="max-h-[500px] overflow-y-auto space-y-3 pr-2">
             {allFields.map((fieldId) => {
               const field = editedLayout.campos[fieldId];
               const isSelected = selectedField === fieldId;
@@ -320,20 +320,20 @@ const LayoutEditor = forwardRef<HTMLDivElement, LayoutEditorProps>(({
               return (
                 <div
                   key={fieldId}
-                  className={`p-2 rounded border cursor-pointer transition-all ${
+                  className={`p-3 rounded-lg border cursor-pointer transition-all ${
                     isSelected
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/50'
+                      ? 'border-primary bg-primary/10 shadow-sm'
+                      : 'border-border hover:border-primary/50 bg-card'
                   }`}
                   onClick={() => setSelectedField(fieldId)}
                 >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm font-medium">{fieldLabels[fieldId]}</span>
-                    <div className="flex items-center gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-foreground">{fieldLabels[fieldId]}</span>
+                    <div className="flex items-center gap-3">
                       {field.visible ? (
-                        <Eye className="h-3 w-3 text-green-600" />
+                        <Eye className="h-4 w-4 text-green-600" />
                       ) : (
-                        <EyeOff className="h-3 w-3 text-muted-foreground" />
+                        <EyeOff className="h-4 w-4 text-muted-foreground" />
                       )}
                       <Switch
                         checked={field.visible}
@@ -345,45 +345,49 @@ const LayoutEditor = forwardRef<HTMLDivElement, LayoutEditorProps>(({
                   </div>
 
                   {isSelected && field.visible && (
-                    <div className="space-y-3 mt-3 pt-3 border-t">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Tamanho da fonte: {field.fontSize}px</Label>
+                    <div className="space-y-4 mt-4 pt-4 border-t border-border/50">
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Tamanho da fonte: <span className="font-semibold text-foreground">{field.fontSize}px</span></Label>
                         <Slider
                           value={[field.fontSize]}
                           min={6}
                           max={18}
                           step={1}
+                          className="py-1"
                           onValueChange={([v]) => handleFieldUpdate(fieldId, { fontSize: v })}
                         />
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Largura máxima: {field.width.toFixed(0)}%</Label>
+                      <div className="space-y-2">
+                        <Label className="text-xs text-muted-foreground">Largura máxima: <span className="font-semibold text-foreground">{field.width.toFixed(0)}%</span></Label>
                         <Slider
                           value={[field.width]}
                           min={10}
                           max={100}
                           step={5}
+                          className="py-1"
                           onValueChange={([v]) => handleFieldUpdate(fieldId, { width: v })}
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="space-y-1">
-                          <Label className="text-xs">Posição X: {field.x.toFixed(0)}%</Label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground">Posição X: <span className="font-semibold text-foreground">{field.x.toFixed(0)}%</span></Label>
                           <Slider
                             value={[field.x]}
                             min={0}
                             max={90}
                             step={1}
+                            className="py-1"
                             onValueChange={([v]) => handleFieldUpdate(fieldId, { x: v })}
                           />
                         </div>
-                        <div className="space-y-1">
-                          <Label className="text-xs">Posição Y: {field.y.toFixed(0)}%</Label>
+                        <div className="space-y-2">
+                          <Label className="text-xs text-muted-foreground">Posição Y: <span className="font-semibold text-foreground">{field.y.toFixed(0)}%</span></Label>
                           <Slider
                             value={[field.y]}
                             min={0}
                             max={90}
                             step={1}
+                            className="py-1"
                             onValueChange={([v]) => handleFieldUpdate(fieldId, { y: v })}
                           />
                         </div>
