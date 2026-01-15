@@ -244,6 +244,8 @@ const Index = () => {
               onSave={handleLayoutEditorSave}
               onClose={() => setEditorOpen(false)}
               previewData={rotulos.length > 0 ? rotulos[0] : undefined}
+              pharmacyConfig={pharmacyConfig}
+              labelConfig={labelConfig}
             />
           </DialogContent>
         </Dialog>
