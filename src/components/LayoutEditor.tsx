@@ -4,7 +4,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Save, RotateCcw, Move, Eye, EyeOff, GripVertical } from "lucide-react";
-import { LayoutConfig, LabelFieldId, FieldPosition } from "@/types/requisicao";
+import { LayoutConfig, LabelFieldId, FieldPosition, RotuloItem } from "@/types/requisicao";
 import { fieldLabels, saveLayout, resetLayout } from "@/config/layouts";
 import { useToast } from "@/hooks/use-toast";
 
@@ -12,9 +12,10 @@ interface LayoutEditorProps {
   layout: LayoutConfig;
   onSave: (layout: LayoutConfig) => void;
   onClose?: () => void;
+  previewData?: RotuloItem;
 }
 
-const LayoutEditor = forwardRef<HTMLDivElement, LayoutEditorProps>(({ layout, onSave, onClose }, ref) => {
+const LayoutEditor = forwardRef<HTMLDivElement, LayoutEditorProps>(({ layout, onSave, onClose, previewData }, ref) => {
   const { toast } = useToast();
   const [editedLayout, setEditedLayout] = useState<LayoutConfig>(() => 
     JSON.parse(JSON.stringify(layout))
@@ -29,23 +30,47 @@ const LayoutEditor = forwardRef<HTMLDivElement, LayoutEditorProps>(({ layout, on
     setEditedLayout(JSON.parse(JSON.stringify(layout)));
   }, [layout]);
 
-  // Dados de exemplo para preview
-  const sampleData: Record<LabelFieldId, string> = {
-    medico: 'DR CLEBER LEITE CREFITO-SC-10749',
-    paciente: 'IBES CURSOS E POS',
-    requisicao: 'REQ:005537-4',
-    formula: 'CURCUMINA 200MG',
-    lote: 'L:297/25',
-    fabricacao: 'F:11/25',
-    validade: 'V:11/26',
-    ph: 'pH:6.0',
-    aplicacao: 'APLICAÇÃO: IM/EV/SC',
-    tipoUso: 'USO EM CONSULTÓRIO',
-    contem: 'CONTÉM: 2KITS C/4 FR. DE 2ML',
-    posologia: 'Posologia: Conforme prescrição',
-    observacoes: 'Obs: Manter refrigerado',
-    registro: 'REQ:11549',
+  // Dados para preview - usa dados reais quando disponíveis
+  const getDisplayData = (): Record<LabelFieldId, string> => {
+    if (previewData) {
+      return {
+        medico: `DR ${previewData.nomeMedico || ''} ${previewData.prefixoCRM || ''}-${previewData.ufCRM || ''} ${previewData.numeroCRM || ''}`.trim(),
+        paciente: previewData.nomePaciente || '',
+        requisicao: `REQ:${previewData.nrRequisicao || ''}-${previewData.nrItem || ''}`,
+        formula: previewData.formula || previewData.descricaoProduto || '',
+        lote: `L:${previewData.lote || ''}`,
+        fabricacao: `F:${previewData.dataFabricacao || ''}`,
+        validade: `V:${previewData.dataValidade || ''}`,
+        ph: previewData.ph ? `pH:${previewData.ph}` : '',
+        aplicacao: previewData.aplicacao ? `APLICAÇÃO: ${previewData.aplicacao}` : '',
+        tipoUso: previewData.tipoUso || '',
+        contem: previewData.contem ? `CONTÉM: ${previewData.contem}` : '',
+        posologia: previewData.posologia || '',
+        observacoes: previewData.observacoes || '',
+        registro: `REQ:${previewData.numeroRegistro || previewData.nrRequisicao || ''}`,
+      };
+    }
+    
+    // Fallback para dados de exemplo
+    return {
+      medico: 'DR EXEMPLO CRM-XX 0000',
+      paciente: 'PACIENTE EXEMPLO',
+      requisicao: 'REQ:000000-0',
+      formula: 'FORMULA EXEMPLO',
+      lote: 'L:000/00',
+      fabricacao: 'F:00/00',
+      validade: 'V:00/00',
+      ph: 'pH:0.0',
+      aplicacao: 'APLICAÇÃO: IM/EV/SC',
+      tipoUso: 'USO EXEMPLO',
+      contem: 'CONTÉM: EXEMPLO',
+      posologia: 'Posologia: Conforme prescrição',
+      observacoes: 'Obs: Exemplo',
+      registro: 'REQ:00000',
+    };
   };
+
+  const displayData = getDisplayData();
 
   const handleFieldUpdate = useCallback((fieldId: LabelFieldId, updates: Partial<FieldPosition>) => {
     setEditedLayout(prev => ({
@@ -188,7 +213,7 @@ const LayoutEditor = forwardRef<HTMLDivElement, LayoutEditorProps>(({ layout, on
                 >
                   <GripVertical className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                   <span className="text-foreground whitespace-nowrap overflow-hidden text-ellipsis">
-                    {sampleData[fieldId]}
+                    {displayData[fieldId]}
                   </span>
                 </div>
               );
