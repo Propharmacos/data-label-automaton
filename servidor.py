@@ -1149,23 +1149,19 @@ def buscar_requisicao(nr_requisicao):
                 texto = obs[1]
                 if texto and hasattr(texto, 'read'):
                     texto = texto.read().decode('latin-1')
+                texto = texto.strip() if texto else ""
                 
-                if cdicp == '00003':  # Aplicação
-                    aplicacao = texto.strip() if texto else ""
-                elif cdicp == '00004':  # Descrição do produto
-                    descricao_produto = texto.strip() if texto else ""
-            
-            # Limpa prefixo "APLICAÇÃO:" se existir
-            if aplicacao.upper().startswith("APLICAÇÃO:"):
-                aplicacao = aplicacao[10:].strip()
-            elif aplicacao.upper().startswith("APLICACAO:"):
-                aplicacao = aplicacao[10:].strip()
-            
-            # Valida aplicação - só limpa se for claramente ativos (muito longo ou com vírgula)
-            # Se for texto curto, mantém como está
-            if len(aplicacao) > 30 or ',' in aplicacao:
-                # Provavelmente são ativos, não uma via de aplicação
-                aplicacao = ""
+                # Busca aplicação em QUALQUER código que contenha "APLICAÇÃO:" ou "APLICACAO:"
+                texto_upper = texto.upper()
+                if texto_upper.startswith("APLICAÇÃO:") or texto_upper.startswith("APLICACAO:"):
+                    # Extrai o valor após "APLICAÇÃO:"
+                    if texto_upper.startswith("APLICAÇÃO:"):
+                        aplicacao = texto[10:].strip()
+                    else:
+                        aplicacao = texto[10:].strip()
+                elif cdicp == '00004' and not descricao_produto:
+                    # Descrição do produto (se não for aplicação)
+                    descricao_produto = texto
             
             rotulo = {
                 **dados_base,
