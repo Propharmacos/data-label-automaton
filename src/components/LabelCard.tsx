@@ -1,5 +1,9 @@
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { Edit, Save, X } from "lucide-react";
 import { RotuloItem, PharmacyConfig, LabelConfig, LayoutConfig, LabelFieldId } from "@/types/requisicao";
 import PharmacyHeader from "./PharmacyHeader";
 
@@ -14,6 +18,9 @@ interface LabelCardProps {
 }
 
 const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected, onToggle, onUpdate }: LabelCardProps) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editText, setEditText] = useState("");
+
   // Converter mm para pixels aproximados (96 DPI / 25.4mm)
   const mmToPx = (mm: number) => Math.round(mm * 3.78);
   
@@ -24,12 +31,10 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
 
   // Extrair aplicação de observações se necessário
   const getAplicacao = (): string => {
-    // Se já tem aplicação definida, usa ela
     if (rotulo.aplicacao && rotulo.aplicacao.trim()) {
       return rotulo.aplicacao.trim().toUpperCase();
     }
     
-    // Tenta extrair de observações
     const obs = rotulo.observacoes || "";
     const patterns = [
       /APLIC(?:AÇÃO|ACAO)?[:\s]+([^\n,;]+)/i,
@@ -50,7 +55,6 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
   const getObservacoes = (): string => {
     let obs = rotulo.observacoes || "";
     
-    // Se aplicação foi extraída de obs, remove ela
     if (!rotulo.aplicacao || !rotulo.aplicacao.trim()) {
       obs = obs.replace(/APLIC(?:AÇÃO|ACAO)?[:\s]+[^\n,;]+[,;\s]*/gi, "").trim();
     }
@@ -67,7 +71,6 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
     return `${prefixo} CRM ${rotulo.numeroCRM}/${rotulo.ufCRM}`;
   };
 
-  // Formatar data curta (MM/AA)
   const formatarDataCurta = (data: string) => {
     if (!data) return "";
     const partes = data.split('/');
@@ -77,7 +80,6 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
     return data;
   };
 
-  // Remover prefixo "AMP " do nome da fórmula
   const formatarFormula = (formula: string) => {
     if (!formula) return "";
     let nome = formula;
@@ -87,7 +89,6 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
     return nome.toUpperCase();
   };
 
-  // Formatar lote como lote/ano (ex: 415/25)
   const formatarLote = () => {
     const lote = rotulo.lote || "";
     if (lote.includes('/')) return lote;
@@ -95,7 +96,77 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
     return lote ? `${lote}/${ano}` : "";
   };
 
-  // Obter conteúdo do campo
+  // Gerar texto formatado inicial para edição
+  const generateInitialText = (): string => {
+    const aplicacao = getAplicacao();
+    const observacoes = getObservacoes();
+    
+    const lines: string[] = [];
+    
+    // Linha 1: Médico
+    const medico = formatarMedico();
+    if (medico) lines.push(medico);
+    
+    // Linha 2: Paciente
+    if (rotulo.nomePaciente) lines.push(rotulo.nomePaciente.toUpperCase());
+    
+    // Linha 3: Fórmula
+    const formula = formatarFormula(rotulo.formula);
+    if (formula) lines.push(formula);
+    
+    // Linha 4: Lote, Fabricação, Validade
+    const loteInfo: string[] = [];
+    const lote = formatarLote();
+    if (lote) loteInfo.push(`L: ${lote}`);
+    if (rotulo.dataFabricacao) loteInfo.push(`F: ${formatarDataCurta(rotulo.dataFabricacao)}`);
+    if (rotulo.dataValidade) loteInfo.push(`V: ${formatarDataCurta(rotulo.dataValidade)}`);
+    if (loteInfo.length > 0) lines.push(loteInfo.join('  '));
+    
+    // Linha 5: pH, Aplicação, Contem
+    const infoLine: string[] = [];
+    if (rotulo.ph) infoLine.push(`pH: ${rotulo.ph}`);
+    if (aplicacao) infoLine.push(`APLIC: ${aplicacao}`);
+    if (rotulo.contem) infoLine.push(`CONT: ${rotulo.contem}`);
+    if (infoLine.length > 0) lines.push(infoLine.join('  '));
+    
+    // Linha 6: Tipo de Uso
+    const tipoUso = rotulo.tipoUso?.toUpperCase() || "USO INJETÁVEL";
+    lines.push(tipoUso);
+    
+    // Linha 7: Posologia (se existir)
+    if (rotulo.posologia) lines.push(`Pos: ${rotulo.posologia}`);
+    
+    // Linha 8: Observações (se existir)
+    if (observacoes) lines.push(`Obs: ${observacoes}`);
+    
+    return lines.join('\n');
+  };
+
+  // Entrar no modo de edição
+  const handleStartEdit = () => {
+    const initialText = rotulo.textoLivre || generateInitialText();
+    setEditText(initialText);
+    setIsEditing(true);
+  };
+
+  // Salvar edição
+  const handleSave = () => {
+    onUpdate?.(rotulo.id, 'textoLivre', editText);
+    setIsEditing(false);
+  };
+
+  // Cancelar edição
+  const handleCancel = () => {
+    setEditText("");
+    setIsEditing(false);
+  };
+
+  // Duplo clique para editar
+  const handleDoubleClick = () => {
+    handleStartEdit();
+  };
+
+  // Obter conteúdo do campo (para modo visual)
   const getFieldContent = (fieldId: LabelFieldId): React.ReactNode => {
     const config = layoutConfig.campoConfig[fieldId];
     if (!config?.visible) return null;
@@ -106,95 +177,37 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
     switch (fieldId) {
       case 'paciente':
         return rotulo.nomePaciente || "";
-      
       case 'requisicao':
         return `REQ: ${rotulo.nrRequisicao}-${rotulo.nrItem}`;
-      
       case 'formula':
         return formatarFormula(rotulo.formula);
-      
       case 'lote':
         return `L: ${formatarLote() || "___"}`;
-      
       case 'fabricacao':
         return `F: ${formatarDataCurta(rotulo.dataFabricacao)}`;
-      
       case 'validade':
         return `V: ${formatarDataCurta(rotulo.dataValidade)}`;
-      
       case 'ph':
-        return (
-          <span className="flex items-center gap-1">
-            pH:
-            <input
-              type="text"
-              value={rotulo.ph || ""}
-              onChange={(e) => onUpdate?.(rotulo.id, 'ph', e.target.value)}
-              placeholder="7.0"
-              className="w-10 bg-muted/50 border-b border-dashed border-foreground/30 px-1 focus:outline-none focus:border-primary text-center"
-              style={{ fontSize: 'inherit' }}
-              onClick={(e) => e.stopPropagation()}
-            />
-          </span>
-        );
-      
+        return rotulo.ph ? `pH: ${rotulo.ph}` : "";
       case 'tipoUso':
         return rotulo.tipoUso?.toUpperCase() || "USO INJETÁVEL";
-      
       case 'aplicacao':
-        return (
-          <span className="flex items-center gap-1">
-            APLIC:
-            {aplicacao ? (
-              <span className="font-medium">{aplicacao}</span>
-            ) : (
-              <input
-                type="text"
-                value=""
-                onChange={(e) => onUpdate?.(rotulo.id, 'aplicacao', e.target.value)}
-                placeholder="ID/SC"
-                className="w-12 bg-muted/50 border-b border-dashed border-foreground/30 px-1 focus:outline-none focus:border-primary uppercase text-center"
-                style={{ fontSize: 'inherit' }}
-                onClick={(e) => e.stopPropagation()}
-              />
-            )}
-          </span>
-        );
-      
+        return aplicacao ? `APLIC: ${aplicacao}` : "";
       case 'contem':
-        return (
-          <span className="flex items-center gap-1">
-            CONT:
-            <input
-              type="text"
-              value={rotulo.contem || ""}
-              onChange={(e) => onUpdate?.(rotulo.id, 'contem', e.target.value)}
-              placeholder="5 FR. DE 2ML"
-              className="w-24 bg-muted/50 border-b border-dashed border-foreground/30 px-1 focus:outline-none focus:border-primary uppercase"
-              style={{ fontSize: 'inherit' }}
-              onClick={(e) => e.stopPropagation()}
-            />
-          </span>
-        );
-      
+        return rotulo.contem ? `CONT: ${rotulo.contem}` : "";
       case 'registro':
         return rotulo.numeroRegistro ? `REG: ${rotulo.numeroRegistro}` : "";
-      
       case 'medico':
         return formatarMedico();
-      
       case 'posologia':
         return rotulo.posologia ? `Pos: ${rotulo.posologia}` : "";
-      
       case 'observacoes':
         return observacoes ? `Obs: ${observacoes}` : "";
-      
       default:
         return "";
     }
   };
 
-  // Verificar se campo deve ser renderizado
   const shouldRenderField = (fieldId: LabelFieldId): boolean => {
     const config = layoutConfig.campoConfig[fieldId];
     if (!config?.visible) return false;
@@ -205,13 +218,56 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
     return true;
   };
 
-  // Obter espaçamento da linha
   const getLineSpacing = (spacing?: string): string => {
     switch (spacing) {
       case 'compact': return 'gap-2';
       case 'wide': return 'gap-4';
       default: return 'gap-3';
     }
+  };
+
+  // Renderizar conteúdo do rótulo baseado em texto livre ou layout
+  const renderLabelContent = () => {
+    // Se tem texto livre salvo, usa ele
+    if (rotulo.textoLivre) {
+      return (
+        <div className="p-2 whitespace-pre-wrap font-mono text-xs leading-tight">
+          {rotulo.textoLivre}
+        </div>
+      );
+    }
+
+    // Senão, usa o layout baseado em linhas
+    return (
+      <div className="p-2 space-y-1">
+        {layoutConfig.linhas.map((linha) => {
+          const camposVisiveis = linha.campos.filter(shouldRenderField);
+          if (camposVisiveis.length === 0) return null;
+
+          return (
+            <div 
+              key={linha.id} 
+              className={`flex flex-wrap items-baseline ${getLineSpacing(linha.spacing)}`}
+            >
+              {camposVisiveis.map((fieldId) => {
+                const config = layoutConfig.campoConfig[fieldId];
+                const content = getFieldContent(fieldId);
+                
+                return (
+                  <span
+                    key={fieldId}
+                    className={`leading-tight ${config.bold ? 'font-bold' : ''} ${config.uppercase ? 'uppercase' : ''}`}
+                    style={{ fontSize: `${config.fontSize}px` }}
+                  >
+                    {content}
+                  </span>
+                );
+              })}
+            </div>
+          );
+        })}
+      </div>
+    );
   };
 
   return (
@@ -223,44 +279,60 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
           className="mt-2"
         />
         
-        {/* Preview do Rótulo - Layout em linhas (estilo Word/Excel) */}
-        <div 
-          className="flex-1 bg-white border border-border rounded overflow-hidden font-mono text-foreground"
-          style={{ ...labelStyle, minHeight: '180px' }}
-        >
-          {/* Cabeçalho da Farmácia - fixo no topo */}
-          <PharmacyHeader config={pharmacyConfig} compact />
-          
-          {/* Área de campos em linhas */}
-          <div className="p-2 space-y-1">
-            {layoutConfig.linhas.map((linha) => {
-              // Filtra campos visíveis e com conteúdo
-              const camposVisiveis = linha.campos.filter(shouldRenderField);
-              if (camposVisiveis.length === 0) return null;
-
-              return (
-                <div 
-                  key={linha.id} 
-                  className={`flex flex-wrap items-baseline ${getLineSpacing(linha.spacing)}`}
-                >
-                  {camposVisiveis.map((fieldId) => {
-                    const config = layoutConfig.campoConfig[fieldId];
-                    const content = getFieldContent(fieldId);
-                    
-                    return (
-                      <span
-                        key={fieldId}
-                        className={`leading-tight ${config.bold ? 'font-bold' : ''} ${config.uppercase ? 'uppercase' : ''}`}
-                        style={{ fontSize: `${config.fontSize}px` }}
-                      >
-                        {content}
-                      </span>
-                    );
-                  })}
-                </div>
-              );
-            })}
-          </div>
+        <div className="flex-1">
+          {/* Modo Edição - Textarea como bloco de notas */}
+          {isEditing ? (
+            <div className="space-y-3">
+              <div 
+                className="bg-white border border-border rounded overflow-hidden"
+                style={{ ...labelStyle, minHeight: '200px' }}
+              >
+                <PharmacyHeader config={pharmacyConfig} compact />
+                <Textarea
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  className="border-0 rounded-none font-mono text-xs resize-none focus-visible:ring-0 focus-visible:ring-offset-0 min-h-[150px]"
+                  style={{ minHeight: '150px' }}
+                  placeholder="Digite o conteúdo do rótulo..."
+                  autoFocus
+                />
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" size="sm" onClick={handleCancel}>
+                  <X className="h-4 w-4 mr-1" />
+                  Cancelar
+                </Button>
+                <Button size="sm" onClick={handleSave}>
+                  <Save className="h-4 w-4 mr-1" />
+                  Salvar
+                </Button>
+              </div>
+            </div>
+          ) : (
+            /* Modo Visualização - Preview do Rótulo */
+            <div className="relative group">
+              <div 
+                className="bg-white border border-border rounded overflow-hidden font-mono text-foreground cursor-pointer"
+                style={{ ...labelStyle, minHeight: '180px' }}
+                onDoubleClick={handleDoubleClick}
+                title="Clique duas vezes para editar"
+              >
+                <PharmacyHeader config={pharmacyConfig} compact />
+                {renderLabelContent()}
+              </div>
+              
+              {/* Botão Editar - aparece no hover */}
+              <Button
+                variant="secondary"
+                size="sm"
+                className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={handleStartEdit}
+              >
+                <Edit className="h-4 w-4 mr-1" />
+                Editar
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </Card>

@@ -76,6 +76,7 @@ export interface RotuloItem {
   quantidade: string;        // QUANT - quantidade de itens
   composicao: string;        // Do banco (FC03300 CDICP 00001-00002) - ativos combinados
   descricaoProduto: string;  // Do banco (FC03300 CDICP 00004) - nome completo do produto
+  textoLivre?: string;       // Texto editado livremente pelo usuário (bloco de notas)
 }
 
 export interface PharmacyConfig {
