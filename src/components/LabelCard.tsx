@@ -24,9 +24,14 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
   // Converter mm para pixels aproximados (96 DPI / 25.4mm)
   const mmToPx = (mm: number) => Math.round(mm * 3.78);
   
+  // Tamanho do rótulo responsivo com máximo para caber no card
+  const labelWidth = Math.min(mmToPx(labelConfig.larguraMM), 320);
+  const labelHeight = Math.min(mmToPx(labelConfig.alturaMM), 220);
+  
   const labelStyle = {
-    width: `${mmToPx(labelConfig.larguraMM)}px`,
-    minHeight: `${mmToPx(labelConfig.alturaMM)}px`,
+    width: `${labelWidth}px`,
+    minHeight: `${labelHeight}px`,
+    maxWidth: '100%',
   };
 
   // Extrair aplicação de observações se necessário
@@ -231,7 +236,7 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
     // Se tem texto livre salvo, usa ele
     if (rotulo.textoLivre) {
       return (
-        <div className="p-2 whitespace-pre-wrap font-mono text-xs leading-tight">
+        <div className="p-2 whitespace-pre-wrap font-mono text-[10px] leading-snug break-words overflow-hidden">
           {rotulo.textoLivre}
         </div>
       );
@@ -239,7 +244,7 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
 
     // Senão, usa o layout baseado em linhas
     return (
-      <div className="p-2 space-y-1">
+      <div className="p-2 space-y-0.5 overflow-hidden">
         {layoutConfig.linhas.map((linha) => {
           const camposVisiveis = linha.campos.filter(shouldRenderField);
           if (camposVisiveis.length === 0) return null;
@@ -247,7 +252,7 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
           return (
             <div 
               key={linha.id} 
-              className={`flex flex-wrap items-baseline ${getLineSpacing(linha.spacing)}`}
+              className="flex flex-wrap items-baseline gap-1 text-[10px] leading-snug"
             >
               {camposVisiveis.map((fieldId) => {
                 const config = layoutConfig.campoConfig[fieldId];
@@ -256,8 +261,8 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
                 return (
                   <span
                     key={fieldId}
-                    className={`leading-tight ${config.bold ? 'font-bold' : ''} ${config.uppercase ? 'uppercase' : ''}`}
-                    style={{ fontSize: `${config.fontSize}px` }}
+                    className={`${config.bold ? 'font-bold' : ''} ${config.uppercase ? 'uppercase' : ''} break-words`}
+                    style={{ fontSize: `${Math.min(config.fontSize, 11)}px` }}
                   >
                     {content}
                   </span>
