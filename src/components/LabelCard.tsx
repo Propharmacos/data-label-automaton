@@ -68,21 +68,22 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
   };
 
   // Mapeamento de tipos de prescritores por código PFCRM
+  // SEMPRE usar "DR." como prefixo, mantendo apenas o conselho diferenciado
   const tiposPrescritores: Record<string, { prefixo: string; conselho: string }> = {
     '1': { prefixo: 'DR.', conselho: 'CRM' },       // Médico
     '2': { prefixo: 'DR.', conselho: 'CRO' },       // Dentista
     '3': { prefixo: 'DR.', conselho: 'CRMV' },      // Veterinário
-    '4': { prefixo: 'EST.', conselho: '' },         // Esteticista
-    '5': { prefixo: 'PSI.', conselho: 'CRP' },      // Psicóloga
-    '6': { prefixo: 'FARM.', conselho: 'CRF' },     // Farmacêutico
-    '7': { prefixo: 'BIOM.', conselho: 'CRBM' },    // Biomédico
-    '8': { prefixo: 'FONO.', conselho: 'CRFA' },    // Fonoaudiólogo
-    '9': { prefixo: 'NUTR.', conselho: 'CRN' },     // Nutricionista
-    'A': { prefixo: 'FISIO.', conselho: 'CREFITO' }, // Fisioterapeuta
-    'B': { prefixo: 'T.O.', conselho: 'CREFITO' },  // Terapeuta Ocupacional
-    'C': { prefixo: 'ENF.', conselho: 'COREN' },    // Enfermeiro
-    'D': { prefixo: '', conselho: 'RMS' },          // Registro Min. Saúde
-    'E': { prefixo: 'BIOL.', conselho: 'CRBio' },   // Biólogo
+    '4': { prefixo: 'DR.', conselho: '' },          // Esteticista
+    '5': { prefixo: 'DR.', conselho: 'CRP' },       // Psicóloga
+    '6': { prefixo: 'DR.', conselho: 'CRF' },       // Farmacêutico
+    '7': { prefixo: 'DR.', conselho: 'CRBM' },      // Biomédico
+    '8': { prefixo: 'DR.', conselho: 'CRFA' },      // Fonoaudiólogo
+    '9': { prefixo: 'DR.', conselho: 'CRN' },       // Nutricionista
+    'A': { prefixo: 'DR.', conselho: 'CREFITO' },   // Fisioterapeuta
+    'B': { prefixo: 'DR.', conselho: 'CREFITO' },   // Terapeuta Ocupacional
+    'C': { prefixo: 'DR.', conselho: 'COREN' },     // Enfermeiro
+    'D': { prefixo: 'DR.', conselho: 'RMS' },       // Registro Min. Saúde
+    'E': { prefixo: 'DR.', conselho: 'CRBio' },     // Biólogo
     'F': { prefixo: 'DR.', conselho: 'CRO' },       // Dentista (alternativo)
   };
 
