@@ -87,20 +87,41 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
     'F': { prefixo: 'DR.', conselho: 'CRO' },       // Dentista (alternativo)
   };
 
+  // Detectar gênero pelo primeiro nome (heurística simples para português)
+  const detectarGenero = (nome: string): 'M' | 'F' => {
+    if (!nome) return 'M';
+    const primeiroNome = nome.trim().split(' ')[0].toUpperCase();
+    
+    // Nomes femininos comuns que terminam em consoante ou outras letras
+    const nomesFemininos = ['JEANNE', 'KAREN', 'MABEL', 'RAQUEL', 'SUELI', 'MIRIAM', 'LILIAN', 'VIVIAN', 'JAQUELIN'];
+    if (nomesFemininos.includes(primeiroNome)) return 'F';
+    
+    // Nomes masculinos que terminam em 'A' (exceções)
+    const nomesMasculinos = ['JOSUE', 'JOSHUA', 'LUCA', 'MICA', 'NIKITA', 'SASCHA'];
+    if (nomesMasculinos.includes(primeiroNome)) return 'M';
+    
+    // Heurística: nomes terminados em 'A' geralmente são femininos
+    if (primeiroNome.endsWith('A')) return 'F';
+    
+    return 'M';
+  };
+
   const formatarPrescritor = () => {
     if (!rotulo.numeroCRM) return "";
     
     const codigo = (rotulo.prefixoCRM || '1').toUpperCase().trim();
     const tipo = tiposPrescritores[codigo] || { prefixo: 'DR.', conselho: 'CRM' };
     
-    const prefixo = tipo.prefixo;
+    // Detecta gênero e ajusta prefixo
+    const genero = detectarGenero(rotulo.nomeMedico);
+    const prefixo = genero === 'F' ? 'DRA.' : 'DR.';
     const conselho = tipo.conselho;
     
     if (rotulo.nomeMedico) {
-      if (prefixo) {
+      if (conselho) {
         return `${prefixo} ${rotulo.nomeMedico.toUpperCase()} - ${conselho} ${rotulo.numeroCRM}/${rotulo.ufCRM}`;
       }
-      return `${rotulo.nomeMedico.toUpperCase()} - ${conselho} ${rotulo.numeroCRM}/${rotulo.ufCRM}`;
+      return `${prefixo} ${rotulo.nomeMedico.toUpperCase()}`;
     }
     return `${conselho} ${rotulo.numeroCRM}/${rotulo.ufCRM}`;
   };
@@ -242,7 +263,7 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
       case 'posologia':
         return rotulo.posologia ? `Pos: ${rotulo.posologia}` : "";
       case 'observacoes':
-        return observacoes ? `Obs: ${observacoes}` : "";
+        return observacoes || "";
       default:
         return "";
     }
