@@ -1139,58 +1139,43 @@ def buscar_requisicao(nr_requisicao):
             cdpro = item[5]
             
             # =====================================================
-            # PRIORIDADE: Busca dados na FC99999 (OBSFIC + NR_REQUISICAO)
+            # PRIORIDADE: Busca dados na FC99999 (CONTAINING CDPRO)
             # Esta é a fonte principal para MESCLAS
             # =====================================================
-            argumento_obsfic = f"OBSFIC{nr_requisicao}"
             print(f"\n{'='*60}")
             print(f"DEBUG FC99999 - Item {idx+1}")
-            print(f"  NR_REQUISICAO: '{nr_requisicao}'")
-            print(f"  ARGUMENTO buscado: '{argumento_obsfic}'")
+            print(f"  CDPRO: '{cdpro}'")
             
-            # Primeiro, vamos ver TODOS os argumentos que contêm este CDPRO
+            # Busca TODOS os argumentos que contêm este CDPRO
             cursor.execute("""
                 SELECT ARGUMENTO, SUBARGUM, PARAMETRO 
                 FROM FC99999 
                 WHERE ARGUMENTO CONTAINING ?
                 ORDER BY ARGUMENTO, SUBARGUM
-            """, (cdpro,))
+            """, (str(cdpro),))
             todos_args = cursor.fetchall()
             print(f"  Argumentos encontrados contendo CDPRO: {len(todos_args)}")
-            for arg in todos_args:
-                param_preview = arg[2][:50] if arg[2] else 'NULL'
-                print(f"    - ARG: {arg[0]}, SUB: {arg[1]}, PARAM: {param_preview}...")
-            
-            # Agora busca com o argumento exato
-            cursor.execute("""
-                SELECT SUBARGUM, PARAMETRO 
-                FROM FC99999 
-                WHERE ARGUMENTO = ?
-                ORDER BY SUBARGUM
-            """, (argumento_obsfic,))
-            
-            obs_fc99999 = cursor.fetchall()
-            print(f"  Registros com ARGUMENTO exato: {len(obs_fc99999)}")
-            for obs in obs_fc99999:
-                param_val = obs[1]
-                if param_val and hasattr(param_val, 'read'):
-                    param_val = param_val.read().decode('latin-1')
-                param_preview = param_val[:80] if param_val else 'NULL'
-                print(f"    - SUBARGUM: {obs[0]}, PARAMETRO: {param_preview}...")
             
             # Inicializa variáveis para dados da FC99999
             ativos_mescla = []
             aplicacao_fc99999 = ""
             
-            for obs in obs_fc99999:
-                subargum = str(obs[0]).strip().zfill(5)
-                texto = obs[1]
+            # Processa TODOS os registros encontrados com CONTAINING
+            for arg in todos_args:
+                argumento = arg[0]
+                subargum = str(arg[1]).strip().zfill(5)
+                texto = arg[2]
+                
+                # Trata BLOB se necessário
                 if texto and hasattr(texto, 'read'):
                     texto = texto.read().decode('latin-1')
                 texto = texto.strip() if texto else ""
                 
                 if not texto:
                     continue
+                
+                param_preview = texto[:80] if texto else 'NULL'
+                print(f"    - ARG: {argumento}, SUB: {subargum}, PARAM: {param_preview}...")
                 
                 # Verifica se é APLICAÇÃO (pode estar em qualquer SUBARGUM)
                 texto_upper = texto.upper()
@@ -1200,8 +1185,10 @@ def buscar_requisicao(nr_requisicao):
                     print(f"  -> APLICAÇÃO encontrada: '{aplicacao_fc99999}'")
                 elif subargum in ['00001', '00002']:
                     # SUBARGUM 00001 e 00002 = Ativos da mescla
-                    ativos_mescla.append(texto)
-                    print(f"  -> ATIVO encontrado: '{texto[:50]}...'")
+                    # Evita adicionar a linha de APLICAÇÃO como ativo
+                    if "APLICA" not in texto_upper:
+                        ativos_mescla.append(texto)
+                        print(f"  -> ATIVO encontrado: '{texto[:50]}...'")
             
             # =====================================================
             # FALLBACK: Busca matérias-primas (FC12110) se não achou na FC99999
