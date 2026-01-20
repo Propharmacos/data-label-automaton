@@ -1187,9 +1187,16 @@ def buscar_requisicao(nr_requisicao):
                     # SUBARGUM 00001 e 00002 = Ativos da mescla
                     # Evita adicionar a linha de APLICAÇÃO como ativo
                     if "APLICA" not in texto_upper:
-                        ativos_mescla.append(texto)
-                        print(f"  -> ATIVO encontrado: '{texto[:50]}...'")
-            
+                        # Remove prefixo OBS: se existir
+                        texto_limpo = texto
+                        if texto_upper.startswith("OBS:"):
+                            texto_limpo = texto[4:].strip()
+                        elif texto_upper.startswith("OBS :"):
+                            texto_limpo = texto[5:].strip()
+                        
+                        ativos_mescla.append(texto_limpo)
+                        print(f"  -> ATIVO encontrado: '{texto_limpo[:50]}...'")
+
             # =====================================================
             # FALLBACK: Busca matérias-primas (FC12110) se não achou na FC99999
             # =====================================================
