@@ -43,6 +43,7 @@ export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
   AMP_CX: {
     tipo: 'AMP_CX',
     nome: 'Ampola Caixa',
+    dimensoes: { larguraMM: 76, alturaMM: 35 },
     linhas: [
       // Linha 1: Paciente (esquerda) + Requisição (direita)
       { id: 'linha1', campos: ['paciente', 'requisicao'], spacing: 'normal' },

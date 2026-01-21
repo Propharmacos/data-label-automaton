@@ -40,6 +40,10 @@ export interface LayoutConfig {
   nome: string;
   linhas: LineConfig[];  // organização em linhas
   campoConfig: Record<LabelFieldId, FieldConfig>;  // configuração individual de cada campo
+  dimensoes?: {  // dimensões específicas do layout em mm
+    larguraMM: number;
+    alturaMM: number;
+  };
 }
 
 // Manter compatibilidade com formato antigo (deprecado)
