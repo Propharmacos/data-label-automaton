@@ -251,7 +251,10 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
       case 'ph':
         return rotulo.ph ? `pH: ${rotulo.ph}` : "";
       case 'tipoUso':
-        return rotulo.tipoUso?.toUpperCase() || "USO INJETÁVEL";
+        // Filtrar valores numéricos (pH incorreto vindo da API)
+        const tipoUsoValor = rotulo.tipoUso?.toUpperCase() || "";
+        if (/^\d+$/.test(tipoUsoValor)) return "";
+        return tipoUsoValor || "";
       case 'aplicacao':
         return aplicacao ? `APLICAÇÃO: ${aplicacao}` : "";
       case 'contem':
@@ -261,7 +264,8 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
       case 'medico':
         return formatarPrescritor();
       case 'posologia':
-        return rotulo.posologia ? `Pos: ${rotulo.posologia}` : "";
+        // Sem prefixo "Pos:" - exibe só o conteúdo
+        return rotulo.posologia ? rotulo.posologia.toUpperCase() : "";
       case 'observacoes':
         return observacoes || "";
       default:

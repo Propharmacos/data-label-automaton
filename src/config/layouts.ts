@@ -51,14 +51,14 @@ export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
       { id: 'linha2', campos: ['medico'], spacing: 'normal' },
       // Linha 3: Composição (ativos)
       { id: 'linha3', campos: ['composicao'], spacing: 'normal' },
-      // Linha 4: pH, Lote, Fabricação, Validade
+      // Linha 4: pH (editável), Lote, Fabricação, Validade
       { id: 'linha4', campos: ['ph', 'lote', 'fabricacao', 'validade'], spacing: 'compact' },
-      // Linha 5: Tipo de Uso + Aplicação
-      { id: 'linha5', campos: ['tipoUso', 'aplicacao'], spacing: 'normal' },
-      // Linha 6: Contém
+      // Linha 5: Aplicação (sem tipoUso que mostra "7")
+      { id: 'linha5', campos: ['aplicacao'], spacing: 'normal' },
+      // Linha 6: Contém (embaixo de aplicação)
       { id: 'linha6', campos: ['contem'], spacing: 'normal' },
-      // Linha 7: Posologia + Registro
-      { id: 'linha7', campos: ['posologia', 'registro'], spacing: 'normal' },
+      // Linha 7: Registro (sem posologia)
+      { id: 'linha7', campos: ['registro'], spacing: 'normal' },
     ],
     campoConfig: {
       // Todos os campos com MESMA fonte, SEM negrito - padronizado
@@ -70,12 +70,12 @@ export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
       fabricacao: { visible: true, fontSize: 9, bold: false, uppercase: false },
       validade: { visible: true, fontSize: 9, bold: false, uppercase: false },
       ph: { visible: true, fontSize: 9, bold: false, uppercase: false },
-      tipoUso: { visible: true, fontSize: 9, bold: false, uppercase: true },
+      tipoUso: { visible: false, fontSize: 9, bold: false, uppercase: true },  // Oculto - evita "7"
       aplicacao: { visible: true, fontSize: 9, bold: false, uppercase: true },
       contem: { visible: true, fontSize: 9, bold: false, uppercase: true },
       registro: { visible: true, fontSize: 9, bold: false, uppercase: false },
       medico: { visible: true, fontSize: 9, bold: false, uppercase: true },
-      posologia: { visible: true, fontSize: 9, bold: false, uppercase: true },
+      posologia: { visible: false, fontSize: 9, bold: false, uppercase: true },  // Oculto - remove "POS:"
       observacoes: { visible: false, fontSize: 9, bold: false, uppercase: false },
     },
   },
