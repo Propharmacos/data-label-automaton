@@ -1174,15 +1174,53 @@ def buscar_requisicao(nr_requisicao):
             print(f"  CDPRO: '{cdpro}'")
             print(f"  NOME PRODUTO: '{nome_produto}'")
             
-            # Busca TODOS os argumentos que contêm este CDPRO
+            # Busca exata pelo CDPRO em diferentes formatos
+            cdpro_str = str(cdpro).strip()
+            cdpro_padded = cdpro_str.zfill(8)  # Ex: '00092781'
+            
+            print(f"  CDPRO buscado: '{cdpro_str}'")
+            print(f"  CDPRO padded: '{cdpro_padded}'")
+            
+            # Query com match exato em múltiplos formatos
             cursor.execute("""
                 SELECT ARGUMENTO, SUBARGUM, PARAMETRO 
                 FROM FC99999 
-                WHERE ARGUMENTO CONTAINING ?
-                ORDER BY ARGUMENTO, SUBARGUM
-            """, (str(cdpro),))
-            todos_args = cursor.fetchall()
-            print(f"  Argumentos encontrados contendo CDPRO: {len(todos_args)}")
+                WHERE ARGUMENTO = ? 
+                   OR ARGUMENTO = ?
+                   OR ARGUMENTO = ?
+                   OR ARGUMENTO = ?
+                ORDER BY SUBARGUM
+            """, (cdpro_str, cdpro_padded, f'OBSFIC{cdpro_str}', f'OBSFIC{cdpro_padded}'))
+            todos_args_exato = cursor.fetchall()
+            print(f"  Argumentos EXATOS encontrados: {len(todos_args_exato)}")
+            
+            # Se não encontrou com exato, tenta CONTAINING com validação
+            if not todos_args_exato:
+                print(f"  -> Nenhum match exato. Tentando CONTAINING com validação...")
+                cursor.execute("""
+                    SELECT ARGUMENTO, SUBARGUM, PARAMETRO 
+                    FROM FC99999 
+                    WHERE ARGUMENTO CONTAINING ?
+                    ORDER BY ARGUMENTO, SUBARGUM
+                """, (cdpro_str,))
+                todos_args_containing = cursor.fetchall()
+                
+                # Filtra apenas os que correspondem exatamente ao CDPRO
+                todos_args = []
+                for arg in todos_args_containing:
+                    argumento = arg[0].strip() if arg[0] else ""
+                    # Aceita se termina com o CDPRO ou é exatamente o CDPRO
+                    if (argumento.endswith(cdpro_str) or 
+                        argumento.endswith(cdpro_padded) or
+                        argumento == cdpro_str or 
+                        argumento == cdpro_padded):
+                        todos_args.append(arg)
+                        print(f"    VALIDADO: '{argumento}'")
+                    else:
+                        print(f"    REJEITADO: '{argumento}' (não corresponde ao CDPRO)")
+                print(f"  Argumentos VALIDADOS após CONTAINING: {len(todos_args)}")
+            else:
+                todos_args = todos_args_exato
             
             # Inicializa variáveis para dados da FC99999
             ativos_mescla = []
