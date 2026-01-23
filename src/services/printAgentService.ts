@@ -22,6 +22,9 @@ export const verificarAgente = async (url: string): Promise<ApiResponse<AgentHea
   try {
     const response = await fetch(`${url}/health`, {
       method: "GET",
+      headers: {
+        "ngrok-skip-browser-warning": "true",
+      },
       signal: AbortSignal.timeout(5000),
     });
     
@@ -42,6 +45,9 @@ export const listarImpressoras = async (url: string): Promise<ApiResponse<Printe
   try {
     const response = await fetch(`${url}/impressoras`, {
       method: "GET",
+      headers: {
+        "ngrok-skip-browser-warning": "true",
+      },
       signal: AbortSignal.timeout(5000),
     });
     
@@ -62,6 +68,9 @@ export const testeImpressaoAgente = async (url: string): Promise<ApiResponse<{ m
   try {
     const response = await fetch(`${url}/teste`, {
       method: "POST",
+      headers: {
+        "ngrok-skip-browser-warning": "true",
+      },
       signal: AbortSignal.timeout(10000),
     });
     
@@ -122,6 +131,7 @@ export const imprimirViaAgente = async (
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
       },
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(30000),
