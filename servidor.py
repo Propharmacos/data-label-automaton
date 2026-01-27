@@ -1459,7 +1459,7 @@ def buscar_requisicao(nr_requisicao):
             
             rotulo = {
                 **dados_base,
-                "nrItem": str(item_id - 1),  # Converte ITEMID (1,2,3) para barra (0,1,2)
+                "nrItem": str(idx),  # Usa índice do loop (0,1,2...) para garantir numeração sequencial
                 "formula": nome_formula,  # Nome simplificado para mesclas
                 "volume": str(item[2]) if item[2] else dados_base["volume"],
                 "unidadeVolume": item[3] or dados_base["unidadeVolume"],
