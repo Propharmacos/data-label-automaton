@@ -64,12 +64,12 @@ export const buscarRequisicao = async (numeroRequisicao: string): Promise<ApiRes
     const rawData = result.data;
     const formulas = Array.isArray(rawData) ? rawData : [rawData];
     
-    // Mapeia cada fórmula com índice único para evitar IDs duplicados
+    // Mapeia cada fórmula preservando o nrItem original do backend
     const rotulos = formulas.map((item, index) => {
       const rotulo = mapearRotulo(item);
-      // Criar ID único combinando requisição, índice e lote
-      rotulo.id = `${rotulo.nrRequisicao}-${index + 1}-${rotulo.lote || index}`;
-      rotulo.nrItem = String(index + 1); // Usar índice como número do item
+      // ID único para React (combina requisição, nrItem original e lote)
+      rotulo.id = `${rotulo.nrRequisicao}-${rotulo.nrItem}-${rotulo.lote || index}`;
+      // MANTÉM o nrItem original do backend (não sobrescreve!)
       return rotulo;
     });
     
