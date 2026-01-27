@@ -1,56 +1,45 @@
 
-# Plano: Corrigir Ordenação dos Itens de Requisição (REQ: X-0, X-1, X-2...)
+# Plano: Corrigir Numeração das Barras (ITEMID → Barra 0, 1, 2)
 
-## Problema Identificado
+## Problema Atual
 
-O frontend está sobrescrevendo o número do item (`nrItem`) que vem do backend com um índice sequencial simples, ignorando a ordem original da prescrição.
+O FórmulaCerta usa numeração baseada em **zero** para as abas/barras:
+- **Barra 0** = Alfa-Lipóico (Código 90530)
+- **Barra 1** = Coenzima Q10 (Código 92421)
+- **Barra 2** = Curcumina (Código 92457)
 
-**Arquivo problemático**: `src/services/requisicaoService.ts` (linhas 68-74)
+Porém, o banco de dados Firebird armazena `ITEMID` começando em **1**:
+- ITEMID 1 = Alfa-Lipóico
+- ITEMID 2 = Coenzima Q10
+- ITEMID 3 = Curcumina
 
-```typescript
-// CÓDIGO ATUAL (ERRADO)
-const rotulos = formulas.map((item, index) => {
-  const rotulo = mapearRotulo(item);
-  rotulo.id = `${rotulo.nrRequisicao}-${index + 1}-${rotulo.lote || index}`;
-  rotulo.nrItem = String(index + 1); // ← SOBRESCREVE o nrItem original!
-  return rotulo;
-});
-```
-
-O backend já envia o `nrItem` correto (baseado no `ITEMID` da tabela FC12110 ordenado), mas o frontend ignora e substitui.
+O sistema está exibindo `REQ:86482-1, REQ:86482-2, REQ:86482-3` quando deveria exibir `REQ:86482-0, REQ:86482-1, REQ:86482-2`.
 
 ---
 
 ## Solução
 
-### Alteração no arquivo `src/services/requisicaoService.ts`
+Alterar o **backend (servidor.py)** para subtrair 1 do `ITEMID` ao gerar o `nrItem`, convertendo para numeração base-zero.
 
-Preservar o `nrItem` que vem do backend (baseado no ITEMID original) e apenas gerar um ID único para React:
+### Arquivo: `servidor.py` (linha ~1462)
 
-```typescript
-// CÓDIGO CORRIGIDO
-const rotulos = formulas.map((item, index) => {
-  const rotulo = mapearRotulo(item);
-  // ID único para React (combina requisição, nrItem original e lote)
-  rotulo.id = `${rotulo.nrRequisicao}-${rotulo.nrItem}-${rotulo.lote || index}`;
-  // MANTÉM o nrItem original do backend (não sobrescreve!)
-  return rotulo;
-});
+```python
+# ANTES (errado):
+"nrItem": str(item_id),
+
+# DEPOIS (correto - converte para base zero):
+"nrItem": str(item_id - 1),  # Converte ITEMID (1,2,3) para barra (0,1,2)
 ```
 
 ---
 
 ## Resultado Esperado
 
-Antes da correção:
-- Item 1: Alfa-Lipóico (REQ: 86482-1)
-- Item 2: Coenzima (REQ: 86482-2)
-- Item 3: Outro (REQ: 86482-3)
-
-Depois da correção (ordem do ITEMID original):
-- Item 1: Coenzima (REQ: 86482-1)  ← conforme ITEMID no banco
-- Item 2: Alfa-Lipóico (REQ: 86482-2)
-- Item 3: Outro (REQ: 86482-3)
+| Produto | ITEMID (banco) | nrItem (API) | Exibição |
+|---------|----------------|--------------|----------|
+| Alfa-Lipóico | 1 | 0 | REQ:86482-0 |
+| Coenzima Q10 | 2 | 1 | REQ:86482-1 |
+| Curcumina | 3 | 2 | REQ:86482-2 |
 
 ---
 
@@ -59,27 +48,47 @@ Depois da correção (ordem do ITEMID original):
 ### Fluxo de Dados Corrigido
 
 ```text
-FC12110 (Banco)          servidor.py              requisicaoService.ts        LabelCard.tsx
-┌──────────────┐         ┌──────────────┐         ┌──────────────────────┐    ┌────────────┐
-│ ITEMID = 1   │───────▶ │ nrItem = "1" │───────▶ │ nrItem = "1" (MANTÉM)│──▶ │ REQ:X-1    │
-│ ITEMID = 2   │         │ nrItem = "2" │         │ nrItem = "2" (MANTÉM)│    │ REQ:X-2    │
-│ ITEMID = 3   │         │ nrItem = "3" │         │ nrItem = "3" (MANTÉM)│    │ REQ:X-3    │
-└──────────────┘         └──────────────┘         └──────────────────────┘    └────────────┘
-       ↑                        ↑                         ↑
-  ORDER BY ITEMID         Usa ITEMID como          NÃO sobrescreve mais
-                          nrItem (linha 1462)       (remove linha 72)
+FC12110 (Banco)          servidor.py              Frontend
+┌──────────────┐         ┌──────────────┐         ┌────────────┐
+│ ITEMID = 1   │───────▶ │ nrItem = "0" │───────▶ │ REQ:X-0    │
+│ ITEMID = 2   │         │ nrItem = "1" │         │ REQ:X-1    │
+│ ITEMID = 3   │         │ nrItem = "2" │         │ REQ:X-2    │
+└──────────────┘         └──────────────┘         └────────────┘
+       ↑                        ↑
+  ORDER BY ITEMID         item_id - 1 (converte para base zero)
 ```
 
-### Arquivos Modificados
+### Alteração Específica
 
-| Arquivo | Alteração |
-|---------|-----------|
-| `src/services/requisicaoService.ts` | Remover linha que sobrescreve `nrItem` |
+Na função que processa itens (linha ~1462 do servidor.py):
 
-### Verificação Backend
+```python
+rotulo = {
+    **dados_base,
+    "nrItem": str(item_id - 1),  # CORRIGIDO: Converte para base zero (barra 0, 1, 2)
+    "formula": nome_formula,
+    "volume": str(item[2]) if item[2] else dados_base["volume"],
+    # ... resto igual
+}
+```
 
-O backend já está correto:
-- Linha 1139: `ORDER BY I.ITEMID`
-- Linha 1462: `"nrItem": str(item_id)`
+### Verificação no Fallback
 
-Apenas o frontend precisa de correção.
+Também ajustar a linha ~1479 (caso de requisição sem itens):
+
+```python
+# ANTES:
+data = [{**dados_base, "nrItem": "1", ...}]
+
+# DEPOIS:
+data = [{**dados_base, "nrItem": "0", ...}]
+```
+
+---
+
+## Próximos Passos
+
+1. Aplicar alteração no `servidor.py`
+2. Reiniciar o servidor Flask
+3. Testar a requisição 86482 novamente
+4. Verificar se os rótulos exibem REQ:86482-0, REQ:86482-1, REQ:86482-2 na ordem correta
