@@ -1,20 +1,50 @@
 
-# ✅ CONCLUÍDO: Corrigir Ordenação usando SERIER
+# Plano: Exibir Observações Apenas Quando Existir Conteúdo
 
-## Alterações Realizadas
+## Regra de Negócio
 
-1. **Query Principal** (linha ~1183): `ORDER BY I.SERIER` em vez de `I.ITEMID`
-2. **SELECT**: Troca `I.ITEMID` por `I.SERIER`
-3. **Atribuição nrItem** (linha ~1509): Usa `str(serier)` direto do banco
+| Tipo | observacoes no banco | Exibição |
+|------|---------------------|----------|
+| Produto Único | Vazio | ❌ Oculta |
+| Mescla | "procaina mais L-carnitina" | ✅ Mostra |
 
-## Resultado
+A presença de conteúdo em `observacoes` indica que é uma mescla.
 
-| Produto | SERIER | nrItem | Exibição |
-|---------|--------|--------|----------|
-| Alfa-Lipóico | 0 | "0" | REQ:86482-0 |
-| Coenzima Q10 | 1 | "1" | REQ:86482-1 |
-| Curcumina | 2 | "2" | REQ:86482-2 |
+## Alteração em `src/components/LabelCard.tsx`
 
-## Próximo Passo
+### Modificar case 'observacoes' (linha 289-290)
 
-- Reiniciar o Flask e testar requisição 86482
+```typescript
+// ANTES:
+case 'observacoes':
+  return observacoes || "";
+
+// DEPOIS:
+case 'observacoes':
+  // Só exibe se tiver conteúdo (indica mescla)
+  // Produto único não tem observação
+  return observacoes ? observacoes.toUpperCase() : "";
+```
+
+## Resultado Esperado
+
+**Vitamina D (Produto Único):**
+- Exibe: `VIT D 100.000UI/ML`
+- Exibe: `APLICAÇÃO: IM`
+- Observações: ❌ (campo vazio no banco)
+
+**Procaína + L-Carnitina (Mescla):**
+- Exibe: Composição dos ativos
+- Observações: ✅ `PROCAINA MAIS L-CARNITINA`
+
+## Seção Técnica
+
+### Arquivo a Modificar
+
+| Arquivo | Alteração |
+|---------|-----------|
+| `src/components/LabelCard.tsx` | Ajustar case `observacoes` para exibir apenas se houver conteúdo |
+
+### Nota
+
+A lógica atual já retorna `observacoes || ""`, mas o campo pode estar visível no layout mesmo vazio. A alteração garante que só aparece quando há conteúdo real.
