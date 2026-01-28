@@ -153,12 +153,21 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
 
   // ============================================
   // REGRA DE EXCLUSÃO MÚTUA: composicao vs formula
-  // - MESCLA: composicao tem valor → mostrar SÓ composicao
-  // - PRODUTO ÚNICO: composicao vazio → mostrar SÓ formula
+  // - MESCLA: composicao tem valor TEXTUAL → mostrar SÓ composicao
+  // - PRODUTO ÚNICO: composicao vazio ou numérico → mostrar SÓ formula
   // ============================================
+  const isValidComposicao = (texto: string): boolean => {
+    if (!texto || !texto.trim()) return false;
+    // Ignorar se for apenas números, pontos, vírgulas ou ponto-vírgula (coordenadas, versões)
+    // Exemplo de dados inválidos: "32.09;34.69;8.0.1"
+    const apenasNumerosEPontuacao = /^[\d.,;\s]+$/.test(texto.trim());
+    if (apenasNumerosEPontuacao) return false;
+    return true;
+  };
+
   const isMescla = (): boolean => {
     const composicao = (rotulo.composicao || "").trim();
-    return composicao.length > 0;
+    return isValidComposicao(composicao);
   };
 
   // Gerar texto formatado inicial para edição - ordem padronizada
