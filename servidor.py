@@ -1221,6 +1221,110 @@ def buscar_requisicao(nr_requisicao):
             
             return nome_completo
         
+        # =====================================================
+        # FUNÇÕES PARA DETECÇÃO E BUSCA DE KITS
+        # =====================================================
+        def verificar_se_kit(cdpro, cursor):
+            """
+            Verifica se um produto é um KIT consultando FC03100.
+            Retorna True se tiver componentes, False caso contrário.
+            """
+            try:
+                cursor.execute("""
+                    SELECT COUNT(*) FROM FC03100 WHERE CDPRO = ?
+                """, (cdpro,))
+                count = cursor.fetchone()[0]
+                return count > 0
+            except:
+                return False
+        
+        def buscar_componentes_kit(cdpro, cursor):
+            """
+            Busca componentes de um kit na FC03100.
+            Retorna lista de componentes com seus metadados (ph, lote, fab, val).
+            """
+            componentes = []
+            try:
+                # Busca componentes na FC03100
+                cursor.execute("""
+                    SELECT CDPRO, CDMAT, DESCR, QUANT
+                    FROM FC03100
+                    WHERE CDPRO = ?
+                    ORDER BY CDMAT
+                """, (cdpro,))
+                
+                rows = cursor.fetchall()
+                print(f"  [KIT] FC03100 - {len(rows)} componentes encontrados para CDPRO={cdpro}")
+                
+                for row in rows:
+                    cdmat = row[1]  # Código do material/componente
+                    descr = row[2] or ""
+                    
+                    print(f"    [COMP] CDMAT={cdmat}, DESCR={descr[:40]}")
+                    
+                    # Busca dados do lote/fabricação na FC06100 ou FC07100 para este componente
+                    ph = ""
+                    lote = ""
+                    fab = ""
+                    val = ""
+                    
+                    # Tenta buscar na FC06100 (estoque/lotes)
+                    try:
+                        cursor.execute("""
+                            SELECT FIRST 1 NRLOT, DTFAB, DTVAL, PH
+                            FROM FC06100
+                            WHERE CDPRO = ?
+                            ORDER BY DTCAD DESC
+                        """, (cdmat,))
+                        lote_row = cursor.fetchone()
+                        if lote_row:
+                            lote = str(lote_row[0]).strip() if lote_row[0] else ""
+                            fab = lote_row[1].strftime('%m/%y') if lote_row[1] else ""
+                            val = lote_row[2].strftime('%m/%y') if lote_row[2] else ""
+                            ph = str(lote_row[3]).strip() if lote_row[3] else ""
+                            print(f"      [LOTE FC06100] L:{lote} F:{fab} V:{val} pH:{ph}")
+                    except Exception as e:
+                        print(f"      [ERRO FC06100] {e}")
+                    
+                    # Se não encontrou na FC06100, tenta FC07100
+                    if not lote:
+                        try:
+                            cursor.execute("""
+                                SELECT FIRST 1 NRLOT, DTFAB, DTVAL
+                                FROM FC07100
+                                WHERE CDPRO = ?
+                                ORDER BY DTCAD DESC
+                            """, (cdmat,))
+                            lote_row = cursor.fetchone()
+                            if lote_row:
+                                lote = str(lote_row[0]).strip() if lote_row[0] else ""
+                                fab = lote_row[1].strftime('%m/%y') if lote_row[1] else ""
+                                val = lote_row[2].strftime('%m/%y') if lote_row[2] else ""
+                                print(f"      [LOTE FC07100] L:{lote} F:{fab} V:{val}")
+                        except Exception as e:
+                            print(f"      [ERRO FC07100] {e}")
+                    
+                    # Remove prefixos do nome (AMP, KIT, etc)
+                    nome_limpo = descr.upper().strip()
+                    for prefixo in ['AMP ', 'CX ', 'KIT ', 'FRS ']:
+                        if nome_limpo.startswith(prefixo):
+                            nome_limpo = nome_limpo[len(prefixo):]
+                            break
+                    
+                    componentes.append({
+                        "codigo": str(cdmat),
+                        "nome": nome_limpo,
+                        "ph": ph,
+                        "lote": lote,
+                        "fabricacao": fab,
+                        "validade": val
+                    })
+                
+            except Exception as e:
+                print(f"  [KIT ERRO] {e}")
+            
+            return componentes
+        
         data = []
         for idx, item in enumerate(itens):
             serier = item[0]  # SERIER - número da barra (0, 1, 2...) direto do banco
@@ -1388,7 +1492,18 @@ def buscar_requisicao(nr_requisicao):
                     print(f"  -> ATIVO encontrado (SUB:{subargum}): '{texto_limpo[:50]}...'")
 
             # =====================================================
-            # LÓGICA: PRODUTO ÚNICO vs MESCLA
+            # VERIFICAÇÃO DE KIT: Antes de verificar mescla
+            # =====================================================
+            e_kit = verificar_se_kit(cdpro, cursor)
+            componentes_kit = []
+            
+            if e_kit:
+                print(f"  -> IDENTIFICADO COMO KIT!")
+                componentes_kit = buscar_componentes_kit(cdpro, cursor)
+                print(f"  -> {len(componentes_kit)} componentes encontrados")
+
+            # =====================================================
+            # LÓGICA: PRODUTO ÚNICO vs MESCLA vs KIT
             # =====================================================
             # Compara nome do produto com os ativos encontrados na FC99999
             nome_produto_upper = nome_produto.upper()
@@ -1505,6 +1620,14 @@ def buscar_requisicao(nr_requisicao):
             if len(aplicacao) > 30 or ',' in aplicacao:
                 aplicacao = ""
             
+            # Determina tipoItem: KIT > MESCLA > PRODUTO ÚNICO
+            if e_kit and len(componentes_kit) > 0:
+                tipo_item = "KIT"
+            elif e_mescla:
+                tipo_item = "MESCLA"
+            else:
+                tipo_item = "PRODUTO ÚNICO"
+            
             rotulo = {
                 **dados_base,
                 "nrItem": str(serier),  # Usa SERIER do banco - número exato da barra no FórmulaCerta
@@ -1517,8 +1640,14 @@ def buscar_requisicao(nr_requisicao):
                 "aplicacao": aplicacao,
                 "descricaoProduto": descricao_produto,
                 "observacoes": composicao,
-                "tipoItem": "MESCLA" if e_mescla else "PRODUTO ÚNICO",  # Novo campo para debug
+                "tipoItem": tipo_item,
             }
+            
+            # Se é KIT, adiciona componentes ao rótulo
+            if tipo_item == "KIT":
+                rotulo["componentes"] = componentes_kit
+                print(f"  -> Rótulo KIT com {len(componentes_kit)} componentes")
+            
             data.append(rotulo)
         
         conn.close()
