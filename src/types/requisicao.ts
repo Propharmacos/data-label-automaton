@@ -47,6 +47,19 @@ export interface LayoutConfig {
 }
 
 // Manter compatibilidade com formato antigo (deprecado)
+// Tipo de item do rótulo
+export type TipoItem = 'PRODUTO ÚNICO' | 'MESCLA' | 'KIT';
+
+// Componente individual de um kit
+export interface ComponenteKit {
+  codigo: string;
+  nome: string;
+  ph: string;
+  lote: string;
+  fabricacao: string;
+  validade: string;
+}
+
 export interface FieldPosition {
   x: number;
   y: number;
@@ -82,6 +95,8 @@ export interface RotuloItem {
   composicao: string;        // Do banco (FC03300 CDICP 00001-00002) - ativos combinados
   descricaoProduto: string;  // Do banco (FC03300 CDICP 00004) - nome completo do produto
   textoLivre?: string;       // Texto editado livremente pelo usuário (bloco de notas)
+  tipoItem?: TipoItem;       // Tipo do item: PRODUTO ÚNICO, MESCLA ou KIT
+  componentes?: ComponenteKit[];  // Componentes do kit (apenas se tipoItem === 'KIT')
 }
 
 export interface PharmacyConfig {

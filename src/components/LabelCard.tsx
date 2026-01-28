@@ -165,13 +165,60 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
     return true;
   };
 
+  // Verifica se é um KIT (tem componentes individuais)
+  const isKit = (): boolean => {
+    return rotulo.tipoItem === 'KIT' && 
+           rotulo.componentes !== undefined && 
+           rotulo.componentes.length > 0;
+  };
+
   const isMescla = (): boolean => {
+    // Se é KIT, não é mescla
+    if (isKit()) return false;
     const composicao = (rotulo.composicao || "").trim();
     return isValidComposicao(composicao);
   };
 
+  // Gerar texto formatado para componentes de um KIT
+  const generateKitText = (): string => {
+    if (!rotulo.componentes || rotulo.componentes.length === 0) return "";
+    
+    const lines: string[] = [];
+    
+    // Linha 1: Prescritor
+    const prescritor = formatarPrescritor();
+    if (prescritor) lines.push(prescritor);
+    
+    // Linha 2: Paciente
+    if (rotulo.nomePaciente) lines.push(rotulo.nomePaciente.toUpperCase());
+    
+    // Linhas de componentes do kit
+    lines.push(""); // Linha em branco
+    rotulo.componentes.forEach((comp) => {
+      const compLine: string[] = [comp.nome.toUpperCase()];
+      if (comp.ph) compLine.push(`pH:${comp.ph}`);
+      if (comp.lote) compLine.push(`L:${comp.lote}`);
+      if (comp.validade) compLine.push(`V:${comp.validade}`);
+      lines.push(compLine.join("  "));
+    });
+    
+    // Aplicação
+    const aplicacao = getAplicacao();
+    if (aplicacao) lines.push(`APLICAÇÃO: ${aplicacao}`);
+    
+    // Registro
+    if (rotulo.numeroRegistro) lines.push(`REG: ${rotulo.numeroRegistro}`);
+    
+    return lines.join('\n');
+  };
+
   // Gerar texto formatado inicial para edição - ordem padronizada
   const generateInitialText = (): string => {
+    // Se é KIT, usa formatação específica
+    if (isKit()) {
+      return generateKitText();
+    }
+    
     const aplicacao = getAplicacao();
     const observacoes = getObservacoes();
     const mescla = isMescla();
@@ -326,6 +373,54 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
     }
   };
 
+  // Renderizar conteúdo de KIT (lista de componentes com metadados)
+  const renderKitContent = () => {
+    if (!rotulo.componentes || rotulo.componentes.length === 0) {
+      return null;
+    }
+
+    const aplicacao = getAplicacao();
+    
+    return (
+      <div className="p-2 space-y-0.5 overflow-hidden">
+        {/* Prescritor */}
+        <div className="text-[9px] leading-tight uppercase">{formatarPrescritor()}</div>
+        
+        {/* Paciente + Requisição */}
+        <div className="flex justify-between text-[9px] leading-tight">
+          <span className="uppercase">{rotulo.nomePaciente}</span>
+          <span>REQ:{rotulo.nrRequisicao}-{rotulo.nrItem}</span>
+        </div>
+        
+        {/* Linha separadora */}
+        <div className="border-t border-border my-1"></div>
+        
+        {/* Lista de componentes do kit */}
+        {rotulo.componentes.map((comp, idx) => (
+          <div key={idx} className="text-[9px] leading-tight flex flex-wrap gap-1">
+            <span className="font-semibold uppercase">{comp.nome}</span>
+            {comp.ph && <span>pH:{comp.ph}</span>}
+            {comp.lote && <span>L:{comp.lote}</span>}
+            {comp.validade && <span>V:{comp.validade}</span>}
+          </div>
+        ))}
+        
+        {/* Linha separadora */}
+        <div className="border-t border-border my-1"></div>
+        
+        {/* Aplicação */}
+        {aplicacao && (
+          <div className="text-[9px] leading-tight uppercase">APLICAÇÃO: {aplicacao}</div>
+        )}
+        
+        {/* Registro */}
+        {rotulo.numeroRegistro && (
+          <div className="text-[8px] leading-tight">REG: {rotulo.numeroRegistro}</div>
+        )}
+      </div>
+    );
+  };
+
   // Renderizar conteúdo do rótulo baseado em texto livre ou layout
   const renderLabelContent = () => {
     // Se tem texto livre salvo, usa ele
@@ -335,6 +430,11 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
           {rotulo.textoLivre}
         </div>
       );
+    }
+
+    // Se é KIT, usa renderização específica
+    if (isKit()) {
+      return renderKitContent();
     }
 
     // Senão, usa o layout baseado em linhas
