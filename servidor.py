@@ -1449,7 +1449,8 @@ def buscar_requisicao(nr_requisicao):
             serier = item[0]  # SERIER - número da barra (0, 1, 2...) direto do banco
             cdpro = item[5]
             cdprin = item[6]  # CDPRIN - código do produto principal (base para mesclas)
-            item_id = item[7]  # ITEMID - identificador do item na FC12110
+            # ITEMID - identificador do item na FC12110 (com fallback seguro)
+            item_id = item[7] if len(item) > 7 else None
             nome_produto = item[1] or ""  # DESCR da FC12110
             
             # =====================================================
@@ -1669,13 +1670,16 @@ def buscar_requisicao(nr_requisicao):
                     composicao = ""
                     print(f"  -> TIPO: PRODUTO ÚNICO")
             else:
-                # Fallback: busca matérias-primas (R) do mesmo ITEMID
-                cursor.execute("""
-                    SELECT DESCR
-                    FROM FC12110
-                    WHERE NRRQU = ? AND CDFIL = ? AND ITEMID = ? AND TPCMP = 'R'
-                    ORDER BY DESCR
-                """, (nr_requisicao, filial, item_id))
+                # Fallback: busca matérias-primas (R) do mesmo ITEMID (se disponível)
+                materias_primas = []
+                if item_id is not None:
+                    cursor.execute("""
+                        SELECT DESCR
+                        FROM FC12110
+                        WHERE NRRQU = ? AND CDFIL = ? AND ITEMID = ? AND TPCMP = 'R'
+                        ORDER BY DESCR
+                    """, (nr_requisicao, filial, item_id))
+                    materias_primas = cursor.fetchall()
                 
                 materias_primas = cursor.fetchall()
                 
