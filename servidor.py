@@ -1335,11 +1335,29 @@ def buscar_requisicao(nr_requisicao):
             Retorna True se tiver componentes, False caso contrário.
             """
             try:
+                print(f"  [KIT CHECK] Buscando FC12111 com NRRQU={nrrqu}, SERIER={serier}, CDFIL={cdfil}")
+                
+                # Primeiro: verificar se há QUALQUER registro para esta requisição (debug)
+                cursor.execute("""
+                    SELECT SERIER, COUNT(*) as qtd FROM FC12111 
+                    WHERE NRRQU = ? AND CDFIL = ?
+                    GROUP BY SERIER
+                """, (nrrqu, cdfil))
+                debug_rows = cursor.fetchall()
+                if debug_rows:
+                    print(f"  [KIT DEBUG] Registros FC12111 para NRRQU={nrrqu}:")
+                    for dr in debug_rows:
+                        print(f"    - SERIER={dr[0]}, QTD={dr[1]}")
+                else:
+                    print(f"  [KIT DEBUG] Nenhum registro na FC12111 para NRRQU={nrrqu}")
+                
+                # Agora busca pelo SERIER específico
                 cursor.execute("""
                     SELECT COUNT(*) FROM FC12111 
                     WHERE NRRQU = ? AND SERIER = ? AND CDFIL = ?
                 """, (nrrqu, serier, cdfil))
                 count = cursor.fetchone()[0]
+                print(f"  [KIT CHECK] Resultado: {count} componentes encontrados para SERIER={serier}")
                 return count > 0
             except Exception as e:
                 print(f"  [KIT CHECK ERRO] {e}")
