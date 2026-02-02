@@ -1285,7 +1285,7 @@ def buscar_requisicao(nr_requisicao):
         # Busca itens da requisição (fórmulas) - incluindo CDPRIN para buscar composição de mesclas
         # SERIER contém a sequência das barras (0, 1, 2...) conforme FórmulaCerta
         cursor.execute("""
-            SELECT I.SERIER, I.DESCR, I.QUANT, I.UNIDA, I.NRLOT, I.CDPRO, I.CDPRIN
+            SELECT I.SERIER, I.DESCR, I.QUANT, I.UNIDA, I.NRLOT, I.CDPRO, I.CDPRIN, I.ITEMID
             FROM FC12110 I
             WHERE I.NRRQU = ? AND I.CDFIL = ? AND I.TPCMP IN ('C', 'S')
             ORDER BY I.SERIER
@@ -1449,6 +1449,7 @@ def buscar_requisicao(nr_requisicao):
             serier = item[0]  # SERIER - número da barra (0, 1, 2...) direto do banco
             cdpro = item[5]
             cdprin = item[6]  # CDPRIN - código do produto principal (base para mesclas)
+            item_id = item[7]  # ITEMID - identificador do item na FC12110
             nome_produto = item[1] or ""  # DESCR da FC12110
             
             # =====================================================
