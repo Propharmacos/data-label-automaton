@@ -1681,8 +1681,6 @@ def buscar_requisicao(nr_requisicao):
                     """, (nr_requisicao, filial, item_id))
                     materias_primas = cursor.fetchall()
                 
-                materias_primas = cursor.fetchall()
-                
                 # Filtra apenas ativos (exclui embalagens e veículos)
                 ativos = []
                 for mp in materias_primas:
