@@ -1671,16 +1671,15 @@ def buscar_requisicao(nr_requisicao):
                     print(f"  -> TIPO: PRODUTO ÚNICO")
             else:
                 # Fallback: busca matérias-primas (R) do mesmo ITEMID (se disponível)
+                # NOTA: item_id foi definido na linha 1453 deste mesmo loop
                 materias_primas = []
-                # item_id é definido na linha 1453 dentro do loop for
-                current_item_id = item[7] if len(item) > 7 else None
-                if current_item_id is not None:
+                if item_id is not None:
                     cursor.execute("""
                         SELECT DESCR
                         FROM FC12110
                         WHERE NRRQU = ? AND CDFIL = ? AND ITEMID = ? AND TPCMP = 'R'
                         ORDER BY DESCR
-                    """, (nr_requisicao, filial, current_item_id))
+                    """, (nr_requisicao, filial, item_id))
                     materias_primas = cursor.fetchall()
                 
                 # Filtra apenas ativos (exclui embalagens e veículos)
