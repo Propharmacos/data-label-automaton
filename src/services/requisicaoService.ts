@@ -77,12 +77,21 @@ export const buscarRequisicao = async (numeroRequisicao: string): Promise<ApiRes
     const rawData = result.data;
     const formulas = Array.isArray(rawData) ? rawData : [rawData];
     
+    // DEBUG: Log dos dados brutos recebidos do backend
+    console.log("[DEBUG] Dados brutos do backend:", formulas);
+    formulas.forEach((item, idx) => {
+      console.log(`[DEBUG] Item ${idx}: tipoItem=${item.tipoItem}, componentes=${JSON.stringify(item.componentes)}`);
+    });
+    
     // Mapeia cada fórmula preservando o nrItem original do backend
     const rotulos = formulas.map((item, index) => {
       const rotulo = mapearRotulo(item);
       // ID único para React (combina requisição, nrItem original e lote)
       rotulo.id = `${rotulo.nrRequisicao}-${rotulo.nrItem}-${rotulo.lote || index}`;
       // MANTÉM o nrItem original do backend (não sobrescreve!)
+      
+      // DEBUG: Log do rótulo mapeado
+      console.log(`[DEBUG] Rótulo mapeado ${index}: tipoItem=${rotulo.tipoItem}, componentes=${rotulo.componentes?.length || 0}`);
       return rotulo;
     });
     
