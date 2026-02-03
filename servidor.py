@@ -1602,91 +1602,122 @@ def buscar_requisicao(nr_requisicao):
         def buscar_cdfrm_do_kit(cursor, cdpro):
             """
             Descobre o código do kit (CDFRM) a partir do CDPRO do produto.
-            Na FC05000, o campo CDSEM (C.Semi) contém o CDPRO do produto semi-acabado.
-            Retorna o CDFRM se for um kit, None caso contrário.
-            
-            CORREÇÃO v3: Testa TODAS as estratégias possíveis com debug extenso.
+            Versão v4: Descobre colunas dinamicamente e testa múltiplas estratégias.
             """
             cdpro_str = str(cdpro).strip()
             
             print(f"\n  ========== BUSCA KIT PARA CDPRO={cdpro_str} ==========")
             
             try:
-                # ESTRATÉGIA 1: CDSEM = CDPRO (string)
-                print(f"  [KIT] Estratégia 1: FC05000 WHERE CDSEM = '{cdpro_str}'")
+                # Primeiro, descobre as colunas da FC05000
                 cursor.execute("""
-                    SELECT CDFRM, CDSEM FROM FC05000 
-                    WHERE CDSEM = ?
-                """, (cdpro_str,))
-                row = cursor.fetchone()
-                if row:
-                    cdfrm = row[0]
-                    print(f"  [KIT] ✓ ENCONTRADO! CDFRM={cdfrm}, CDSEM={row[1]}")
-                    return cdfrm
-                print(f"  [KIT] ✗ Não encontrado")
+                    SELECT RF.RDB$FIELD_NAME
+                    FROM RDB$RELATION_FIELDS RF
+                    WHERE RF.RDB$RELATION_NAME = 'FC05000'
+                    ORDER BY RF.RDB$FIELD_POSITION
+                """)
+                colunas_fc05000 = [row[0].strip() for row in cursor.fetchall()]
+                print(f"  [KIT] Colunas FC05000: {colunas_fc05000}")
                 
-                # ESTRATÉGIA 2: CDSEM = CDPRO (numérico)
-                try:
-                    cdpro_int = int(cdpro_str)
-                    print(f"  [KIT] Estratégia 2: FC05000 WHERE CDSEM = {cdpro_int} (int)")
-                    cursor.execute("""
-                        SELECT CDFRM, CDSEM FROM FC05000 
-                        WHERE CDSEM = ?
-                    """, (cdpro_int,))
+                # Identifica coluna que contém o código do produto semi-acabado
+                # Pode ser: CDSEM, CDPRO, CDSAC, ou similar
+                coluna_produto = None
+                for possivel in ['CDSEM', 'CDPRO', 'CDSAC', 'CDPRI', 'CDPRIN']:
+                    if possivel in colunas_fc05000:
+                        coluna_produto = possivel
+                        break
+                
+                # Identifica coluna do código da fórmula/kit
+                coluna_formula = None
+                for possivel in ['CDFRM', 'CDFOR', 'CDKIT', 'CDFML']:
+                    if possivel in colunas_fc05000:
+                        coluna_formula = possivel
+                        break
+                
+                print(f"  [KIT] Coluna produto: {coluna_produto}, Coluna fórmula: {coluna_formula}")
+                
+                # Se encontrou as colunas, tenta a busca
+                if coluna_produto and coluna_formula:
+                    # Tenta com string
+                    query = f"SELECT {coluna_formula} FROM FC05000 WHERE {coluna_produto} = ?"
+                    print(f"  [KIT] Query: {query} com valor '{cdpro_str}'")
+                    cursor.execute(query, (cdpro_str,))
                     row = cursor.fetchone()
                     if row:
                         cdfrm = row[0]
-                        print(f"  [KIT] ✓ ENCONTRADO! CDFRM={cdfrm}, CDSEM={row[1]}")
+                        print(f"  [KIT] ✓ ENCONTRADO! {coluna_formula}={cdfrm}")
                         return cdfrm
-                    print(f"  [KIT] ✗ Não encontrado")
-                except ValueError:
-                    pass
+                    
+                    # Tenta com int
+                    try:
+                        cdpro_int = int(cdpro_str)
+                        cursor.execute(query, (cdpro_int,))
+                        row = cursor.fetchone()
+                        if row:
+                            cdfrm = row[0]
+                            print(f"  [KIT] ✓ ENCONTRADO (int)! {coluna_formula}={cdfrm}")
+                            return cdfrm
+                    except ValueError:
+                        pass
                 
-                # ESTRATÉGIA 3: CDFRM = CDPRO (talvez o CDPRO JÁ seja o código do kit)
-                print(f"  [KIT] Estratégia 3: FC05000 WHERE CDFRM = '{cdpro_str}'")
-                cursor.execute("""
-                    SELECT CDFRM, CDSEM FROM FC05000 
-                    WHERE CDFRM = ?
-                """, (cdpro_str,))
-                row = cursor.fetchone()
-                if row:
-                    cdfrm = row[0]
-                    print(f"  [KIT] ✓ ENCONTRADO! CDFRM={cdfrm} (CDPRO é o próprio código do kit)")
-                    return cdfrm
-                print(f"  [KIT] ✗ Não encontrado")
-                
-                # ESTRATÉGIA 4: CDFRM = CDPRO (numérico)
-                try:
-                    cdpro_int = int(cdpro_str)
-                    print(f"  [KIT] Estratégia 4: FC05000 WHERE CDFRM = {cdpro_int} (int)")
-                    cursor.execute("""
-                        SELECT CDFRM, CDSEM FROM FC05000 
-                        WHERE CDFRM = ?
-                    """, (cdpro_int,))
+                # Tenta busca reversa: CDFRM = CDPRO
+                if coluna_formula:
+                    query = f"SELECT {coluna_formula} FROM FC05000 WHERE {coluna_formula} = ?"
+                    print(f"  [KIT] Query reversa: {query} com valor '{cdpro_str}'")
+                    cursor.execute(query, (cdpro_str,))
                     row = cursor.fetchone()
                     if row:
                         cdfrm = row[0]
-                        print(f"  [KIT] ✓ ENCONTRADO! CDFRM={cdfrm}")
+                        print(f"  [KIT] ✓ ENCONTRADO (CDPRO é o próprio kit)! {coluna_formula}={cdfrm}")
                         return cdfrm
-                    print(f"  [KIT] ✗ Não encontrado")
-                except ValueError:
-                    pass
+                    
+                    try:
+                        cdpro_int = int(cdpro_str)
+                        cursor.execute(query, (cdpro_int,))
+                        row = cursor.fetchone()
+                        if row:
+                            cdfrm = row[0]
+                            print(f"  [KIT] ✓ ENCONTRADO (int, CDPRO é kit)! {coluna_formula}={cdfrm}")
+                            return cdfrm
+                    except ValueError:
+                        pass
                 
-                # ESTRATÉGIA 5: Busca direta na FC05100 (CDSAC = CDPRO)
-                print(f"  [KIT] Estratégia 5: FC05100 WHERE CDSAC = '{cdpro_str}' (componente)")
+                # Busca direta na FC05100
+                print(f"  [KIT] Tentando FC05100 diretamente...")
                 cursor.execute("""
-                    SELECT CDFRM, CDSAC FROM FC05100 
-                    WHERE CDSAC = ?
-                """, (cdpro_str,))
-                row = cursor.fetchone()
-                if row:
-                    cdfrm = row[0]
-                    print(f"  [KIT] ✓ ENCONTRADO via FC05100! CDFRM={cdfrm} (CDPRO é componente)")
-                    return cdfrm
-                print(f"  [KIT] ✗ Não encontrado")
+                    SELECT RF.RDB$FIELD_NAME
+                    FROM RDB$RELATION_FIELDS RF
+                    WHERE RF.RDB$RELATION_NAME = 'FC05100'
+                    ORDER BY RF.RDB$FIELD_POSITION
+                """)
+                colunas_fc05100 = [row[0].strip() for row in cursor.fetchall()]
+                print(f"  [KIT] Colunas FC05100: {colunas_fc05100}")
                 
-                # ESTRATÉGIA 6: Verifica se o nome do produto contém "KIT"
-                print(f"  [KIT] Estratégia 6: Verificando nome do produto na FC03000")
+                # Identifica coluna do componente
+                coluna_comp = None
+                for possivel in ['CDSAC', 'CDPRO', 'CDCOM', 'CDCMP']:
+                    if possivel in colunas_fc05100:
+                        coluna_comp = possivel
+                        break
+                
+                coluna_frm_100 = None
+                for possivel in ['CDFRM', 'CDFOR', 'CDKIT', 'CDFML']:
+                    if possivel in colunas_fc05100:
+                        coluna_frm_100 = possivel
+                        break
+                
+                if coluna_comp and coluna_frm_100:
+                    query = f"SELECT {coluna_frm_100} FROM FC05100 WHERE {coluna_comp} = ?"
+                    print(f"  [KIT] Query FC05100: {query}")
+                    cursor.execute(query, (cdpro_str,))
+                    row = cursor.fetchone()
+                    if row:
+                        cdfrm = row[0]
+                        print(f"  [KIT] ✓ ENCONTRADO via FC05100! {coluna_frm_100}={cdfrm}")
+                        return cdfrm
+                
+                # Última tentativa: verifica nome do produto
+                print(f"  [KIT] Verificando nome do produto na FC03000...")
                 cursor.execute("""
                     SELECT DESCR, NOMRED FROM FC03000 WHERE CDPRO = ?
                 """, (cdpro_str,))
@@ -1696,28 +1727,24 @@ def buscar_requisicao(nr_requisicao):
                     nomred = (row[1] or "").upper()
                     print(f"  [KIT] Produto: DESCR='{descr[:50]}', NOMRED='{nomred}'")
                     if "KIT" in descr or "KIT" in nomred:
-                        print(f"  [KIT] Nome contém 'KIT', buscando componentes diretamente...")
-                        # Tenta buscar como se o CDPRO fosse o CDFRM
-                        cursor.execute("""
-                            SELECT COUNT(*) FROM FC05100 WHERE CDFRM = ?
-                        """, (cdpro_str,))
-                        count_row = cursor.fetchone()
-                        if count_row and count_row[0] > 0:
-                            print(f"  [KIT] ✓ {count_row[0]} componentes encontrados na FC05100!")
-                            return cdpro_str  # O próprio CDPRO é o CDFRM
-                        
-                        # Tenta numérico
-                        try:
-                            cdpro_int = int(cdpro_str)
-                            cursor.execute("""
-                                SELECT COUNT(*) FROM FC05100 WHERE CDFRM = ?
-                            """, (cdpro_int,))
+                        print(f"  [KIT] Nome contém 'KIT' - verificando FC05100...")
+                        if coluna_frm_100:
+                            query = f"SELECT COUNT(*) FROM FC05100 WHERE {coluna_frm_100} = ?"
+                            cursor.execute(query, (cdpro_str,))
                             count_row = cursor.fetchone()
                             if count_row and count_row[0] > 0:
-                                print(f"  [KIT] ✓ {count_row[0]} componentes encontrados na FC05100 (int)!")
-                                return cdpro_int
-                        except ValueError:
-                            pass
+                                print(f"  [KIT] ✓ {count_row[0]} componentes encontrados!")
+                                return cdpro_str
+                            
+                            try:
+                                cdpro_int = int(cdpro_str)
+                                cursor.execute(query, (cdpro_int,))
+                                count_row = cursor.fetchone()
+                                if count_row and count_row[0] > 0:
+                                    print(f"  [KIT] ✓ {count_row[0]} componentes encontrados (int)!")
+                                    return cdpro_int
+                            except ValueError:
+                                pass
                 
                 print(f"  [KIT] ========== NENHUMA ESTRATÉGIA FUNCIONOU ==========\n")
                 return None
