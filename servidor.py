@@ -1604,23 +1604,61 @@ def buscar_requisicao(nr_requisicao):
             Descobre o código do kit (CDFRM) a partir do CDPRO do produto.
             Na FC05000, o campo CDSEM (C.Semi) contém o CDPRO do produto semi-acabado.
             Retorna o CDFRM se for um kit, None caso contrário.
+            
+            CORREÇÃO: Tenta múltiplas estratégias de busca.
             """
+            cdpro_str = str(cdpro).strip()
+            
             try:
-                print(f"  [KIT FC05000] Buscando CDFRM para CDPRO/CDSEM={cdpro}")
-                
+                # ESTRATÉGIA 1: CDSEM = CDPRO (padrão conforme imagem do usuário)
+                print(f"  [KIT FC05000] Tentativa 1: CDSEM={cdpro_str}")
                 cursor.execute("""
                     SELECT CDFRM FROM FC05000 
                     WHERE CDSEM = ?
-                """, (cdpro,))
+                """, (cdpro_str,))
                 row = cursor.fetchone()
                 
                 if row:
                     cdfrm = row[0]
-                    print(f"  [KIT FC05000] ENCONTRADO! CDFRM={cdfrm} para CDSEM={cdpro}")
+                    print(f"  [KIT FC05000] ENCONTRADO via CDSEM! CDFRM={cdfrm}")
                     return cdfrm
-                else:
-                    print(f"  [KIT FC05000] Nenhum kit encontrado para CDSEM={cdpro}")
-                    return None
+                
+                # ESTRATÉGIA 2: Tenta com CDPRO numérico (caso seja int no banco)
+                try:
+                    cdpro_int = int(cdpro_str)
+                    print(f"  [KIT FC05000] Tentativa 2: CDSEM={cdpro_int} (numérico)")
+                    cursor.execute("""
+                        SELECT CDFRM FROM FC05000 
+                        WHERE CDSEM = ?
+                    """, (cdpro_int,))
+                    row = cursor.fetchone()
+                    
+                    if row:
+                        cdfrm = row[0]
+                        print(f"  [KIT FC05000] ENCONTRADO via CDSEM numérico! CDFRM={cdfrm}")
+                        return cdfrm
+                except ValueError:
+                    pass
+                
+                # ESTRATÉGIA 3: CDPRO direto (caso exista essa coluna)
+                print(f"  [KIT FC05000] Tentativa 3: CDPRO={cdpro_str}")
+                try:
+                    cursor.execute("""
+                        SELECT CDFRM FROM FC05000 
+                        WHERE CDPRO = ?
+                    """, (cdpro_str,))
+                    row = cursor.fetchone()
+                    
+                    if row:
+                        cdfrm = row[0]
+                        print(f"  [KIT FC05000] ENCONTRADO via CDPRO! CDFRM={cdfrm}")
+                        return cdfrm
+                except Exception as e:
+                    print(f"  [KIT FC05000] Coluna CDPRO não existe ou erro: {e}")
+                
+                print(f"  [KIT FC05000] Nenhum kit encontrado para CDPRO={cdpro_str}")
+                return None
+                
             except Exception as e:
                 print(f"  [KIT FC05000 ERRO] {e}")
                 return None
