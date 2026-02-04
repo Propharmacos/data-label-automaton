@@ -1,18 +1,11 @@
-# ✅ IMPLEMENTADO: Corrigir Logica de Identificacao de KITs no Backend
 
-## Status: CONCLUÍDO
+# Plano: Implementar Logica de KITs via FC12111 no servidor.py
 
-A lógica foi refatorada para usar FC12111 como fonte definitiva de identificação de KITs.
+## Resumo
 
-## Resumo do Problema (Resolvido)
+Vou atualizar o `servidor.py` para usar a tabela **FC12111** como fonte definitiva de identificacao de KITs. A logica atual usa FC05000/FC05100 que nao funciona para todos os casos. A FC12111 contem a "explosao" do kit na requisicao - se existir registro em FC12111 para um determinado (NRRQU, SERIER, CDFIL), o item e definitivamente um KIT.
 
-O backend estava classificando itens como "PRODUTO UNICO" quando deveriam ser "KIT". Isso acontecia porque a logica antiga tentava detectar kits atraves de tabelas de cadastro (FC05000/FC05100, FC03600) que nao eram confiaveis para todos os casos.
-
-## Solucao Implementada
-
-Usar a tabela **FC12111** como fonte definitiva para identificacao de kits. Esta tabela contem a "explosao" do kit na requisicao - se existir registro em FC12111 para um determinado (NRRQU, SERIER, CDFIL), o item **e definitivamente um KIT**.
-
-## Fluxo de Dados
+## Fluxo de Identificacao
 
 ```text
 REQUISICAO (FC12100)
@@ -24,122 +17,94 @@ REQUISICAO (FC12100)
    |       |
    v       v
 SERIER   SERIER
-   1       2
+   1       9
    |       |
    v       v
 Existe    Existe
 FC12111?  FC12111?
    |         |
-  SIM       NAO
+  NAO       SIM
    |         |
    v         v
-  KIT    Produto/Mescla
+Prod/Mescla  KIT (com componentes)
 ```
 
-## Mudancas Tecnicas
+## Mudancas no servidor.py
 
-### 1. Nova Funcao `verificar_kit_fc12111`
+### 1. Nova Funcao: `verificar_kit_fc12111()`
 
-Substitui a funcao `verificar_kit_completo` atual. A nova logica:
+Conta registros em FC12111 para determinar se e KIT:
 
 ```text
-ENTRADA: nrrqu, serier, cdfil, cursor
+SELECT COUNT(*) FROM FC12111 
+WHERE NRRQU = ? AND SERIER = ? AND CDFIL = ?
 
-PASSO 1: Contar registros em FC12111
-  SELECT COUNT(*) FROM FC12111 
-  WHERE NRRQU = ? AND SERIER = ? AND CDFIL = ?
-
-SE count > 0:
-  RETORNA (True, []) -- E KIT, componentes serao buscados depois
-
-SE count = 0:
-  RETORNA (False, [])
+Se count > 0 -> E KIT
+Se count = 0 -> NAO E KIT
 ```
 
-### 2. Nova Funcao `buscar_componentes_kit_fc12111`
+### 2. Nova Funcao: `buscar_componentes_kit_fc12111()`
 
-Busca os componentes de um kit identificado:
+Busca componentes com descoberta dinamica de colunas:
 
 ```text
-ENTRADA: nrrqu, serier, cdfil, cursor
-
-QUERY:
-  SELECT c.CDPRO, c.CDPRIN, c.QUANT, c.UNIDADE, c.ORDCAP, c.TPCMP,
-         p.DESCR
-  FROM FC12111 c
-  LEFT JOIN FC03000 p ON p.CDPRO = c.CDPRO
-  WHERE c.NRRQU = ? AND c.SERIER = ? AND c.CDFIL = ?
-  ORDER BY c.ORDCAP
-
-RETORNA: lista de componentes com nome
+SELECT c.CDPRO, c.QUANT, c.UNIDADE, c.ORDCAP, p.DESCR
+FROM FC12111 c
+LEFT JOIN FC03000 p ON p.CDPRO = c.CDPRO
+WHERE c.NRRQU = ? AND c.SERIER = ? AND c.CDFIL = ?
+ORDER BY c.ORDCAP
 ```
 
-### 3. Nova Funcao `buscar_lote_componente`
+### 3. Nova Funcao: `buscar_lote_componente()`
 
-Busca lote/fabricacao/validade de cada componente (duas estrategias com fallback):
+Busca lote/fabricacao/validade com duas estrategias:
 
+**Estrategia A** (preferencial): Se FC12111 tiver NRLOT/CTLOT, usa para buscar em FC03140
+
+**Estrategia B** (fallback): Busca lote mais recente em FC03140:
 ```text
-ESTRATEGIA A (preferencial):
-  - Verificar se FC12111 tem campos NRLOT/CTLOT
-  - Se sim, fazer LEFT JOIN com FC03140 usando esse lote
-
-ESTRATEGIA B (fallback):
-  - Buscar lote mais recente na FC03140 para o CDPRO do componente
-  SELECT FIRST 1 NRLOT, CTLOT, DTFAB, DTVAL
-  FROM FC03140 
-  WHERE CDPRO = ? AND CDFIL = ?
-  ORDER BY DTVAL DESC
+SELECT FIRST 1 NRLOT, CTLOT, DTFAB, DTVAL
+FROM FC03140 
+WHERE CDPRO = ? AND CDFIL = ?
+ORDER BY DTVAL DESC
 ```
 
-### 4. Modificar Fluxo Principal em `/api/requisicao/<nr_requisicao>`
+### 4. Modificar Loop Principal
 
-O processamento de cada SERIER passa a ser:
+Na linha ~1869 onde processa os itens, adicionar verificacao FC12111 ANTES da verificacao FC05000:
 
 ```text
-PARA cada SERIER em itens_por_serier:
-  1. Verificar se e KIT via FC12111
-     - e_kit = verificar_kit_fc12111(nrrqu, serier, cdfil)
+PARA cada item em itens:
+  1. Verificar se e KIT via FC12111:
+     - count = SELECT COUNT(*) FROM FC12111 WHERE ...
+     - SE count > 0: E KIT
   
-  2. SE e_kit:
-     - componentes = buscar_componentes_kit_fc12111(nrrqu, serier, cdfil)
+  2. SE e KIT:
+     - componentes = buscar_componentes_kit_fc12111()
      - PARA cada componente:
-       - dados_lote = buscar_lote_componente(cdpro_comp, nrrqu, serier, cdfil)
-       - Montar objeto com ph, lote, fab, val
-     - Montar rotulo com tipoItem = "KIT" e lista de componentes
+       - dados_lote = buscar_lote_componente()
+     - tipoItem = "KIT"
   
-  3. SE NAO e_kit:
-     - Manter logica atual (MESCLA ou PRODUTO UNICO via FC99999/composicao)
+  3. SE NAO e KIT:
+     - Manter logica atual (FC05000/FC05100 ou MESCLA/PRODUTO UNICO)
 ```
 
-### 5. Remover Heuristicas Quebradas
+### 5. Conversao de Tipos (Evitar SQLCODE -413)
 
-Atualmente o codigo em `verificar_kit_completo` usa:
-- Busca por "KIT" no nome (linha 1807-1812)
-- FC05000/FC05100 com CDSEM/CDFRM (linha 1814-1856)
-- FC03600 com TPASS (linha 1861-1896)
+Todos os parametros numericos (NRRQU, SERIER, CDFIL) serao convertidos para `int()` antes de passar para o cursor.
 
-Estas estrategias serao **removidas** ou movidas para fallback secundario.
+### 6. Logs de Debug
 
-### 6. Logs de Debug Esperados
-
-Para cada SERIER processado, o sistema deve imprimir:
+Adicionar logs detalhados para cada SERIER:
 
 ```text
 [DEBUG] SERIER=9 CDPRO_PAI=92487
 [DEBUG] FC12111 count=4 => KIT
-[DEBUG] comp 92494 lote=... fab=... val=... (A)
-[DEBUG] comp 92681 lote=... fab=... val=... (B)
-...
+[DEBUG] comp 92494 lote=ABC123 fab=01/25 val=01/26 (A)
+[DEBUG] comp 92681 lote=DEF456 fab=02/25 val=02/26 (B)
 ```
 
-Ou para nao-kits:
-
-```text
-[DEBUG] SERIER=1 CDPRO_PAI=12345
-[DEBUG] FC12111 count=0 => NAO E KIT
-```
-
-## Estrutura JSON de Resposta para KIT
+## Estrutura JSON de Resposta
 
 ```text
 {
@@ -154,45 +119,29 @@ Ou para nao-kits:
       "lote": "ABC123",
       "fabricacao": "01/25",
       "validade": "01/26"
-    },
-    {
-      "codigo": "92681",
-      "nome": "COENZIMA Q10",
-      "ph": "",
-      "lote": "DEF456",
-      "fabricacao": "02/25",
-      "validade": "02/26"
     }
   ]
 }
 ```
 
-## Arquivos a Modificar
+## Locais de Edicao no servidor.py
 
-| Arquivo | Mudanca |
-|---------|---------|
-| servidor_completo.py | Refatorar funcao de deteccao de KIT, adicionar busca em FC12111 |
-
-## Passos de Implementacao
-
-1. Descobrir dinamicamente as colunas de FC12111 (para evitar "Column unknown")
-2. Criar funcao `verificar_kit_fc12111` que conta registros na FC12111
-3. Criar funcao `buscar_componentes_kit_fc12111` que retorna os componentes com nomes
-4. Criar funcao `buscar_lote_componente` com estrategias A e B
-5. Modificar o loop principal de processamento por SERIER
-6. Adicionar logs de debug detalhados
-7. Remover/simplificar a funcao `verificar_kit_completo` antiga
+| Linhas | Mudanca |
+|--------|---------|
+| ~1583-1600 | Adicionar novas funcoes FC12111 (verificar_kit_fc12111, buscar_componentes_kit_fc12111, buscar_lote_componente) |
+| ~1869-1890 | Modificar inicio do loop para verificar FC12111 primeiro |
+| ~2037-2047 | Substituir chamada de verificar_se_kit() pela nova logica FC12111 |
 
 ## Resultado Esperado
 
-Apos a implementacao:
-- O item "AMP EMAG SUG 2 2ML" (CDPRO 92487) sera identificado como **KIT**
-- Os 4 componentes (92494, 92681, 92377, 92435) serao retornados com lote/fab/val
-- O frontend recebera os dados corretos para renderizar o rotulo de kit
+- Item "AMP EMAG SUG 2 2ML" (CDPRO 92487) sera identificado como **KIT**
+- Os componentes (92494, 92681, 92377, 92435) serao retornados com lote/fab/val
+- Frontend recebera dados corretos para renderizar rotulo de kit
 
 ## Validacao
 
-Apos substituir o servidor e reiniciar, testar com:
-1. `http://localhost:5000/api/requisicao/89489?filial=279`
-2. Verificar nos logs do terminal as linhas `[DEBUG] FC12111 count=...`
-3. Confirmar que itens KIT aparecem com `tipoItem: "KIT"` e `componentes: [...]`
+Apos atualizar servidor.py:
+1. Reiniciar servidor Flask
+2. Acessar http://localhost:5000/api/requisicao/89489?filial=279
+3. Verificar logs no terminal com linhas `[DEBUG] FC12111 count=...`
+4. Confirmar que itens KIT aparecem com `tipoItem: "KIT"` e `componentes: [...]`
