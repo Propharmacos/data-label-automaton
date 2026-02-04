@@ -1873,13 +1873,18 @@ def buscar_requisicao(nr_requisicao):
             Retorna True se existir registro (é KIT), False caso contrário.
             """
             try:
+                # Converte para inteiros para evitar erro de conversão de tipo
+                nrrqu_int = int(nrrqu)
+                serier_int = int(serier)
+                cdfil_int = int(cdfil)
+                
                 cursor.execute("""
                     SELECT COUNT(*) FROM FC12111 
                     WHERE NRRQU = ? AND SERIER = ? AND CDFIL = ?
-                """, (nrrqu, serier, cdfil))
+                """, (nrrqu_int, serier_int, cdfil_int))
                 row = cursor.fetchone()
                 count = row[0] if row else 0
-                print(f"[DEBUG] FC12111 count para NRRQU={nrrqu}, SERIER={serier}: {count}")
+                print(f"[DEBUG] FC12111 count para NRRQU={nrrqu_int}, SERIER={serier_int}: {count}")
                 return count > 0
             except Exception as e:
                 print(f"[DEBUG] Erro ao verificar FC12111: {e}")
@@ -1942,6 +1947,11 @@ def buscar_requisicao(nr_requisicao):
             order_by = 'c.ORDCAP' if 'ORDCAP' in colunas_fc12111 else 'c.CDPRO'
             
             try:
+                # Converte para inteiros para evitar erro de conversão de tipo
+                nrrqu_int = int(nrrqu)
+                serier_int = int(serier)
+                cdfil_int = int(cdfil)
+                
                 query = f"""
                     SELECT {select_str}, p.DESCR
                     FROM FC12111 c
@@ -1950,7 +1960,7 @@ def buscar_requisicao(nr_requisicao):
                     ORDER BY {order_by}
                 """
                 print(f"[DEBUG] Query FC12111: {query.strip()[:200]}...")
-                cursor.execute(query, (nrrqu, serier, cdfil))
+                cursor.execute(query, (nrrqu_int, serier_int, cdfil_int))
                 
                 rows = cursor.fetchall()
                 for row in rows:
