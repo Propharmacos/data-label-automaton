@@ -1,44 +1,25 @@
+# ✅ CONCLUÍDO: Corrigir Prioridade do Lote para NRLOT
 
+## Correções Aplicadas
 
-# Plano: Corrigir Prioridade do Lote para NRLOT
-
-## Problema Confirmado
-
-O print do DBeaver mostra claramente:
-- **CTLOT** = numeros pequenos (196, 189, 172, 93...) - ID interno de controle
-- **NRLOT** = numeros maiores (10416, 10404, 10395, 10160...) - Numero do lote comercial
-
-O sistema atual usa `ctlot or nrlot`, priorizando CTLOT. Precisa inverter para `nrlot or ctlot`.
-
-## Mudanca no servidor.py
-
-### Funcao `resolve_lote_componente()` (linha ~280)
-
-**Antes:**
+### 1. Linha 280-281 - `resolve_lote_componente()`
 ```python
-lote = str(ctlot or nrlot or "").strip()
+# ANTES: lote = str(ctlot or nrlot or "").strip()
+# DEPOIS: lote = str(nrlot or ctlot or "").strip()
 ```
 
-**Depois:**
+### 2. Linha 298 - Fallback de lote
 ```python
-lote = str(nrlot or ctlot or "").strip()
+# ANTES: lote = str(row[0] or row[1] or "").strip()
+# DEPOIS: lote = str(row[1] or row[0] or "").strip()
 ```
 
-### Locais de Correcao
+### 3. Linha 410 - `tenta_fc12111_componentes()` 
+Já estava correto: `lote_req = str(nrlot or ctlot or "").strip()`
 
-Existem 3 lugares no servidor.py onde essa logica pode aparecer:
+### 4. Linhas 2370, 2390 - `buscar_lote_componente()`
+Já estavam corretas: SELECT retorna NRLOT em row[0]
 
-1. **Funcao `resolve_lote_componente()`** - principal
-2. **Funcao `buscar_lote_componente()`** - se existir versao duplicada
-3. **Funcao `buscar_componentes_kit_fc12111()`** - quando processa lote inline
-
-Em todos esses locais, a prioridade deve ser NRLOT primeiro.
-
-## Resultado Esperado
-
-Apos a correcao, os rotulos de KIT mostrarao:
-- Lote: **10416** (em vez de 196)
-- Lote: **10160** (em vez de 93)
-
-Exatamente como aparece na coluna NRLOT do seu banco de dados.
+## Resultado
+Rótulos agora exibem números de lote comerciais (10416, 10160...) em vez de IDs internos.
 

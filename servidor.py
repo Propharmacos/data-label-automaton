@@ -277,8 +277,8 @@ def resolve_lote_componente(cursor, cdfil, cdpro):
             dtfab = row[2]
             dtval = row[3]
             
-            # Prioriza CTLOT, fallback NRLOT
-            lote = str(ctlot or nrlot or "").strip()
+            # Prioriza NRLOT (número comercial), fallback CTLOT (ID interno)
+            lote = str(nrlot or ctlot or "").strip()
             fab_str = dtfab.strftime('%d/%m/%Y') if dtfab else ""
             val_str = dtval.strftime('%d/%m/%Y') if dtval else ""
             
@@ -295,7 +295,7 @@ def resolve_lote_componente(cursor, cdfil, cdpro):
         
         row = cursor.fetchone()
         if row:
-            lote = str(row[0] or row[1] or "").strip()
+            lote = str(row[1] or row[0] or "").strip()  # NRLOT (row[1]) prioritário sobre CTLOT (row[0])
             fab_str = row[2].strftime('%d/%m/%Y') if row[2] else ""
             val_str = row[3].strftime('%d/%m/%Y') if row[3] else ""
             print(f"      [LOTE FALLBACK] CDPRO={cdpro_int}: LT={lote}, F={fab_str}, V={val_str}")
