@@ -1560,6 +1560,23 @@ def buscar_requisicao(nr_requisicao):
         except Exception as e:
             print(f"[DEBUG] Erro ao listar colunas FC03140: {e}")
         
+        # Descobre colunas da FC03000 para saber se NOMRED existe
+        colunas_fc03000 = []
+        try:
+            cursor.execute("""
+                SELECT TRIM(RDB$FIELD_NAME) 
+                FROM RDB$RELATION_FIELDS 
+                WHERE RDB$RELATION_NAME = 'FC03000'
+            """)
+            colunas_fc03000 = [row[0] for row in cursor.fetchall()]
+            print(f"[DEBUG] Colunas FC03000: {colunas_fc03000[:10]}...")
+        except Exception as e:
+            print(f"[DEBUG] Erro ao listar colunas FC03000: {e}")
+        
+        # Verifica se NOMRED existe na FC03000
+        tem_nomred = 'NOMRED' in colunas_fc03000
+        select_nomred = "p.NOMRED" if tem_nomred else "NULL as NOMRED"
+        
         # Identifica coluna de lote na FC03140
         col_lote_fc03140 = None
         for col in ['NRLOT', 'CTLOT', 'LOTE']:
@@ -1572,6 +1589,7 @@ def buscar_requisicao(nr_requisicao):
         col_val = 'DTVAL' if 'DTVAL' in colunas_fc03140 else None
         
         print(f"[DEBUG] FC03140 mapeamento: lote={col_lote_fc03140}, fab={col_fab}, val={col_val}")
+        print(f"[DEBUG] FC03000 tem NOMRED: {tem_nomred}")
         
         # 2. Monta query principal com LEFT JOIN dinâmico
         # Busca itens da requisição com dados do produto e lote
@@ -1592,7 +1610,7 @@ def buscar_requisicao(nr_requisicao):
                     i.NRLOT,
                     i.CTLOT,
                     p.DESCR as DESCR_PROD,
-                    p.NOMRED,
+                    {select_nomred},
                     {select_datas} as DTFAB,
                     {select_val} as DTVAL
                 FROM FC12110 i
@@ -1604,7 +1622,7 @@ def buscar_requisicao(nr_requisicao):
             """
         else:
             # Fallback sem FC03140
-            query_itens = """
+            query_itens = f"""
                 SELECT 
                     i.SERIER,
                     i.ITEMID,
@@ -1616,7 +1634,7 @@ def buscar_requisicao(nr_requisicao):
                     i.NRLOT,
                     i.CTLOT,
                     p.DESCR as DESCR_PROD,
-                    p.NOMRED,
+                    {select_nomred},
                     NULL as DTFAB,
                     NULL as DTVAL
                 FROM FC12110 i
