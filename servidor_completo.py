@@ -1598,6 +1598,8 @@ def buscar_requisicao(nr_requisicao):
             select_datas = f"l.{col_fab}" if col_fab else "NULL"
             select_val = f"l.{col_val}" if col_val else "NULL"
             
+            # IMPORTANTE: Busca TODOS os itens da requisição SEM filtro TPCMP
+            # para garantir que todos os componentes de kit sejam retornados
             query_itens = f"""
                 SELECT 
                     i.SERIER,
@@ -1617,11 +1619,12 @@ def buscar_requisicao(nr_requisicao):
                 LEFT JOIN FC03000 p ON p.CDPRO = i.CDPRO
                 LEFT JOIN FC03140 l ON l.CDPRO = i.CDPRO 
                     AND (l.{col_lote_fc03140} = i.NRLOT OR l.{col_lote_fc03140} = i.CTLOT)
-                WHERE i.NRRQU = ? AND i.CDFIL = ? AND i.TPCMP IN ('C', 'S')
+                WHERE i.NRRQU = ? AND i.CDFIL = ?
                 ORDER BY i.SERIER, i.ITEMID
             """
         else:
             # Fallback sem FC03140
+            # IMPORTANTE: Busca TODOS os itens SEM filtro TPCMP
             query_itens = f"""
                 SELECT 
                     i.SERIER,
@@ -1639,7 +1642,7 @@ def buscar_requisicao(nr_requisicao):
                     NULL as DTVAL
                 FROM FC12110 i
                 LEFT JOIN FC03000 p ON p.CDPRO = i.CDPRO
-                WHERE i.NRRQU = ? AND i.CDFIL = ? AND i.TPCMP IN ('C', 'S')
+                WHERE i.NRRQU = ? AND i.CDFIL = ?
                 ORDER BY i.SERIER, i.ITEMID
             """
         
