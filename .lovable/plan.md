@@ -1,23 +1,14 @@
 
-# Plano: Corrigir Extração de Aplicação - Problema de Encoding
+# Plano: Corrigir Extração de Aplicação e Composição da FC03300
 
-## Problema Identificado
+## Diagnóstico
 
-O print mostra que a aplicação "APLICAÇÃO: SC" deveria estar sendo capturada, mas não está aparecendo no frontend. Após análise do código, identificamos dois problemas potenciais:
+Após análise detalhada do código atual, identifiquei que:
 
-### Problema 1: Inconsistência no Fallback de CDPRO
-Na linha 3003, quando o fallback é ativado, usa `cdpro` (valor bruto do banco) ao invés de `cdpro_str` (string normalizada):
+1. **A query FC03300 está correta** - usa `cdpro_str` como string
+2. **O problema pode ser o tipo de dado** - o campo CDPRO na FC03300 pode ser numérico (INTEGER), não texto
 
-```python
-# PROBLEMA:
-codigo_aplicacao = cdprin_str if (...) else cdpro  # <-- deveria ser cdpro_str
-```
-
-### Problema 2: Encoding de Caracteres Especiais
-O banco Firebird pode armazenar "APLICAÇÃO:" com encoding diferente (Latin-1, CP1252). O `texto_upper` pode resultar em algo como "APLICACˆO:" ou "APLICAÇAO:" dependendo do encoding.
-
-### Problema 3: Falta de Debug Logging
-Não há logs indicando quando a busca na FC03300 acontece e o que ela retorna.
+No Firebird, comparar `INTEGER = 'string'` pode falhar silenciosamente, retornando zero resultados.
 
 ---
 
@@ -25,59 +16,57 @@ Não há logs indicando quando a busca na FC03300 acontece e o que ela retorna.
 
 ### Arquivo: `servidor.py`
 
-#### Alteração 1: Corrigir fallback de CDPRO (linha 3003)
+#### Alteração 1: Converter CDPRO para inteiro na query FC03300 (linhas 3008-3014)
 
 **Antes:**
 ```python
-codigo_aplicacao = cdprin_str if (cdprin_str and cdprin_str != '0' and cdprin_str != cdpro_str) else cdpro
+for codigo_aplicacao in codigos_buscar:
+    cursor.execute("""
+        SELECT FRFAR, CDICP, OBSER 
+        FROM FC03300 
+        WHERE CDPRO = ?
+        ORDER BY FRFAR, CDICP
+    """, (codigo_aplicacao,))
 ```
 
 **Depois:**
 ```python
-codigo_aplicacao = cdprin_str if (cdprin_str and cdprin_str != '0' and cdprin_str != cdpro_str) else cdpro_str
-```
-
-#### Alteração 2: Adicionar detecção robusta de "APLICAÇÃO" (linhas 3039-3051)
-
-Usar normalização de texto para remover acentos antes da comparação:
-
-```python
-import unicodedata
-
-def normalizar_texto(texto):
-    """Remove acentos e normaliza texto para comparação"""
-    if not texto:
-        return ""
-    # NFD decompõe caracteres acentuados
-    normalizado = unicodedata.normalize('NFD', texto)
-    # Remove marcas de acentuação (categoria 'Mn')
-    return ''.join(c for c in normalizado if unicodedata.category(c) != 'Mn')
-```
-
-E usar na detecção:
-
-```python
-if not aplicacao:
-    texto_normalizado = normalizar_texto(texto_upper)
+for codigo_aplicacao in codigos_buscar:
+    # Tenta como inteiro (caso o campo seja numérico no banco)
+    try:
+        codigo_int = int(codigo_aplicacao)
+    except:
+        codigo_int = 0
     
-    # Verifica prefixos COM e SEM acento
-    if (texto_upper.startswith("APLICAÇÃO:") or 
-        texto_upper.startswith("APLICACAO:") or
-        texto_normalizado.startswith("APLICACAO:")):
-        # Encontra posição do : para extrair o valor
-        pos_dois_pontos = texto.find(':')
-        if pos_dois_pontos > 0:
-            aplicacao = texto[pos_dois_pontos + 1:].strip()
-            print(f"  -> APLICAÇÃO (prefixo): '{aplicacao}'")
+    cursor.execute("""
+        SELECT FRFAR, CDICP, OBSER 
+        FROM FC03300 
+        WHERE CDPRO = ? OR CDPRO = ?
+        ORDER BY FRFAR, CDICP
+    """, (codigo_aplicacao, codigo_int))
 ```
 
-#### Alteração 3: Adicionar logs de debug (após linha 3011)
+#### Alteração 2: Melhorar debug logging (após linha 3016)
+
+Adicionar log do tipo de dado e valor exato:
 
 ```python
-print(f"\n  DEBUG FC03300 - Buscando aplicação em CDPRO={codigo_aplicacao}")
-print(f"    Observações encontradas: {len(observacoes)}")
-for obs in observacoes:
-    print(f"    - FRFAR={obs[0]}, CDICP={obs[1]}, OBSER={str(obs[2])[:50]}...")
+print(f"\n  DEBUG FC03300 - Buscando CDPRO={codigo_aplicacao} (str) ou {codigo_int} (int)")
+obs_encontradas = cursor.fetchall()
+print(f"    -> Encontrou {len(obs_encontradas)} registros")
+```
+
+#### Alteração 3: Adicionar fallback de busca CAST (se ainda não funcionar)
+
+Como opção robusta, usar CAST explícito:
+
+```python
+cursor.execute("""
+    SELECT FRFAR, CDICP, OBSER 
+    FROM FC03300 
+    WHERE CAST(CDPRO AS VARCHAR(20)) = ?
+    ORDER BY FRFAR, CDICP
+""", (codigo_aplicacao,))
 ```
 
 ---
@@ -86,10 +75,9 @@ for obs in observacoes:
 
 | Linha | Alteração |
 |-------|-----------|
-| 3003 | Trocar `cdpro` por `cdpro_str` no fallback |
-| ~3005 (antes do loop) | Adicionar função `normalizar_texto()` ou import |
-| 3039-3051 | Usar `texto.find(':')` para extrair aplicação de forma robusta |
-| 3012 | Adicionar logs de debug para FC03300 |
+| 3008-3014 | Passar CDPRO como inteiro E string para a query |
+| 3016-3023 | Melhorar logs de debug |
+| (opcional) | Usar CAST se necessário |
 
 ---
 
@@ -97,28 +85,20 @@ for obs in observacoes:
 
 Após as correções:
 
-1. O sistema irá logar no console Flask: 
+1. O console Flask mostrará:
    ```
-   DEBUG FC03300 - Buscando aplicação em CDPRO=92602
-   Observações encontradas: 4
-   - FRFAR=14, CDICP=00001, OBSER=APLICAÇÃO: SC...
-   -> APLICAÇÃO (prefixo): 'SC'
+   DEBUG FC03300 - Buscando CDPRO=92602 (str) ou 92602 (int)
+     -> Encontrou 4 registros
+     - FRFAR=14, CDICP=00001: 'APLICAÇÃO: SC...'
+     -> APLICAÇÃO extraída: 'SC'
    ```
 
-2. O frontend exibirá:
-   ```
-   APLICAÇÃO: SC
-   CONTÉM:
-   REG: 154064
-   ```
+2. O rótulo exibirá:
+   - **APLICAÇÃO: SC**
+   - **Composição com os ativos extraídos**
 
 ---
 
-## Arquivo de Referência Atualizado
+## Nota Técnica
 
-Após estas alterações, o servidor.py terá aproximadamente **3350 linhas**. O usuário deverá:
-
-1. Copiar todo o servidor.py atualizado
-2. Substituir o arquivo local
-3. Reiniciar o Flask
-4. Testar requisição 89489 novamente
+O Firebird é sensível a tipos de dados em comparações. Se o campo `FC03300.CDPRO` for `INTEGER`, passar uma string `'92602'` não encontrará o registro. A solução é passar ambos os formatos ou usar `CAST` para garantir compatibilidade.
