@@ -3005,6 +3005,14 @@ def buscar_requisicao(nr_requisicao):
             
             observacoes_raw = []
             codigo_encontrado = None
+            
+            # Descoberta dinâmica: verifica se FRFAR existe na FC03300
+            cursor.execute("""
+                SELECT 1 FROM RDB$RELATION_FIELDS 
+                WHERE RDB$RELATION_NAME = 'FC03300' AND RDB$FIELD_NAME = 'FRFAR'
+            """)
+            tem_frfar = cursor.fetchone() is not None
+            
             for codigo_aplicacao in codigos_buscar:
                 # Converte para inteiro para compatibilidade com campos numéricos no Firebird
                 try:
@@ -3012,14 +3020,23 @@ def buscar_requisicao(nr_requisicao):
                 except:
                     codigo_int = 0
                 
-                print(f"\n  DEBUG FC03300 - Buscando CDPRO={codigo_aplicacao} (str) ou {codigo_int} (int)")
+                print(f"\n  DEBUG FC03300 - Buscando CDPRO={codigo_aplicacao} (str) ou {codigo_int} (int), tem_frfar={tem_frfar}")
                 
-                cursor.execute("""
-                    SELECT FRFAR, CDICP, OBSER 
-                    FROM FC03300 
-                    WHERE CDPRO = ? OR CDPRO = ?
-                    ORDER BY FRFAR, CDICP
-                """, (codigo_int, codigo_aplicacao))
+                # Query dinâmica baseada nas colunas disponíveis
+                if tem_frfar:
+                    cursor.execute("""
+                        SELECT FRFAR, CDICP, OBSER 
+                        FROM FC03300 
+                        WHERE CDPRO = ? OR CDPRO = ?
+                        ORDER BY FRFAR, CDICP
+                    """, (codigo_int, codigo_aplicacao))
+                else:
+                    cursor.execute("""
+                        SELECT NULL AS FRFAR, CDICP, OBSER 
+                        FROM FC03300 
+                        WHERE CDPRO = ? OR CDPRO = ?
+                        ORDER BY CDICP
+                    """, (codigo_int, codigo_aplicacao))
                 
                 obs_encontradas = cursor.fetchall()
                 if obs_encontradas:
