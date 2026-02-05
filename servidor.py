@@ -38,81 +38,137 @@ def get_db_connection():
 
 import unicodedata
 
-def buscar_aplicacao_nao_kit(cursor, cdpro_int):
+import re
+
+def norm_texto(txt: str) -> str:
     """
-    Busca APLICAÇÃO na FC99999 para itens NÃO-KIT.
-    Retorna string com a aplicação ou None se não encontrar.
+    Normaliza texto removendo acentos e caracteres inválidos.
+    Ex: "APLICAÇÃO: SC" -> "APLICACAO: SC"
+    """
+    if not txt:
+        return ""
+    txt = txt.strip()
+    # Remove acentos via NFD (decompõe) + filtro de combining chars
+    txt = unicodedata.normalize("NFKD", txt)
+    txt = "".join(c for c in txt if not unicodedata.combining(c))
+    txt = txt.upper()
+    # Remove caracteres inválidos (mantém letras, números, dois pontos, espaço, barra, hífen)
+    txt = re.sub(r"[^A-Z0-9: /_-]+", "", txt)
+    return txt.strip()
+
+
+def buscar_aplicacao_nao_kit(cursor, cdpro_int, cdprin_int=None):
+    """
+    Busca APLICAÇÃO na FC99999 para itens NÃO-KIT (Mesclas e Ativos Únicos).
+    
+    REGRA DE OURO PARA MESCLAS:
+    - Se CDPRIN existe e é diferente de CDPRO → usa CDPRIN para buscar
+    - Senão → usa CDPRO
     
     IMPORTANTE: O filtro SQL foi removido porque o Firebird não lida
     corretamente com acentos (ex: APLICAÇÃO vs APLICACAO).
-    Agora busca TODOS os registros e filtra no Python com normalização Unicode.
+    Busca TODOS os registros e filtra no Python com normalização Unicode.
+    
+    Args:
+        cursor: Cursor do banco Firebird
+        cdpro_int: Código do produto específico
+        cdprin_int: Código do produto principal (para mesclas)
+    
+    Returns:
+        String com a aplicação ou None se não encontrar
     """
     if not cdpro_int:
         return None
     
+    # REGRA DE OURO: Para mesclas, usa CDPRIN se disponível e diferente
     cdpro_str = str(cdpro_int).replace('.', '').strip()
+    cdprin_str = str(cdprin_int).replace('.', '').strip() if cdprin_int else ""
     
-    # Usar STARTING WITH para encontrar ARGUMENTOs com sufixos (ex: OBSFIC9263814)
-    argumento = f"OBSFIC{cdpro_str}"
+    # Determina qual código usar para buscar
+    if cdprin_str and cdprin_str != cdpro_str and cdprin_str != '0':
+        codigo_busca = cdprin_str
+        print(f"  [APLICAÇÃO NÃO-KIT] MESCLA detectada! Usando CDPRIN={cdprin_str} (não CDPRO={cdpro_str})")
+    else:
+        codigo_busca = cdpro_str
+        print(f"  [APLICAÇÃO NÃO-KIT] Usando CDPRO={cdpro_str}")
     
     aplicacoes = []
     
-    try:
-        print(f"  [APLICAÇÃO NÃO-KIT] Tentando ARGUMENTO STARTING WITH '{argumento}'")
-        
-        # Busca TODOS os registros (sem filtro CONTAINING no SQL)
-        # O filtro será feito no Python com normalização Unicode
-        cursor.execute("""
-            SELECT FIRST 50 ARGUMENTO, SUBARGUM, PARAMETRO, DESCRPAR
-            FROM FC99999
-            WHERE ARGUMENTO STARTING WITH ?
-            ORDER BY ARGUMENTO, SUBARGUM
-        """, (argumento,))
-        
-        registros = cursor.fetchall()
-        print(f"  [APLICAÇÃO NÃO-KIT] Encontrados {len(registros)} registros no total")
-        
-        for reg in registros:
-            # PARAMETRO (índice 2)
-            texto = reg[2]
-            if texto and hasattr(texto, 'read'):
-                texto = texto.read().decode('latin-1')
-            texto = (texto or "").strip()
+    # Lista de códigos a buscar (principal primeiro, depois fallback)
+    codigos_buscar = [codigo_busca]
+    if codigo_busca != cdpro_str:
+        codigos_buscar.append(cdpro_str)  # Fallback para CDPRO se CDPRIN não tiver
+    
+    for codigo in codigos_buscar:
+        if aplicacoes:
+            break  # Já encontrou, não precisa continuar
             
-            # DESCRPAR (índice 3)
-            descrpar = reg[3]
-            if descrpar and hasattr(descrpar, 'read'):
-                descrpar = descrpar.read().decode('latin-1')
-            descrpar = (descrpar or "").strip()
-            
-            # Processa cada campo com normalização Unicode
-            for campo in [texto, descrpar]:
-                if not campo:
-                    continue
+        # Tenta múltiplos formatos de ARGUMENTO
+        argumentos_tentar = [
+            f"OBSFIC{codigo}",
+            f"OBSFIC{codigo.zfill(8)}",  # Com zeros à esquerda
+        ]
+        
+        for argumento in argumentos_tentar:
+            if aplicacoes:
+                break
                 
-                # Normaliza removendo acentos para comparação (APLICAÇÃO -> APLICACAO)
-                campo_normalizado = ''.join(
-                    c for c in unicodedata.normalize('NFD', campo.upper()) 
-                    if unicodedata.category(c) != 'Mn'
-                )
+            try:
+                print(f"  [APLICAÇÃO NÃO-KIT] Tentando ARGUMENTO STARTING WITH '{argumento}'")
                 
-                if 'APLICAC' in campo_normalizado:
-                    # Tenta extrair após ":"
-                    if ':' in campo:
-                        valor = campo.split(':', 1)[1].strip()
-                    else:
-                        valor = campo.strip()
+                # Busca TODOS os registros (sem filtro CONTAINING no SQL)
+                cursor.execute("""
+                    SELECT FIRST 50 ARGUMENTO, SUBARGUM, PARAMETRO, DESCRPAR
+                    FROM FC99999
+                    WHERE ARGUMENTO STARTING WITH ?
+                    ORDER BY ARGUMENTO, SUBARGUM
+                """, (argumento,))
+                
+                registros = cursor.fetchall()
+                print(f"  [APLICAÇÃO NÃO-KIT] Encontrados {len(registros)} registros no total")
+                
+                for reg in registros:
+                    # PARAMETRO (índice 2)
+                    texto = reg[2]
+                    if texto and hasattr(texto, 'read'):
+                        texto = texto.read().decode('latin-1')
+                    texto = (texto or "").strip()
                     
-                    # Validação: ignora se for lista de ativos (contém vírgula ou é muito longo)
-                    if valor and len(valor) <= 50 and ',' not in valor and valor not in aplicacoes:
-                        aplicacoes.append(valor)
-                        print(f"  [APLICAÇÃO NÃO-KIT] Encontrado: '{valor}' em {reg[0]}")
+                    # DESCRPAR (índice 3)
+                    descrpar = reg[3]
+                    if descrpar and hasattr(descrpar, 'read'):
+                        descrpar = descrpar.read().decode('latin-1')
+                    descrpar = (descrpar or "").strip()
                     
-    except Exception as e:
-        print(f"  [APLICAÇÃO NÃO-KIT] Erro ao buscar {argumento}: {e}")
+                    # Processa cada campo (PARAMETRO e DESCRPAR)
+                    for campo in [texto, descrpar]:
+                        if not campo:
+                            continue
+                        
+                        # Normaliza removendo acentos e caracteres inválidos
+                        campo_norm = norm_texto(campo)
+                        
+                        # Verifica se começa com APLIC (APLICAÇÃO, APLICACAO, etc.)
+                        if campo_norm.startswith("APLIC") or "APLICAC" in campo_norm:
+                            # Extrai valor após ":" ou após primeiro espaço
+                            if ':' in campo:
+                                valor = campo.split(':', 1)[1].strip()
+                            else:
+                                # Tenta após primeiro espaço
+                                partes = campo.split(None, 1)
+                                valor = partes[1].strip() if len(partes) > 1 else campo.strip()
+                            
+                            # Validação: ignora se for lista de ativos
+                            if valor and len(valor) <= 50 and ',' not in valor and valor not in aplicacoes:
+                                aplicacoes.append(valor)
+                                print(f"  [APLICAÇÃO NÃO-KIT] ✓ Encontrado: '{valor}' em {reg[0]}")
+                                break  # Pega apenas primeira aplicação válida por registro
+                        
+            except Exception as e:
+                print(f"  [APLICAÇÃO NÃO-KIT] Erro ao buscar {argumento}: {e}")
     
     if aplicacoes:
-        return " | ".join(aplicacoes)
+        return aplicacoes[0]  # Retorna apenas a primeira (mais confiável)
     
     return None
 
@@ -3150,7 +3206,8 @@ def buscar_requisicao(nr_requisicao):
             # APLICAÇÃO: usa busca específica apenas para NÃO-KIT
             if not e_kit:
                 # Tenta busca específica para não-kit (OBSFIC + APLIC)
-                aplicacao_nao_kit = buscar_aplicacao_nao_kit(cursor, cdpro)
+                # REGRA DE OURO: Passa CDPRIN para mesclas usarem o código correto
+                aplicacao_nao_kit = buscar_aplicacao_nao_kit(cursor, cdpro, cdprin)
                 if aplicacao_nao_kit:
                     aplicacao = aplicacao_nao_kit
                     print(f"  [APLICAÇÃO] Usando busca não-kit: '{aplicacao}'")
