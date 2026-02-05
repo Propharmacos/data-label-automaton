@@ -2944,12 +2944,12 @@ def buscar_requisicao(nr_requisicao):
                         print(f"  -> MESCLA (ativo diferente do nome do produto)")
                 
                 if e_mescla:
-                    # É MESCLA: usa o primeiro ativo como composição (geralmente é a lista completa)
-                    composicao = primeiro_ativo
+                    # É MESCLA: concatena TODOS os ativos encontrados na FC99999
+                    composicao = ", ".join(ativos_mescla)
                     # Remove prefixo AMP do nome se houver
                     nome_formula = nome_produto.replace("AMP ", "").strip()
                     print(f"  -> TIPO: MESCLA")
-                    print(f"  -> COMPOSIÇÃO: '{composicao[:60]}...'")
+                    print(f"  -> COMPOSIÇÃO: '{composicao[:100]}...'")
                 else:
                     # É PRODUTO ÚNICO: sem composição extra
                     composicao = ""
@@ -2998,13 +2998,15 @@ def buscar_requisicao(nr_requisicao):
             descricao_produto = ""
             
             # Fallback para FC03300 se não encontrou aplicação na FC99999
+            # Usa CDPRIN (código base) se disponível, senão CDPRO
             if not aplicacao:
+                codigo_aplicacao = cdprin_str if (cdprin_str and cdprin_str != '0' and cdprin_str != cdpro_str) else cdpro
                 cursor.execute("""
                     SELECT CDICP, OBSER 
                     FROM FC03300 
                     WHERE CDPRO = ?
                     ORDER BY CDICP
-                """, (cdpro,))
+                """, (codigo_aplicacao,))
                 
                 observacoes = cursor.fetchall()
                 
@@ -3025,7 +3027,8 @@ def buscar_requisicao(nr_requisicao):
                         descricao_produto = texto
             
             # Limpa aplicação se for muito longa ou contiver vírgulas (indica lista de ativos)
-            if len(aplicacao) > 30 or ',' in aplicacao:
+            # Aumentado limite de 30 para 50 caracteres para não perder aplicações válidas
+            if len(aplicacao) > 50 or ',' in aplicacao:
                 aplicacao = ""
             
             # Determina tipoItem: KIT > MESCLA > PRODUTO ÚNICO
