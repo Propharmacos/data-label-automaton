@@ -144,6 +144,23 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
     return nome.toUpperCase();
   };
 
+  // Remove prefixos de embalagem (AMP, FRS, FR, etc.) dos nomes de componentes de KIT
+  const formatarNomeComponente = (nome: string): string => {
+    if (!nome) return "";
+    let limpo = nome.trim().toUpperCase();
+    
+    // Remove prefixos de embalagem comuns
+    const prefixos = ["AMP ", "FRS ", "FR ", "BIS ", "ENV "];
+    for (const prefixo of prefixos) {
+      if (limpo.startsWith(prefixo)) {
+        limpo = limpo.substring(prefixo.length);
+        break;
+      }
+    }
+    
+    return limpo;
+  };
+
   const formatarLote = () => {
     const lote = rotulo.lote || "";
     if (lote.includes('/')) return lote;
@@ -195,7 +212,7 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
     // Linhas de componentes do kit
     lines.push(""); // Linha em branco
     rotulo.componentes.forEach((comp) => {
-      const compLine: string[] = [comp.nome.toUpperCase()];
+      const compLine: string[] = [formatarNomeComponente(comp.nome)];
       if (comp.ph) compLine.push(`pH:${comp.ph}`);
       if (comp.lote) compLine.push(`L:${comp.lote}`);
       if (comp.validade) compLine.push(`V:${comp.validade}`);
@@ -398,7 +415,7 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
         {/* Lista de componentes do kit */}
         {rotulo.componentes.map((comp, idx) => (
           <div key={idx} className="text-[9px] leading-tight flex flex-wrap gap-1">
-            <span className="font-semibold uppercase">{comp.nome}</span>
+            <span className="font-semibold uppercase">{formatarNomeComponente(comp.nome)}</span>
             {comp.ph && <span>pH:{comp.ph}</span>}
             {comp.lote && <span>L:{comp.lote}</span>}
             {comp.validade && <span>V:{comp.validade}</span>}
