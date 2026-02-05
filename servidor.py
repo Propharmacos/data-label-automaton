@@ -3000,7 +3000,7 @@ def buscar_requisicao(nr_requisicao):
             # Fallback para FC03300 se não encontrou aplicação na FC99999
             # Usa CDPRIN (código base) se disponível, senão CDPRO
             if not aplicacao:
-                codigo_aplicacao = cdprin_str if (cdprin_str and cdprin_str != '0' and cdprin_str != cdpro_str) else cdpro
+                codigo_aplicacao = cdprin_str if (cdprin_str and cdprin_str != '0' and cdprin_str != cdpro_str) else cdpro_str
                 cursor.execute("""
                     SELECT FRFAR, CDICP, OBSER 
                     FROM FC03300 
@@ -3009,6 +3009,13 @@ def buscar_requisicao(nr_requisicao):
                 """, (codigo_aplicacao,))
                 
                 observacoes = cursor.fetchall()
+                
+                # DEBUG: Log da busca FC03300
+                print(f"\n  DEBUG FC03300 - Buscando aplicação em CDPRO={codigo_aplicacao}")
+                print(f"    Observações encontradas: {len(observacoes)}")
+                for obs_debug in observacoes:
+                    obs_texto = str(obs_debug[2])[:50] if obs_debug[2] else ""
+                    print(f"    - FRFAR={obs_debug[0]}, CDICP={obs_debug[1]}, OBSER={obs_texto}...")
                 
                 for obs in observacoes:
                     frfar = str(obs[0]).strip() if obs[0] else ""
@@ -3037,9 +3044,22 @@ def buscar_requisicao(nr_requisicao):
                     # Prioridade 2: Forma farmacêutica numérica (14, 1, etc.) com via direta
                     # =====================================================
                     if not aplicacao:
-                        if texto_upper.startswith("APLICAÇÃO:") or texto_upper.startswith("APLICACAO:"):
-                            aplicacao = texto[10:].strip()
-                            print(f"  -> APLICAÇÃO (prefixo): '{aplicacao}'")
+                        # Normaliza texto removendo acentos para comparação robusta
+                        import unicodedata
+                        texto_normalizado = ''.join(
+                            c for c in unicodedata.normalize('NFD', texto_upper) 
+                            if unicodedata.category(c) != 'Mn'
+                        )
+                        
+                        # Verifica prefixos COM e SEM acento
+                        if (texto_upper.startswith("APLICAÇÃO:") or 
+                            texto_upper.startswith("APLICACAO:") or
+                            texto_normalizado.startswith("APLICACAO:")):
+                            # Encontra posição do : para extrair o valor de forma robusta
+                            pos_dois_pontos = texto.find(':')
+                            if pos_dois_pontos > 0:
+                                aplicacao = texto[pos_dois_pontos + 1:].strip()
+                                print(f"  -> APLICAÇÃO (prefixo): '{aplicacao}'")
                         elif frfar.isdigit():  # Forma farmacêutica numérica (ex: 14)
                             # Verifica se é via de administração direta
                             vias_conhecidas = ['SC', 'IM', 'IV', 'ID', 'EV', 'IDSC', 'ID/SC', 'IM/SC', 
