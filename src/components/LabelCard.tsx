@@ -168,6 +168,13 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
     return lote ? `${lote}/${ano}` : "";
   };
 
+  // Normaliza a barra da requisição para usar exatamente os valores do backend
+  const normalizeReqBarra = (nrReq: string, nrItem: string): string => {
+    const req = (nrReq || "").trim();
+    const barra = (nrItem || "0").trim();
+    return `REQ:${req}-${barra}`;
+  };
+
   // ============================================
   // REGRA DE EXCLUSÃO MÚTUA: composicao vs formula
   // - MESCLA: composicao tem valor TEXTUAL → mostrar SÓ composicao
@@ -328,8 +335,8 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
       case 'composicao':
         // MESCLA: mostra composição / PRODUTO ÚNICO: oculta (retorna vazio)
         return mescla ? rotulo.composicao!.toUpperCase() : "";
-      case 'requisicao':
-        return `REQ:${rotulo.nrRequisicao}-${rotulo.nrItem}`;
+  case 'requisicao':
+        return normalizeReqBarra(rotulo.nrRequisicao, rotulo.nrItem);
       case 'formula':
         // PRODUTO ÚNICO: mostra fórmula / MESCLA: oculta (retorna vazio)
         return mescla ? "" : formatarFormula(rotulo.formula);
@@ -407,7 +414,7 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
         {/* Paciente + Requisição */}
         <div className="flex justify-between text-[9px] leading-tight">
           <span className="uppercase">{rotulo.nomePaciente}</span>
-          <span>REQ:{rotulo.nrRequisicao}-{rotulo.nrItem}</span>
+          <span>{normalizeReqBarra(rotulo.nrRequisicao, rotulo.nrItem)}</span>
         </div>
         
         {/* Linha separadora */}
@@ -439,9 +446,50 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
     );
   };
 
+  // Renderizar conteúdo compacto (quando card não está selecionado)
+  const renderCompactContent = () => {
+    const prescritor = formatarPrescritor();
+    const aplicacao = getAplicacao();
+    const mescla = isMescla();
+    
+    // Determina conteúdo principal (composição para mescla, fórmula para item único)
+    const conteudo = mescla 
+      ? (rotulo.composicao || "").toUpperCase()
+      : formatarFormula(rotulo.formula);
+    
+    // Truncar se muito longo
+    const conteudoTruncado = conteudo.length > 60 
+      ? conteudo.slice(0, 57) + "..." 
+      : conteudo;
+    
+    return (
+      <div className="p-2 space-y-0.5 overflow-hidden">
+        {/* Linha 1: Paciente + REQ */}
+        <div className="flex justify-between text-[10px] leading-tight">
+          <span className="font-bold uppercase">{rotulo.nomePaciente}</span>
+          <span className="text-[9px]">{normalizeReqBarra(rotulo.nrRequisicao, rotulo.nrItem)}</span>
+        </div>
+        
+        {/* Linha 2: Prescritor */}
+        {prescritor && (
+          <div className="text-[9px] leading-tight uppercase">{prescritor}</div>
+        )}
+        
+        {/* Linha 3: Fórmula/Composição truncada */}
+        <div className="text-[9px] leading-tight uppercase">{conteudoTruncado}</div>
+        
+        {/* Linha 4: Aplicação + REG */}
+        <div className="flex justify-between text-[8px] leading-tight">
+          {aplicacao && <span className="uppercase">APLICAÇÃO: {aplicacao}</span>}
+          {rotulo.numeroRegistro && <span>REG: {rotulo.numeroRegistro}</span>}
+        </div>
+      </div>
+    );
+  };
+
   // Renderizar conteúdo do rótulo baseado em texto livre ou layout
   const renderLabelContent = () => {
-    // Se tem texto livre salvo, usa ele
+    // Se tem texto livre salvo, usa ele (sempre expandido)
     if (rotulo.textoLivre) {
       return (
         <div className="p-2 whitespace-pre-wrap font-mono text-[10px] leading-snug break-words overflow-hidden">
@@ -450,12 +498,17 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
       );
     }
 
+    // Se NÃO está selecionado, mostra versão compacta
+    if (!selected) {
+      return renderCompactContent();
+    }
+
     // Se é KIT, usa renderização específica
     if (isKit()) {
       return renderKitContent();
     }
 
-    // Senão, usa o layout baseado em linhas
+    // Senão, usa o layout baseado em linhas (expandido)
     return (
       <div className="p-2 space-y-0.5 overflow-hidden">
         {layoutConfig.linhas.map((linha) => {

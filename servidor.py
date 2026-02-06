@@ -136,6 +136,49 @@ def is_ativo_mescla(linha: str) -> bool:
     return False
 
 
+def is_subtitulo_obs_ficha(linha: str) -> bool:
+    """
+    Detecta se a linha é um subtítulo/categoria da OBS FICHA.
+    Formato típico: "TITULO - SUBTITULO" (só letras maiúsculas, sem dosagem)
+    
+    Exemplos que devem retornar True:
+    - "ALOPECIA - NUTRIÇÃO E ESTÍMULO DE CRESCIMENTO"
+    - "SKIN CARE - HIDRATAÇÃO"
+    
+    Exemplos que devem retornar False (são ativos reais):
+    - "L-CARNITINA 600MG/2ML"
+    - "VITAMINA C 500MG"
+    
+    Returns:
+        True se for subtítulo (deve ser ignorado)
+    """
+    if not linha or not linha.strip():
+        return False
+    
+    linha_upper = linha.strip().upper()
+    
+    # Padrão 1: TITULO - SUBTITULO (apenas letras, espaços e hífen)
+    # Ex: "ALOPECIA - NUTRIÇÃO E ESTÍMULO DE CRESCIMENTO"
+    if ' - ' in linha_upper:
+        # Verifica se NÃO contém indicadores de ativo (dosagem)
+        indicadores_ativo = ['MG', 'MCG', 'ML', 'UI', 'IU', '%', 'G/ML', 'MG/ML']
+        tem_dosagem = any(ind in linha_upper for ind in indicadores_ativo)
+        
+        if not tem_dosagem:
+            # Verifica se é apenas letras, espaços, acentos e traço
+            # Remove acentos para o teste
+            linha_norm = ''.join(
+                c for c in unicodedata.normalize('NFD', linha_upper) 
+                if unicodedata.category(c) != 'Mn'
+            )
+            padrao_titulo = re.compile(r'^[A-Z\s-]+$')
+            if padrao_titulo.match(linha_norm):
+                print(f"    SUBTÍTULO OBS FICHA (ignorado): '{linha[:50]}...'")
+                return True
+    
+    return False
+
+
 def buscar_aplicacao_nao_kit(cursor, cdpro_int, cdprin_int=None):
     """
     Busca APLICAÇÃO na FC99999 para itens NÃO-KIT (Mesclas e Ativos Únicos).
@@ -3269,6 +3312,13 @@ def buscar_requisicao(nr_requisicao):
                 if len(texto_limpo) > 200 and ',' not in texto_limpo:
                     print(f"    IGNORADO (texto muito longo sem ativos): '{texto[:50]}...'")
                     continue
+                
+                # =====================================================
+                # FILTRO DE SUBTÍTULO: Remove títulos/categorias da OBS FICHA
+                # Ex: "ALOPECIA - NUTRIÇÃO E ESTÍMULO DE CRESCIMENTO"
+                # =====================================================
+                if is_subtitulo_obs_ficha(texto_limpo):
+                    continue  # Log já é feito dentro da função
                 
                 # Só chega aqui se for ativo válido
                 if texto_limpo.strip():
