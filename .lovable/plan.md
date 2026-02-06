@@ -1,118 +1,100 @@
 
-# Plano: Corrigir HTTP 404 - Conversão de Parâmetros para Inteiros
 
-## Diagnóstico
+# Plano: Adicionar Endpoint de Diagnóstico e Corrigir Parâmetros Restantes
 
-O problema é a falta de conversão explícita dos parâmetros `nr_requisicao` e `filial` para inteiros no Firebird.
+## Problema Identificado
 
-### Print do Servidor
-```
-GET /api/requisicao/6806?filial=392 HTTP/1.1" 404
-GET /api/requisicao/6802?filial=392 HTTP/1.1" 404
-GET /api/requisicao/6801?filial=392 HTTP/1.1" 404
-```
+O servidor Python no seu computador local **não está usando o arquivo atualizado**. As alterações que fizemos no Lovable precisam ser copiadas para o seu computador.
 
-### Causa Raiz
+Além disso, encontrei **mais locais** no arquivo onde falta a conversão `int()`:
 
-Conforme documentado no memory `backend/sql-parameter-casting-requirement`:
-> Para evitar erros de conversão no Firebird (SQLCODE -413), todos os parâmetros numéricos enviados ao cursor do banco de dados (especialmente NRRQU, SERIER e CDFIL) devem ser explicitamente convertidos para inteiros utilizando `int()` no backend Python.
+| Linha | Endpoint | Problema |
+|-------|----------|----------|
+| 1394 | `/api/debug/fc12110-completo` | `(nr_requisicao, filial)` sem `int()` |
 
-O problema está nas linhas **2466** e **2501** do `servidor.py`:
+---
+
+## Solução em 2 Etapas
+
+### Etapa 1: Corrigir Parâmetros Restantes
+
+**Arquivo**: `servidor.py`
+
+| Linha | Antes | Depois |
+|-------|-------|--------|
+| 1394 | `""", (nr_requisicao, filial))` | `""", (int(nr_requisicao), int(filial)))` |
+
+### Etapa 2: Adicionar Endpoint de Diagnóstico Simples
+
+Criar um endpoint `/api/debug/verificar-requisicao/<nr_requisicao>` que faz uma query mínima para confirmar se a requisição existe:
 
 ```python
-# Linha 2466 - PROBLEMA
-cursor.execute(query, (nr_requisicao, filial))  # ← Passando strings!
-
-# Linha 2501 - PROBLEMA
-cursor.execute(query, (nr_requisicao, filial))  # ← Passando strings!
+@app.route('/api/debug/verificar-requisicao/<nr_requisicao>', methods=['GET'])
+def debug_verificar_requisicao(nr_requisicao):
+    """
+    Endpoint simples para verificar se uma requisição existe no banco.
+    Retorna apenas contagem de registros.
+    """
+    filial = request.args.get('filial', '1')
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Verifica FC12100 (cabeçalho da requisição)
+        cursor.execute("""
+            SELECT COUNT(*) FROM FC12100 
+            WHERE NRRQU = ? AND CDFIL = ?
+        """, (int(nr_requisicao), int(filial)))
+        count_12100 = cursor.fetchone()[0]
+        
+        # Verifica FC12110 (itens da requisição)
+        cursor.execute("""
+            SELECT COUNT(*) FROM FC12110 
+            WHERE NRRQU = ? AND CDFIL = ?
+        """, (int(nr_requisicao), int(filial)))
+        count_12110 = cursor.fetchone()[0]
+        
+        # Lista todas as filiais que têm essa requisição
+        cursor.execute("""
+            SELECT DISTINCT CDFIL FROM FC12100 
+            WHERE NRRQU = ?
+        """, (int(nr_requisicao),))
+        filiais = [row[0] for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        return jsonify({
+            "success": True,
+            "requisicao": nr_requisicao,
+            "filialBuscada": filial,
+            "encontradoFC12100": count_12100 > 0,
+            "quantidadeFC12100": count_12100,
+            "encontradoFC12110": count_12110 > 0,
+            "quantidadeFC12110": count_12110,
+            "filiaisDisponiveis": filiais,
+            "mensagem": f"Requisição existe nas filiais: {filiais}" if filiais else "Requisição não encontrada em nenhuma filial"
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
 ```
 
 ---
 
-## Solução
+## Como Testar Após Atualizar
 
-Converter os parâmetros para inteiros antes de passar para o cursor.
+1. **Copiar** o arquivo `servidor.py` do Lovable para seu computador
+2. **Reiniciar** o servidor (Ctrl+C e executar novamente)
+3. **Testar** no navegador:
+   ```
+   http://localhost:5000/api/debug/verificar-requisicao/6806?filial=392
+   ```
 
-### Arquivo: `servidor.py`
-
-| Linha | Código Atual | Código Corrigido |
-|-------|--------------|------------------|
-| 2466 | `""", (nr_requisicao, filial))` | `""", (int(nr_requisicao), int(filial)))` |
-| 2501 | `""", (nr_requisicao, filial))` | `""", (int(nr_requisicao), int(filial)))` |
-
----
-
-## Alterações Detalhadas
-
-### Linha 2466 - Query principal da requisição
-**Antes:**
-```python
-cursor.execute("""
-    SELECT R.NRRQU, R.CDFIL, R.NOMEPA, R.PFCRM, R.NRCRM, R.UFCRM,
-           R.DTCAD, R.DTVAL, R.NRREG, R.POSOL, R.TPUSO, R.OBSERFIC,
-           R.VOLUME, R.UNIVOL, M.NOMEMED, R.TPFORMAFARMA
-    FROM FC12100 R
-    LEFT JOIN FC04000 M ON R.PFCRM = M.PFCRM AND R.NRCRM = M.NRCRM AND R.UFCRM = M.UFCRM
-    WHERE R.NRRQU = ? AND R.CDFIL = ?
-""", (nr_requisicao, filial))
-```
-
-**Depois:**
-```python
-cursor.execute("""
-    SELECT R.NRRQU, R.CDFIL, R.NOMEPA, R.PFCRM, R.NRCRM, R.UFCRM,
-           R.DTCAD, R.DTVAL, R.NRREG, R.POSOL, R.TPUSO, R.OBSERFIC,
-           R.VOLUME, R.UNIVOL, M.NOMEMED, R.TPFORMAFARMA
-    FROM FC12100 R
-    LEFT JOIN FC04000 M ON R.PFCRM = M.PFCRM AND R.NRCRM = M.NRCRM AND R.UFCRM = M.UFCRM
-    WHERE R.NRRQU = ? AND R.CDFIL = ?
-""", (int(nr_requisicao), int(filial)))
-```
-
-### Linha 2501 - Query dos itens da requisição
-**Antes:**
-```python
-cursor.execute("""
-    SELECT I.SERIER, I.DESCR, I.QUANT, I.UNIDA, I.NRLOT, I.CDPRO, I.CDPRIN, I.ITEMID
-    FROM FC12110 I
-    WHERE I.NRRQU = ? AND I.CDFIL = ? AND I.TPCMP IN ('C', 'S')
-    ORDER BY I.SERIER
-""", (nr_requisicao, filial))
-```
-
-**Depois:**
-```python
-cursor.execute("""
-    SELECT I.SERIER, I.DESCR, I.QUANT, I.UNIDA, I.NRLOT, I.CDPRO, I.CDPRIN, I.ITEMID
-    FROM FC12110 I
-    WHERE I.NRRQU = ? AND I.CDFIL = ? AND I.TPCMP IN ('C', 'S')
-    ORDER BY I.SERIER
-""", (int(nr_requisicao), int(filial)))
-```
-
----
-
-## Por Que Isso Resolve
-
-O driver `fdb` do Firebird pode ter comportamento inconsistente quando recebe tipos Python `str` para colunas que são `INTEGER` no banco:
-
-- **String "6806"** → Pode falhar ou retornar vazio
-- **Inteiro 6806** → Sempre funciona corretamente
-
-A conversão explícita com `int()` garante que o tipo correto seja enviado para o banco.
-
----
-
-## Teste Após Correção
-
-1. Reiniciar o servidor Python
-2. Buscar a requisição 6806 com filial 392
-3. Deve retornar os dados corretamente (HTTP 200)
+Se retornar `"filiaisDisponiveis": []` significa que a requisição 6806 **não existe** com filial 392. O endpoint mostrará em qual filial ela existe.
 
 ---
 
 ## Impacto
 
-- **Risco**: Muito baixo - apenas adiciona conversão de tipo
-- **Funcionalidade**: Resolve o 404 para todas as requisições
-- **Compatibilidade**: Nenhuma quebra de código
+- **Risco**: Nenhum - apenas adiciona diagnóstico
+- **Benefício**: Permite identificar rapidamente se o problema é a filial errada ou se a requisição não existe
+
