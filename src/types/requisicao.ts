@@ -1,5 +1,5 @@
 // Tipos de Layout disponíveis
-export type LayoutType = 'AMP10' | 'AMP_CX' | 'A_PAC_GRAN' | 'TIRZ';
+export type LayoutType = 'AMP10' | 'AMP_CX' | 'A_PAC_GRAN' | 'A_PAC_PEQ' | 'TIRZ';
 
 // Configuração de um campo (simplificado para sistema de linhas)
 export interface FieldConfig {

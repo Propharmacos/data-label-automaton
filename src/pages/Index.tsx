@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Printer, CheckSquare, Square, Settings, Edit } from "lucide-react";
+import { Printer, CheckSquare, Square, Settings, Edit, LogOut } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,6 +9,7 @@ import LabelCard from "@/components/LabelCard";
 import LayoutSelector from "@/components/LayoutSelector";
 import LayoutEditor from "@/components/LayoutEditor";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/contexts/AuthContext";
 import { getPharmacyConfig, getLabelConfig, getPrinterConfig, getPrintAgentConfig } from "@/config/api";
 import { getLayout, getSelectedLayout, setSelectedLayout, resetAllLayouts } from "@/config/layouts";
 import { buscarRequisicao, imprimirRotulos } from "@/services/requisicaoService";
@@ -28,6 +29,7 @@ const Index = () => {
   const [layoutConfig, setLayoutConfig] = useState<LayoutConfig>(getLayout(layoutType));
   const [editorOpen, setEditorOpen] = useState(false);
   const { toast } = useToast();
+  const { isAdmin, signOut, user } = useAuth();
 
   // Resetar layouts ao inicializar para aplicar mudanças recentes
   useEffect(() => {
@@ -194,11 +196,22 @@ const Index = () => {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <span className="text-sm text-muted-foreground hidden md:inline">{pharmacyConfig.nome}</span>
-              <Button variant="outline" size="icon" className="border-primary/20 hover:bg-accent" asChild>
-                <Link to="/configuracoes">
-                  <Settings className="h-5 w-5 text-primary" />
-                </Link>
+              <span className="text-sm text-muted-foreground hidden md:inline">{user?.email}</span>
+              {isAdmin && (
+                <Button variant="outline" size="icon" className="border-primary/20 hover:bg-accent" asChild>
+                  <Link to="/configuracoes">
+                    <Settings className="h-5 w-5 text-primary" />
+                  </Link>
+                </Button>
+              )}
+              <Button 
+                variant="outline" 
+                size="icon" 
+                className="border-primary/20 hover:bg-accent"
+                onClick={signOut}
+                title="Sair"
+              >
+                <LogOut className="h-5 w-5 text-muted-foreground" />
               </Button>
             </div>
           </div>
