@@ -3256,7 +3256,6 @@ def buscar_requisicao(nr_requisicao):
                 # Ex: "APLICACAO: SC" ou "APLICAÇÃO: ID/SC"
                 # =====================================================
                 if not aplicacao_fc99999 and descrpar:
-                    import unicodedata
                     descrpar_normalizado = ''.join(
                         c for c in unicodedata.normalize('NFD', descrpar.upper()) 
                         if unicodedata.category(c) != 'Mn'
