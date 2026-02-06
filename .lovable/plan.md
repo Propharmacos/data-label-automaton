@@ -1,163 +1,153 @@
 
-# Plano: Corrigir Classificação ITEM ÚNICO vs MESCLA
+# Plano: Corrigir Detecção de KIT - Não Usar FC05000 Como Critério Único
 
 ## Diagnóstico do Bug
 
-O problema está na lista **`IGNORAR_ATIVOS`** (linha 2997) que é muito curta:
+### Problema Atual
+A função `detecta_kit()` (linhas 262-349) considera como **KIT qualquer produto que exista na FC05000**:
 
 ```python
-IGNORAR_ATIVOS = ['ETIQUETA', 'CATALOGO', 'PREGA', 'SUG.', 'SUGESTAO', 'CATÁLOGO', 'INSTRUC', 'AVISO']
+# ATUAL (ERRADO):
+def detecta_kit(cursor, cdpro, tpforma=None):
+    # ...
+    cursor.execute("""
+        SELECT FIRST 1 CDFRM, CDSAC, DESCRFRM, TPFORMAFARMA
+        FROM FC05000 
+        WHERE CDSAC = ?
+    """, (cdpro_str,))
+    
+    if row:
+        return kit_info  # ← QUALQUER produto com receita é classificado como KIT!
 ```
 
-Isso faz com que linhas de **embalagem/observação** como:
-- "ÁGUA PARA INJETÁVEIS..."
-- "FRASCO ÂMBAR..."
-- "AMPOLA..."
-- "SELO DE ALUMÍNIO..."
-- "TAMPA DE BORRACHA..."
+### Por que está errado?
+A tabela **FC05000/FC05100** contém a **receita de fabricação (BOM)** de TODOS os produtos que têm fórmula, incluindo:
+- **KITs verdadeiros**: contêm múltiplos produtos farmacêuticos independentes
+- **Produtos únicos**: contêm apenas insumos de fabricação (água, ampola, selo, tampa)
 
-...sejam adicionadas à lista `ativos_mescla` (linha 3079), fazendo um **ITEM ÚNICO** (GLICOSE 75%) parecer uma **MESCLA**.
+**GLICOSE 75%** tem uma receita (água + ampola + selo + tampa), então entra na FC05000, mas **NÃO é um KIT** - é um produto único.
 
 ---
 
-## Solução
+## Solução: Critério Explícito para KIT
 
-### Alteração 1: Criar função `is_embalagem_ou_obs()` (nova função utilitária)
+### Opção Implementada: Validar Componentes
 
-Adicionar uma função dedicada que identifica linhas de embalagem/observação usando uma lista abrangente de palavras-chave:
+Modificar `detecta_kit()` para **validar se os componentes são produtos farmacêuticos reais** (não apenas insumos de fabricação).
 
+**Critério de validação:**
+1. Buscar componentes na FC05100
+2. Para cada componente, verificar se é **embalagem/insumo** usando `is_embalagem_ou_obs()`
+3. **Só retornar como KIT se houver pelo menos 2 componentes "ativos reais"**
+
+---
+
+## Alterações no servidor.py
+
+### Alteração 1: Modificar `detecta_kit()` (linhas 262-349)
+
+**Antes:**
 ```python
-def is_embalagem_ou_obs(linha: str) -> bool:
-    """
-    Retorna True se a linha indicar embalagem, material físico ou observação operacional.
-    Essas linhas NÃO devem ser tratadas como ativos de mescla.
-    """
-    if not linha or not linha.strip():
-        return True  # Linha vazia = ignorar
-    
-    import unicodedata
-    # Normaliza removendo acentos para comparação
-    linha_norm = ''.join(
-        c for c in unicodedata.normalize('NFD', linha.upper()) 
-        if unicodedata.category(c) != 'Mn'
-    )
-    
-    # Lista de palavras-chave que indicam embalagem/material físico
-    EMBALAGEM_KEYWORDS = [
-        # Recipientes
-        'FRASCO', 'AMBAR', 'AMPOLA', 'SERINGA', 'AGULHA', 'TUBO',
-        'BISNAGA', 'POTE', 'GARRAFA', 'SACHÊ', 'SACHE', 'ENVELOPE',
-        # Vedação/fechamento
-        'SELO', 'TAMPA', 'BORRACHA', 'LACRE', 'ROLHA', 'FLIP-OFF',
-        'FLIPOFF', 'FLIP OFF', 'ALUMINIO',
-        # Veículos/diluentes (não são ativos)
-        'AGUA PARA INJETAVEIS', 'AGUA PARA INJECAO', 'AGUA ESTERIL',
-        'SORO FISIOLOGICO', 'NACL 0,9',
-        # Acessórios
-        'VALVULA', 'DOSADOR', 'CONTA-GOTAS', 'APLICADOR',
-        # Identificação
-        'ROTULO', 'ETIQUETA', 'EMBALAGEM',
-        # Termos operacionais/instruções
-        'CATALOGO', 'PESAGEM', 'OBSERVACAO', 'INSTRUCAO', 'INSTRUC',
-        'PREGA', 'SUG.', 'SUGESTAO', 'AVISO', 'OBS:',
-        # Medidas de embalagem
-        'MENOR 3CM', 'MENOR 4CM', 'MENOR 5CM',
-        # Registro (não é ativo)
-        'REG:',
-    ]
-    
-    for keyword in EMBALAGEM_KEYWORDS:
-        if keyword in linha_norm:
-            return True
-    
-    return False
-```
-
-### Alteração 2: Criar função `is_ativo_mescla()` (validação adicional)
-
-```python
-def is_ativo_mescla(linha: str) -> bool:
-    """
-    Retorna True se a linha parece ser um ativo real de mescla.
-    Critérios: NÃO é embalagem E tem características de ativo.
-    """
-    if is_embalagem_ou_obs(linha):
-        return False
-    
-    linha_upper = linha.upper().strip()
-    
-    # Ignora linhas muito curtas (provavelmente não é ativo)
-    if len(linha_upper) < 3:
-        return False
-    
-    # Indicadores positivos de que É um ativo
-    INDICADORES_ATIVO = ['MG', 'ML', '%', 'UI', 'IU', 'MCG', 'G/ML', 'MG/ML']
-    
-    # Se contém indicador de concentração, provavelmente é ativo
-    for indicador in INDICADORES_ATIVO:
-        if indicador in linha_upper:
-            return True
-    
-    # Se não é embalagem e tem tamanho razoável, considera como potencial ativo
-    if len(linha_upper) >= 5:
-        return True
-    
-    return False
-```
-
-### Alteração 3: Substituir lógica de coleta de ativos (linhas 2996-3080)
-
-No loop que processa registros da FC99999, substituir a verificação simples por chamadas às novas funções:
-
-**Antes (linha 3061-3080):**
-```python
-# Ignora se contém palavra de exclusão
-if any(ignorar in texto_upper for ignorar in IGNORAR_ATIVOS):
-    print(f"    IGNORADO (não é ativo): '{texto[:50]}...'")
-    continue
-
-# ... adiciona à ativos_mescla
+def detecta_kit(cursor, cdpro, tpforma=None):
+    # ...
+    if row:
+        kit_info = {...}
+        print(f"  [DETECTA_KIT] ✓ KIT ENCONTRADO!")
+        return kit_info  # ← Retorna para QUALQUER produto na FC05000
 ```
 
 **Depois:**
 ```python
-# =====================================================
-# CLASSIFICAÇÃO: EMBALAGEM/OBS vs ATIVO REAL
-# =====================================================
-if is_embalagem_ou_obs(texto):
-    print(f"    EMBALAGEM/OBS (ignorado): '{texto[:50]}...'")
-    continue
-
-if not is_ativo_mescla(texto):
-    print(f"    NÃO É ATIVO (ignorado): '{texto[:50]}...'")
-    continue
-
-# Só chega aqui se for ativo válido
-ativos_mescla.append(texto_limpo)
-print(f"  -> ATIVO REAL encontrado: '{texto_limpo[:50]}...'")
+def detecta_kit(cursor, cdpro, tpforma=None):
+    # ...
+    if row:
+        kit_info = {...}
+        
+        # =====================================================
+        # VALIDAÇÃO: Só é KIT se tiver componentes farmacêuticos reais
+        # (não apenas insumos de fabricação como ampola/selo/tampa)
+        # =====================================================
+        cdfrm = kit_info["cdfrm"]
+        
+        # Busca componentes da FC05100
+        cursor.execute("""
+            SELECT k.CDPRO, p.DESCR
+            FROM FC05100 k
+            LEFT JOIN FC03000 p ON p.CDPRO = k.CDPRO
+            WHERE k.CDFRM = ?
+        """, (cdfrm,))
+        componentes = cursor.fetchall()
+        
+        # Conta quantos componentes são "ativos reais" (não embalagem)
+        ativos_reais = 0
+        for comp in componentes:
+            descr = comp[1] or ""
+            if hasattr(descr, 'read'):
+                descr = descr.read().decode('latin-1')
+            
+            # Usa a função existente para filtrar embalagens
+            if not is_embalagem_ou_obs(descr):
+                ativos_reais += 1
+        
+        # Só é KIT se tiver 2+ componentes ativos reais
+        if ativos_reais >= 2:
+            print(f"  [DETECTA_KIT] ✓ KIT VÁLIDO! {ativos_reais} ativos reais encontrados")
+            return kit_info
+        else:
+            print(f"  [DETECTA_KIT] ✗ Não é KIT: apenas {ativos_reais} ativo(s) real(is) (resto é embalagem)")
+            return None
 ```
 
-### Alteração 4: Ajustar lógica de classificação final (linhas 3120-3165)
+---
 
-Garantir que a decisão ITEM ÚNICO vs MESCLA seja baseada apenas em ativos reais:
+## Fluxo Corrigido
 
-```python
-# =====================================================
-# LÓGICA: PRODUTO ÚNICO vs MESCLA vs KIT
-# =====================================================
-if e_kit:
-    # KIT: mantém comportamento atual (intocado!)
-    pass
-elif len(ativos_mescla) == 0:
-    # SEM ATIVOS REAIS = ITEM ÚNICO
-    e_mescla = False
-    composicao = ""
-    print(f"  -> TIPO: ITEM ÚNICO (sem ativos após filtro)")
-elif len(ativos_mescla) >= 1:
-    # COM ATIVOS REAIS = MESCLA
-    e_mescla = True
-    composicao = ", ".join(ativos_mescla)
-    print(f"  -> TIPO: MESCLA ({len(ativos_mescla)} ativos)")
+### GLICOSE 75% (Item Único)
+```text
+GLICOSE 75% 2ML (CDPRO=12345)
+      │
+      └─► detecta_kit(12345)
+              │
+              └─► FC05000.CDSAC = 12345 → ENCONTRADO (tem receita)
+                      │
+                      └─► FC05100: Busca componentes do CDFRM
+                              │
+                              ├─► "ÁGUA PARA INJETÁVEIS" → is_embalagem_ou_obs = TRUE → IGNORA
+                              ├─► "AMPOLA ÂMBAR 2ML"     → is_embalagem_ou_obs = TRUE → IGNORA
+                              ├─► "SELO DE ALUMÍNIO"     → is_embalagem_ou_obs = TRUE → IGNORA
+                              └─► "TAMPA BORRACHA"       → is_embalagem_ou_obs = TRUE → IGNORA
+                              
+                      └─► ativos_reais = 0
+                              │
+                              └─► Retorna None (NÃO É KIT)
+                                      │
+                                      └─► Processado como ITEM ÚNICO
+                                              │
+                                              └─► componentes = []
+```
+
+### KIT INTRADERMO (Kit Verdadeiro)
+```text
+KIT INTRADERMO (CDPRO=99999)
+      │
+      └─► detecta_kit(99999)
+              │
+              └─► FC05000.CDSAC = 99999 → ENCONTRADO
+                      │
+                      └─► FC05100: Busca componentes do CDFRM
+                              │
+                              ├─► "LIDOCAÍNA 2%"    → is_embalagem_ou_obs = FALSE → ATIVO REAL ✓
+                              ├─► "ÁGUA ESTÉRIL"    → is_embalagem_ou_obs = TRUE  → IGNORA
+                              ├─► "BICARBONATO..."  → is_embalagem_ou_obs = FALSE → ATIVO REAL ✓
+                              └─► "HIALURONIDASE"   → is_embalagem_ou_obs = FALSE → ATIVO REAL ✓
+                              
+                      └─► ativos_reais = 3
+                              │
+                              └─► Retorna kit_info (É KIT VÁLIDO)
+                                      │
+                                      └─► Processado como KIT
+                                              │
+                                              └─► componentes = [Lidocaína, Bicarbonato, Hialuronidase]
 ```
 
 ---
@@ -166,39 +156,16 @@ elif len(ativos_mescla) >= 1:
 
 | Arquivo | Linhas | Alteração |
 |---------|--------|-----------|
-| `servidor.py` | ~30-50 | Adicionar funções `is_embalagem_ou_obs()` e `is_ativo_mescla()` |
-| `servidor.py` | 2996-3080 | Substituir `IGNORAR_ATIVOS` por chamadas às novas funções |
-| `servidor.py` | 3120-3165 | Simplificar lógica de classificação |
-
----
-
-## Fluxo Corrigido
-
-```text
-GLICOSE 75% 2ML
-      │
-      └─► FC99999 retorna linhas:
-              ├─► "APLICAÇÃO: EV"          → Extrai aplicação
-              ├─► "ÁGUA PARA INJETÁVEIS"   → is_embalagem_ou_obs = TRUE → IGNORA
-              ├─► "FRASCO ÂMBAR"           → is_embalagem_ou_obs = TRUE → IGNORA
-              ├─► "SELO DE ALUMÍNIO"       → is_embalagem_ou_obs = TRUE → IGNORA
-              └─► "TAMPA DE BORRACHA"      → is_embalagem_ou_obs = TRUE → IGNORA
-              
-      └─► ativos_mescla = [] (VAZIO após filtro)
-              │
-              └─► TIPO = ITEM ÚNICO
-                      │
-                      └─► Renderiza: Nome + Aplicação + Lote/Fab/Val
-```
+| `servidor.py` | 262-349 | Adicionar validação de componentes ativos em `detecta_kit()` |
 
 ---
 
 ## Garantias de Não-Regressão
 
-1. **KIT permanece intocado** - A lógica de kit (linhas 3082-3118) não é alterada
-2. **Extração de APLICAÇÃO permanece igual** - As funções de extração não são modificadas
-3. **Mesclas reais continuam funcionando** - Ativos com indicadores (MG, ML, %) são identificados corretamente
-4. **Lista de keywords é conservadora** - Só ignora itens claramente de embalagem
+1. **KITs verdadeiros continuam funcionando** - Eles têm 2+ componentes farmacêuticos reais
+2. **Mesclas não são afetadas** - Lógica de mescla é separada e não depende de `detecta_kit()`
+3. **Aplicação não é afetada** - Extração de aplicação vem de `buscar_aplicacao_nao_kit()`
+4. **Reutiliza função existente** - Usa `is_embalagem_ou_obs()` que já está funcionando
 
 ---
 
@@ -206,25 +173,48 @@ GLICOSE 75% 2ML
 
 **GLICOSE 75% 2ML (Item Único):**
 ```
+Retorno da API:
+{
+  "tipoItem": "PRODUTO ÚNICO",
+  "componentes": [],
+  "aplicacao": "EV",
+  "composicao": ""
+}
+
+Rótulo:
 AMP GLICOSE 75% – 2ML
 APLICAÇÃO: EV
 L: 12345/25  F: 01/25  V: 01/26
 ```
 
-**MESCLA LIPOSSOMAS (Mescla Real):**
+**KIT INTRADERMO (Kit Verdadeiro):**
 ```
-APLICAÇÃO: SC
-L-CARNITINA 500MG, TAURINA 100MG, CAFEÍNA 50MG
-L: 12345/25  F: 01/25  V: 01/26
-```
+Retorno da API:
+{
+  "tipoItem": "KIT",
+  "componentes": [
+    {"nome": "LIDOCAÍNA 2%", "lote": "001", ...},
+    {"nome": "BICARBONATO...", "lote": "002", ...}
+  ],
+  "aplicacao": "ID"
+}
 
-**KIT INTRADERMO (Kit - inalterado):**
-```
+Rótulo:
 DR. FULANO - CRM 12345/SP
 PACIENTE EXEMPLO
 ───────────────────
 LIDOCAÍNA 2%   pH:7.2  L:001  V:01/26
-ÁGUA ESTÉRIL   pH:7.0  L:002  V:03/26
+BICARBONATO    pH:7.0  L:002  V:03/26
 ───────────────────
 APLICAÇÃO: ID
 ```
+
+---
+
+## Teste de Validação
+
+Depois da alteração, testar:
+
+1. ✅ **GLICOSE 75%**: Deve aparecer como ITEM ÚNICO, sem componentes (água/ampola/selo/tampa)
+2. ✅ **Mescla real**: Deve continuar mostrando ativos corretamente
+3. ✅ **KIT verdadeiro**: Deve continuar expandindo componentes farmacêuticos
