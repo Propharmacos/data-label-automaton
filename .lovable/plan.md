@@ -1,86 +1,118 @@
 
-# Plano: Corrigir Erro "cannot access local variable 'unicodedata'"
+# Plano: Corrigir HTTP 404 - Conversão de Parâmetros para Inteiros
 
 ## Diagnóstico
 
-O erro exibido no console do servidor Python é:
+O problema é a falta de conversão explícita dos parâmetros `nr_requisicao` e `filial` para inteiros no Firebird.
+
+### Print do Servidor
 ```
-'Irro: cannot access local variable 'unicodedata' where it is not associated with a value
+GET /api/requisicao/6806?filial=392 HTTP/1.1" 404
+GET /api/requisicao/6802?filial=392 HTTP/1.1" 404
+GET /api/requisicao/6801?filial=392 HTTP/1.1" 404
 ```
 
 ### Causa Raiz
 
-No arquivo `servidor.py`, o módulo `unicodedata` está importado **duas vezes**:
+Conforme documentado no memory `backend/sql-parameter-casting-requirement`:
+> Para evitar erros de conversão no Firebird (SQLCODE -413), todos os parâmetros numéricos enviados ao cursor do banco de dados (especialmente NRRQU, SERIER e CDFIL) devem ser explicitamente convertidos para inteiros utilizando `int()` no backend Python.
 
-1. **Globalmente (correto)** - Linha 39:
-   ```python
-   import unicodedata
-   ```
+O problema está nas linhas **2466** e **2501** do `servidor.py`:
 
-2. **Localmente dentro de um bloco if (problemático)** - Linha 3259:
-   ```python
-   if not aplicacao_fc99999 and descrpar:
-       import unicodedata  # ← PROBLEMA AQUI
-   ```
+```python
+# Linha 2466 - PROBLEMA
+cursor.execute(query, (nr_requisicao, filial))  # ← Passando strings!
 
-Em Python, quando você faz um `import` dentro de um bloco condicional, o interpretador tenta resolver a variável localmente primeiro. Se o bloco ainda não foi executado ou o import não ocorreu por alguma razão, a variável fica "unbound" (não associada a um valor), causando o erro.
+# Linha 2501 - PROBLEMA
+cursor.execute(query, (nr_requisicao, filial))  # ← Passando strings!
+```
 
 ---
 
 ## Solução
 
-**Remover o import local** da linha 3259, pois o módulo já está importado globalmente.
+Converter os parâmetros para inteiros antes de passar para o cursor.
 
 ### Arquivo: `servidor.py`
 
-| Linha | Ação |
-|-------|------|
-| 3259 | **REMOVER** a linha `import unicodedata` |
+| Linha | Código Atual | Código Corrigido |
+|-------|--------------|------------------|
+| 2466 | `""", (nr_requisicao, filial))` | `""", (int(nr_requisicao), int(filial)))` |
+| 2501 | `""", (nr_requisicao, filial))` | `""", (int(nr_requisicao), int(filial)))` |
 
 ---
 
-## Alteração Específica
+## Alterações Detalhadas
 
-**Antes (linhas 3258-3264):**
+### Linha 2466 - Query principal da requisição
+**Antes:**
 ```python
-if not aplicacao_fc99999 and descrpar:
-    import unicodedata
-    descrpar_normalizado = ''.join(
-        c for c in unicodedata.normalize('NFD', descrpar.upper()) 
-        if unicodedata.category(c) != 'Mn'
-    )
+cursor.execute("""
+    SELECT R.NRRQU, R.CDFIL, R.NOMEPA, R.PFCRM, R.NRCRM, R.UFCRM,
+           R.DTCAD, R.DTVAL, R.NRREG, R.POSOL, R.TPUSO, R.OBSERFIC,
+           R.VOLUME, R.UNIVOL, M.NOMEMED, R.TPFORMAFARMA
+    FROM FC12100 R
+    LEFT JOIN FC04000 M ON R.PFCRM = M.PFCRM AND R.NRCRM = M.NRCRM AND R.UFCRM = M.UFCRM
+    WHERE R.NRRQU = ? AND R.CDFIL = ?
+""", (nr_requisicao, filial))
 ```
 
 **Depois:**
 ```python
-if not aplicacao_fc99999 and descrpar:
-    descrpar_normalizado = ''.join(
-        c for c in unicodedata.normalize('NFD', descrpar.upper()) 
-        if unicodedata.category(c) != 'Mn'
-    )
+cursor.execute("""
+    SELECT R.NRRQU, R.CDFIL, R.NOMEPA, R.PFCRM, R.NRCRM, R.UFCRM,
+           R.DTCAD, R.DTVAL, R.NRREG, R.POSOL, R.TPUSO, R.OBSERFIC,
+           R.VOLUME, R.UNIVOL, M.NOMEMED, R.TPFORMAFARMA
+    FROM FC12100 R
+    LEFT JOIN FC04000 M ON R.PFCRM = M.PFCRM AND R.NRCRM = M.NRCRM AND R.UFCRM = M.UFCRM
+    WHERE R.NRRQU = ? AND R.CDFIL = ?
+""", (int(nr_requisicao), int(filial)))
+```
+
+### Linha 2501 - Query dos itens da requisição
+**Antes:**
+```python
+cursor.execute("""
+    SELECT I.SERIER, I.DESCR, I.QUANT, I.UNIDA, I.NRLOT, I.CDPRO, I.CDPRIN, I.ITEMID
+    FROM FC12110 I
+    WHERE I.NRRQU = ? AND I.CDFIL = ? AND I.TPCMP IN ('C', 'S')
+    ORDER BY I.SERIER
+""", (nr_requisicao, filial))
+```
+
+**Depois:**
+```python
+cursor.execute("""
+    SELECT I.SERIER, I.DESCR, I.QUANT, I.UNIDA, I.NRLOT, I.CDPRO, I.CDPRIN, I.ITEMID
+    FROM FC12110 I
+    WHERE I.NRRQU = ? AND I.CDFIL = ? AND I.TPCMP IN ('C', 'S')
+    ORDER BY I.SERIER
+""", (int(nr_requisicao), int(filial)))
 ```
 
 ---
 
-## Verificação Adicional
+## Por Que Isso Resolve
 
-Preciso verificar se há outros `import unicodedata` locais no arquivo que possam causar o mesmo problema.
+O driver `fdb` do Firebird pode ter comportamento inconsistente quando recebe tipos Python `str` para colunas que são `INTEGER` no banco:
 
-Da busca anterior, confirmei que existe apenas **1 import local problemático** na linha 3259. O import na linha 39 é global e correto.
+- **String "6806"** → Pode falhar ou retornar vazio
+- **Inteiro 6806** → Sempre funciona corretamente
+
+A conversão explícita com `int()` garante que o tipo correto seja enviado para o banco.
+
+---
+
+## Teste Após Correção
+
+1. Reiniciar o servidor Python
+2. Buscar a requisição 6806 com filial 392
+3. Deve retornar os dados corretamente (HTTP 200)
 
 ---
 
 ## Impacto
 
-- **Risco**: Nenhum - apenas remove um import redundante
-- **Funcionalidade**: O `unicodedata` já está disponível globalmente
+- **Risco**: Muito baixo - apenas adiciona conversão de tipo
+- **Funcionalidade**: Resolve o 404 para todas as requisições
 - **Compatibilidade**: Nenhuma quebra de código
-
----
-
-## Teste
-
-Após a correção:
-1. Reiniciar o servidor Python
-2. Buscar a requisição 6806 novamente
-3. O erro `cannot access local variable 'unicodedata'` não deve mais aparecer
