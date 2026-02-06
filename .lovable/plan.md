@@ -1,110 +1,96 @@
 
 
-# Plano: Corrigir Funções Duplicadas e Parâmetros Faltando
+# Plano: Remover Mapeamento Incorreto de Filiais
 
-## Problema Crítico Encontrado
+## Problema Identificado
 
-O arquivo `servidor.py` tem **funções duplicadas com o mesmo nome**, o que causa erro no Flask:
+O arquivo `servidor.py` contém um **mapeamento de filiais** que está redirecionando todas as buscas da filial 392 para a filial 279:
 
+```python
+# Linha 24-26
+FILIAL_MAP = {
+    392: 279,  # ← ESTE É O PROBLEMA!
+}
 ```
-Linha 1264: def debug_verificar_requisicao(nr_requisicao)
-Linha 1477: def debug_verificar_requisicao(nr_requisicao)  ← DUPLICADO!
-```
 
-Quando o Python carrega o arquivo, a **segunda função sobrescreve a primeira**, mas o decorator `@app.route` pode já ter registrado a rota com a função errada, causando comportamento imprevisível.
+### Fluxo Atual (Errado)
 
-Além disso, ainda há **6 queries sem conversão int()**:
+1. Frontend envia: `GET /api/requisicao/6806?filial=392`
+2. Servidor recebe `filial=392`
+3. Função `mapear_filial(392)` retorna `279`
+4. Query busca: `WHERE NRRQU = 6806 AND CDFIL = 279`
+5. Resultado: Dados do médico "BRUNA CATALLANI" (filial 279)
 
-| Linha | Endpoint | Parâmetro sem int() |
-|-------|----------|---------------------|
-| 1380 | `/api/debug/formulas` | `(nr_requisicao, filial)` |
-| 1412 | `/api/debug/produtos-requisicao` | `(nr_requisicao, filial)` |
-| 1612 | `/api/debug/observacoes-requisicao` | `(nr_requisicao, filial)` |
-| 1622 | `/api/debug/observacoes-requisicao` | `(nr_requisicao, filial)` |
-| 1661 | `/api/debug/verificar-obs-requisicao` | `(nr_requisicao, filial)` |
-| 1671 | `/api/debug/verificar-obs-requisicao` | `(nr_requisicao, filial)` |
+### Fluxo Esperado (Correto)
+
+1. Frontend envia: `GET /api/requisicao/6806?filial=392`
+2. Servidor recebe `filial=392`
+3. Query busca: `WHERE NRRQU = 6806 AND CDFIL = 392`
+4. Resultado: Dados do médico "LENIE" (filial 392)
 
 ---
 
-## Solução em 2 Etapas
+## Solução
 
-### Etapa 1: Remover Função Duplicada
+Remover a entrada `392: 279` do dicionário `FILIAL_MAP`, deixando-o vazio.
 
-**Ação**: Excluir a segunda definição de `debug_verificar_requisicao` (linhas 1475-1522)
-
-A primeira versão (linhas 1262-1309) está correta e completa.
-
-### Etapa 2: Adicionar int() nas Queries Restantes
-
-**Arquivo**: `servidor.py`
+### Arquivo: `servidor.py`
 
 | Linha | Antes | Depois |
 |-------|-------|--------|
-| 1380 | `""", (nr_requisicao, filial))` | `""", (int(nr_requisicao), int(filial)))` |
-| 1412 | `""", (nr_requisicao, filial))` | `""", (int(nr_requisicao), int(filial)))` |
-| 1612 | `""", (nr_requisicao, filial))` | `""", (int(nr_requisicao), int(filial)))` |
-| 1622 | `""", (nr_requisicao, filial))` | `""", (int(nr_requisicao), int(filial)))` |
-| 1661 | `""", (nr_requisicao, filial))` | `""", (int(nr_requisicao), int(filial)))` |
-| 1671 | `""", (nr_requisicao, filial))` | `""", (int(nr_requisicao), int(filial)))` |
+| 24-26 | `FILIAL_MAP = { 392: 279, }` | `FILIAL_MAP = { }` |
 
 ---
 
-## Resumo das Alterações
+## Alteração Específica
 
-1. **Remover linhas 1475-1522** - função duplicada `debug_verificar_requisicao`
-2. **Linha 1380** - adicionar `int()` na query
-3. **Linha 1412** - adicionar `int()` na query
-4. **Linha 1612** - adicionar `int()` na query
-5. **Linha 1622** - adicionar `int()` na query
-6. **Linha 1661** - adicionar `int()` na query
-7. **Linha 1671** - adicionar `int()` na query
-
----
-
-## Detalhes Técnicos
-
-### Por que a duplicação causa erro?
-
-Python permite redefinir funções, mas o Flask usa os decorators `@app.route` para registrar rotas. Quando você tem:
-
+**Antes (linhas 21-28):**
 ```python
-@app.route('/api/debug/verificar-requisicao/<nr_requisicao>')
-def debug_verificar_requisicao(nr_requisicao):
-    # versão 1
-    pass
-
-@app.route('/api/debug/verificar-requisicao/<nr_requisicao>')  
-def debug_verificar_requisicao(nr_requisicao):
-    # versão 2
-    pass
+# --- Mapeamento de filiais (Frontend -> Código no Firebird) ---
+# Em algumas instalações, o frontend usa um "código de filial" diferente do CDFIL do banco.
+# Ex.: Frontend 392 -> Banco 279 (PROPHARMACOS). Ajuste conforme necessário.
+FILIAL_MAP = {
+    392: 279,
+}
+def mapear_filial(filial: int) -> int:
+    return FILIAL_MAP.get(filial, filial)
 ```
 
-O Flask pode:
-1. Registrar a rota duas vezes (erro)
-2. Sobrescrever a primeira função com a segunda
-3. Causar comportamento inconsistente
-
-### Por que int() é necessário?
-
-O driver `fdb` do Firebird precisa de tipos Python compatíveis com as colunas do banco:
-- Coluna `INTEGER` no banco = precisa de `int` no Python
-- String "6806" pode falhar ou retornar vazio
-- Inteiro 6806 sempre funciona
+**Depois (linhas 21-28):**
+```python
+# --- Mapeamento de filiais (Frontend -> Código no Firebird) ---
+# Em algumas instalações, o frontend usa um "código de filial" diferente do CDFIL do banco.
+# Deixe vazio se o frontend usar o mesmo código CDFIL do banco.
+FILIAL_MAP = {
+    # Adicione mapeamentos aqui se necessário, ex: 999: 1
+}
+def mapear_filial(filial: int) -> int:
+    return FILIAL_MAP.get(filial, filial)
+```
 
 ---
 
-## Teste Após Correção
+## Passos Após Aprovação
 
-1. **Copiar** o `servidor.py` corrigido para seu computador
-2. **Parar** o servidor (Ctrl+C)
-3. **Reiniciar** o servidor
-4. **Testar**: `http://localhost:5000/api/requisicao/6806?filial=392`
+1. Vou aplicar a alteração no arquivo `servidor.py`
+2. Você copia o arquivo para `C:\ServidorRotulos\servidor.py`
+3. Reinicia o servidor Python (Ctrl+C e executa novamente)
+4. Testa: `http://localhost:5000/api/requisicao/6806?filial=392`
+5. O médico deve aparecer como "LENIE"
+
+---
+
+## Por Que Este Mapeamento Existia?
+
+O mapeamento foi criado assumindo que o frontend usa um código diferente do banco. Porém, se o seu sistema já usa o CDFIL correto (392), o mapeamento está causando o problema.
+
+**Se no futuro** você precisar que o frontend use um código diferente do banco, basta adicionar a regra novamente.
 
 ---
 
 ## Impacto
 
-- **Risco**: Baixo - apenas remove código duplicado e adiciona conversão de tipos
-- **Benefício**: Resolve 404 e erros de função duplicada
-- **Compatibilidade**: Nenhuma quebra de funcionalidade
+- **Risco**: Nenhum - apenas remove redirecionamento incorreto
+- **Benefício**: Filial 392 será consultada corretamente
+- **Compatibilidade**: Todas as outras filiais continuam funcionando normalmente
 
