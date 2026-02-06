@@ -2463,7 +2463,7 @@ def buscar_requisicao(nr_requisicao):
             FROM FC12100 R
             LEFT JOIN FC04000 M ON R.PFCRM = M.PFCRM AND R.NRCRM = M.NRCRM AND R.UFCRM = M.UFCRM
             WHERE R.NRRQU = ? AND R.CDFIL = ?
-        """, (nr_requisicao, filial))
+        """, (int(nr_requisicao), int(filial)))
         
         row = cursor.fetchone()
         
@@ -2498,7 +2498,7 @@ def buscar_requisicao(nr_requisicao):
             FROM FC12110 I
             WHERE I.NRRQU = ? AND I.CDFIL = ? AND I.TPCMP IN ('C', 'S')
             ORDER BY I.SERIER
-        """, (nr_requisicao, filial))
+        """, (int(nr_requisicao), int(filial)))
         
         itens = cursor.fetchall()
         
