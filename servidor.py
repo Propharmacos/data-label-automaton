@@ -318,8 +318,43 @@ def detecta_kit(cursor, cdpro, tpforma=None):
                 "descrfrm": row[2] if tem_descrfrm and len(row) > 2 else "",
                 "tpforma": row[3] if tem_tpforma and len(row) > 3 else ""
             }
-            print(f"  [DETECTA_KIT] ✓ KIT ENCONTRADO! CDFRM={kit_info['cdfrm']}, CDSAC={kit_info['cdsac']}")
-            return kit_info
+            
+            # =====================================================
+            # VALIDAÇÃO: Só é KIT se tiver componentes farmacêuticos reais
+            # (não apenas insumos de fabricação como ampola/selo/tampa)
+            # =====================================================
+            cdfrm = kit_info["cdfrm"]
+            
+            # Busca componentes da FC05100
+            cursor.execute("""
+                SELECT k.CDPRO, p.DESCR
+                FROM FC05100 k
+                LEFT JOIN FC03000 p ON p.CDPRO = k.CDPRO
+                WHERE k.CDFRM = ?
+            """, (cdfrm,))
+            componentes = cursor.fetchall()
+            
+            # Conta quantos componentes são "ativos reais" (não embalagem)
+            ativos_reais = 0
+            for comp in componentes:
+                descr = comp[1] or ""
+                if hasattr(descr, 'read'):
+                    descr = descr.read().decode('latin-1')
+                
+                # Usa a função existente para filtrar embalagens
+                if not is_embalagem_ou_obs(descr):
+                    ativos_reais += 1
+                    print(f"    [DETECTA_KIT] Componente ativo: {descr[:50]}")
+                else:
+                    print(f"    [DETECTA_KIT] Embalagem ignorada: {descr[:50]}")
+            
+            # Só é KIT se tiver 2+ componentes ativos reais
+            if ativos_reais >= 2:
+                print(f"  [DETECTA_KIT] ✓ KIT VÁLIDO! {ativos_reais} ativos reais encontrados")
+                return kit_info
+            else:
+                print(f"  [DETECTA_KIT] ✗ Não é KIT: apenas {ativos_reais} ativo(s) real(is) (resto é embalagem)")
+                return None
         
         # ESTRATÉGIA 2: CDSAC = CDPRO (inteiro)
         try:
@@ -334,8 +369,38 @@ def detecta_kit(cursor, cdpro, tpforma=None):
                     "descrfrm": row[2] if tem_descrfrm and len(row) > 2 else "",
                     "tpforma": row[3] if tem_tpforma and len(row) > 3 else ""
                 }
-                print(f"  [DETECTA_KIT] ✓ KIT ENCONTRADO (int)! CDFRM={kit_info['cdfrm']}, CDSAC={kit_info['cdsac']}")
-                return kit_info
+                
+                # =====================================================
+                # VALIDAÇÃO: Só é KIT se tiver componentes farmacêuticos reais
+                # =====================================================
+                cdfrm = kit_info["cdfrm"]
+                
+                cursor.execute("""
+                    SELECT k.CDPRO, p.DESCR
+                    FROM FC05100 k
+                    LEFT JOIN FC03000 p ON p.CDPRO = k.CDPRO
+                    WHERE k.CDFRM = ?
+                """, (cdfrm,))
+                componentes = cursor.fetchall()
+                
+                ativos_reais = 0
+                for comp in componentes:
+                    descr = comp[1] or ""
+                    if hasattr(descr, 'read'):
+                        descr = descr.read().decode('latin-1')
+                    
+                    if not is_embalagem_ou_obs(descr):
+                        ativos_reais += 1
+                        print(f"    [DETECTA_KIT] Componente ativo: {descr[:50]}")
+                    else:
+                        print(f"    [DETECTA_KIT] Embalagem ignorada: {descr[:50]}")
+                
+                if ativos_reais >= 2:
+                    print(f"  [DETECTA_KIT] ✓ KIT VÁLIDO (int)! {ativos_reais} ativos reais encontrados")
+                    return kit_info
+                else:
+                    print(f"  [DETECTA_KIT] ✗ Não é KIT (int): apenas {ativos_reais} ativo(s) real(is)")
+                    return None
         except ValueError:
             pass
         
