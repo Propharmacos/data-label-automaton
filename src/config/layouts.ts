@@ -44,9 +44,10 @@ export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
       { id: 'linha4', campos: ['composicao', 'formula'], spacing: 'normal' },
       { id: 'linha5', campos: ['ph', 'lote', 'fabricacao', 'validade'], spacing: 'compact' },
       { id: 'linha6', campos: ['tipoUso'], spacing: 'normal' },
-      { id: 'linha7', campos: ['contem'], spacing: 'normal' },
-      { id: 'linha8', campos: ['aplicacao'], spacing: 'normal' },
-      { id: 'linha9', campos: ['registro'], spacing: 'normal' },
+      { id: 'linha7', campos: ['posologia'], spacing: 'normal' },
+      { id: 'linha8', campos: ['contem'], spacing: 'normal' },
+      { id: 'linha9', campos: ['aplicacao'], spacing: 'normal' },
+      { id: 'linha10', campos: ['registro'], spacing: 'normal' },
     ],
     campoConfig: {
       paciente: { visible: true, fontSize: 10, bold: true, uppercase: true },
@@ -62,7 +63,7 @@ export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
       contem: { visible: true, fontSize: 9, bold: false, uppercase: true },
       registro: { visible: true, fontSize: 8, bold: false, uppercase: false },
       medico: { visible: true, fontSize: 9, bold: false, uppercase: true },
-      posologia: { visible: false, fontSize: 8, bold: false, uppercase: false },
+      posologia: { visible: true, fontSize: 8, bold: false, uppercase: true },
       observacoes: { visible: false, fontSize: 8, bold: false, uppercase: false },
     },
   },
@@ -79,12 +80,16 @@ export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
       { id: 'linha3', campos: ['composicao', 'formula'], spacing: 'normal' },
       // Linha 4: pH (editável), Lote, Fabricação, Validade
       { id: 'linha4', campos: ['ph', 'lote', 'fabricacao', 'validade'], spacing: 'compact' },
-      // Linha 5: Aplicação (sem tipoUso que mostra "7")
-      { id: 'linha5', campos: ['aplicacao'], spacing: 'normal' },
-      // Linha 6: Contém (embaixo de aplicação)
-      { id: 'linha6', campos: ['contem'], spacing: 'normal' },
-      // Linha 7: Registro (sem posologia)
-      { id: 'linha7', campos: ['registro'], spacing: 'normal' },
+      // Linha 5: Tipo de Uso (quando existir)
+      { id: 'linha5', campos: ['tipoUso'], spacing: 'normal' },
+      // Linha 6: Posologia/Uso
+      { id: 'linha6', campos: ['posologia'], spacing: 'normal' },
+      // Linha 7: Aplicação
+      { id: 'linha7', campos: ['aplicacao'], spacing: 'normal' },
+      // Linha 8: Contém
+      { id: 'linha8', campos: ['contem'], spacing: 'normal' },
+      // Linha 9: Registro
+      { id: 'linha9', campos: ['registro'], spacing: 'normal' },
     ],
     campoConfig: {
       // Todos os campos com MESMA fonte, SEM negrito - padronizado
@@ -96,12 +101,12 @@ export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
       fabricacao: { visible: true, fontSize: 9, bold: false, uppercase: false },
       validade: { visible: true, fontSize: 9, bold: false, uppercase: false },
       ph: { visible: true, fontSize: 9, bold: false, uppercase: false },
-      tipoUso: { visible: false, fontSize: 9, bold: false, uppercase: true },  // Oculto - evita "7"
+      tipoUso: { visible: true, fontSize: 9, bold: false, uppercase: true },  // Visível para "USO EM CONSULTÓRIO"
       aplicacao: { visible: true, fontSize: 9, bold: false, uppercase: true },
       contem: { visible: true, fontSize: 9, bold: false, uppercase: true },
       registro: { visible: true, fontSize: 9, bold: false, uppercase: false },
       medico: { visible: true, fontSize: 9, bold: false, uppercase: true },
-      posologia: { visible: false, fontSize: 9, bold: false, uppercase: true },  // Oculto - remove "POS:"
+      posologia: { visible: true, fontSize: 9, bold: false, uppercase: true },  // Visível - exibe posologia
       observacoes: { visible: false, fontSize: 9, bold: false, uppercase: false },
     },
   },
