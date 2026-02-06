@@ -1,96 +1,53 @@
 
 
-# Plano: Remover Mapeamento Incorreto de Filiais
+# Plano: Garantir que o Arquivo Correto Seja Copiado
 
-## Problema Identificado
+## Problema Raiz
 
-O arquivo `servidor.py` contém um **mapeamento de filiais** que está redirecionando todas as buscas da filial 392 para a filial 279:
+O arquivo `servidor.py` no projeto Lovable **já está correto** - contém apenas UMA definição de `debug_verificar_requisicao` (linha 1271).
 
+Porém, o arquivo no seu computador local (`C:\ServidorRotulos\servidor.py`) **ainda contém a versão antiga** com a função duplicada na linha 1476.
+
+## Por Que Isso Aconteceu
+
+Quando eu fiz as edições anteriores, você pode ter copiado uma versão incompleta ou não copiou o arquivo atualizado.
+
+## Solução Imediata
+
+Você precisa **baixar e copiar o arquivo `servidor.py` atualizado** do projeto Lovable para seu computador local.
+
+### Passos
+
+1. **No Lovable**: Clique no arquivo `servidor.py` no painel de arquivos
+2. **Copie TODO o conteúdo** (Ctrl+A, Ctrl+C)
+3. **No seu computador**: Abra o Bloco de Notas
+4. **Cole o conteúdo** (Ctrl+V)
+5. **Salve como** `C:\ServidorRotulos\servidor.py` (substituindo o arquivo existente)
+6. **Reinicie o servidor Python**
+
+## Verificação Antes de Salvar
+
+Antes de salvar, procure no texto se existe MAIS DE UMA ocorrência de:
 ```python
-# Linha 24-26
-FILIAL_MAP = {
-    392: 279,  # ← ESTE É O PROBLEMA!
-}
+def debug_verificar_requisicao
 ```
 
-### Fluxo Atual (Errado)
+O arquivo correto deve ter **apenas UMA** ocorrência (por volta da linha 1272).
 
-1. Frontend envia: `GET /api/requisicao/6806?filial=392`
-2. Servidor recebe `filial=392`
-3. Função `mapear_filial(392)` retorna `279`
-4. Query busca: `WHERE NRRQU = 6806 AND CDFIL = 279`
-5. Resultado: Dados do médico "BRUNA CATALLANI" (filial 279)
+Se encontrar DUAS ocorrências, o arquivo ainda está errado.
 
-### Fluxo Esperado (Correto)
+## Lições Aprendidas
 
-1. Frontend envia: `GET /api/requisicao/6806?filial=392`
-2. Servidor recebe `filial=392`
-3. Query busca: `WHERE NRRQU = 6806 AND CDFIL = 392`
-4. Resultado: Dados do médico "LENIE" (filial 392)
+Para evitar este problema no futuro:
+- Sempre copie o arquivo **completo** após cada correção
+- Use **CTRL+A** para selecionar tudo antes de copiar
+- Confirme que o arquivo foi salvo corretamente antes de reiniciar o servidor
 
----
+## Resumo
 
-## Solução
-
-Remover a entrada `392: 279` do dicionário `FILIAL_MAP`, deixando-o vazio.
-
-### Arquivo: `servidor.py`
-
-| Linha | Antes | Depois |
-|-------|-------|--------|
-| 24-26 | `FILIAL_MAP = { 392: 279, }` | `FILIAL_MAP = { }` |
-
----
-
-## Alteração Específica
-
-**Antes (linhas 21-28):**
-```python
-# --- Mapeamento de filiais (Frontend -> Código no Firebird) ---
-# Em algumas instalações, o frontend usa um "código de filial" diferente do CDFIL do banco.
-# Ex.: Frontend 392 -> Banco 279 (PROPHARMACOS). Ajuste conforme necessário.
-FILIAL_MAP = {
-    392: 279,
-}
-def mapear_filial(filial: int) -> int:
-    return FILIAL_MAP.get(filial, filial)
-```
-
-**Depois (linhas 21-28):**
-```python
-# --- Mapeamento de filiais (Frontend -> Código no Firebird) ---
-# Em algumas instalações, o frontend usa um "código de filial" diferente do CDFIL do banco.
-# Deixe vazio se o frontend usar o mesmo código CDFIL do banco.
-FILIAL_MAP = {
-    # Adicione mapeamentos aqui se necessário, ex: 999: 1
-}
-def mapear_filial(filial: int) -> int:
-    return FILIAL_MAP.get(filial, filial)
-```
-
----
-
-## Passos Após Aprovação
-
-1. Vou aplicar a alteração no arquivo `servidor.py`
-2. Você copia o arquivo para `C:\ServidorRotulos\servidor.py`
-3. Reinicia o servidor Python (Ctrl+C e executa novamente)
-4. Testa: `http://localhost:5000/api/requisicao/6806?filial=392`
-5. O médico deve aparecer como "LENIE"
-
----
-
-## Por Que Este Mapeamento Existia?
-
-O mapeamento foi criado assumindo que o frontend usa um código diferente do banco. Porém, se o seu sistema já usa o CDFIL correto (392), o mapeamento está causando o problema.
-
-**Se no futuro** você precisar que o frontend use um código diferente do banco, basta adicionar a regra novamente.
-
----
-
-## Impacto
-
-- **Risco**: Nenhum - apenas remove redirecionamento incorreto
-- **Benefício**: Filial 392 será consultada corretamente
-- **Compatibilidade**: Todas as outras filiais continuam funcionando normalmente
+| Item | Status |
+|------|--------|
+| Arquivo no Lovable | Correto (1 definição) |
+| Arquivo local | Incorreto (2 definições) |
+| Ação necessária | Copiar arquivo do Lovable para local |
 
