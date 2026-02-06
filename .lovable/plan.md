@@ -1,202 +1,170 @@
 
-# Plano: Corrigir Detecção de KIT - Filtrar o Próprio Produto
 
-## Diagnóstico Confirmado
+# Plano: Distinguir KIT de MESCLA na Detecção
 
-### O Bug Atual
-Na função `detecta_kit()` (linhas 337-357), quando contamos os "ativos reais" dos componentes na FC05100:
+## Diagnóstico do Bug
 
-```python
-for comp in componentes:
-    descr = comp[1] or ""
-    if not is_embalagem_ou_obs(descr):
-        ativos_reais += 1  # ← Conta QUALQUER coisa que não seja embalagem
-```
+### Problema Atual
+A correção anterior resolveu o caso de **ITEM ÚNICO** (GLICOSE), mas criou um novo problema: **MESCLAS com 2+ ativos estão sendo classificadas como KIT**.
 
-**O problema**: O próprio produto (ex: "GLICOSE 75%") pode estar cadastrado como componente da sua própria fórmula na FC05100. Como "GLICOSE" não é embalagem, ela passa o filtro e conta como "ativo real".
+**Exemplo: CAF/CARN (código 92446)**
+- É uma **MESCLA** (ampola única com cafeína + carnitina combinadas)
+- Mas na FC05100 tem 2 componentes: CAFEÍNA e L-CARNITINA
+- Nenhum é embalagem, então `ativos_reais = 2`
+- O sistema classifica erroneamente como **KIT**
 
-### Exemplo Real
-Produto: **GLICOSE 75% 2ML**
+### A Diferença Conceitual
+| Tipo | Definição | Exemplo | Resultado esperado |
+|------|-----------|---------|-------------------|
+| **KIT** | Múltiplos produtos **acabados/separados** | Kit com 4 ampolas diferentes | Lista componentes individualmente |
+| **MESCLA** | Múltiplos **ativos em 1 produto final** | Ampola com cafeína+carnitina | Mostra "CAFEINA, L-CARNITINA" na composição |
+| **ITEM ÚNICO** | 1 ativo em 1 produto | Glicose 75% ampola | Só nome do produto |
 
-Componentes na FC05100:
-| Componente | `is_embalagem_ou_obs()` | Contado? |
-|------------|------------------------|----------|
-| GLICOSE 75% | FALSE | ✅ SIM (1) |
-| ÁGUA PARA INJETÁVEIS | TRUE | ❌ NÃO |
-| AMPOLA ÂMBAR 2ML | TRUE | ❌ NÃO |
-| SELO ALUMÍNIO 13MM | TRUE | ❌ NÃO |
-| TAMPA BORRACHA | TRUE | ❌ NÃO |
+## Solução: Critério de Nomenclatura para KIT
 
-**Resultado atual**: `ativos_reais = 1` → Deveria ser OK (precisa de 2+)
+A característica mais confiável para distinguir KIT de MESCLA é o **nome do produto**. KITs verdadeiros geralmente têm:
+- Prefixo "KIT" no nome (ex: "KIT INTRADERMO", "KIT EMAG")
+- Ou contêm "KIT" em alguma posição do nome
 
-**MAS**: Se houver QUALQUER outro componente que não seja embalagem (ex: produto duplicado, outro insumo), chega a 2+ e classifica erroneamente como KIT.
+Mesclas **nunca** têm "KIT" no nome - têm siglas como "CAF/CARN", "TRISH", etc.
 
----
-
-## Solução: Adicionar Filtro de "Repetição do Produto"
-
-### Lógica a Adicionar
-Em `detecta_kit()`, quando contamos ativos reais, precisamos **também ignorar o próprio produto**:
+### Lógica Proposta
+Em `detecta_kit()`, **antes** de contar ativos reais, verificar se o nome do produto contém "KIT":
 
 ```python
-# Conta quantos componentes são "ativos reais" (não embalagem E não é o próprio produto)
-ativos_reais = 0
-for comp in componentes:
-    cdpro_comp = comp[0]  # Código do componente
-    descr = comp[1] or ""
+def detecta_kit(cursor, cdpro, tpforma=None):
+    # ... código existente até encontrar na FC05000 ...
     
-    # Ignora se for embalagem
-    if is_embalagem_ou_obs(descr):
-        continue
-    
-    # NOVO: Ignora se for o próprio produto sendo consultado
-    if str(cdpro_comp) == str(cdpro):
-        print(f"    [DETECTA_KIT] Próprio produto ignorado: {descr[:50]}")
-        continue
-    
-    ativos_reais += 1
+    if row:
+        kit_info = {...}
+        
+        # =====================================================
+        # PRÉ-VALIDAÇÃO: Verifica se o nome sugere que é KIT
+        # MESCLAS têm 2+ ativos na FC05100 mas NÃO são KITs
+        # =====================================================
+        descrfrm = kit_info.get("descrfrm", "")
+        if descrfrm and hasattr(descrfrm, 'read'):
+            descrfrm = descrfrm.read().decode('latin-1')
+        descrfrm_upper = (descrfrm or "").upper().strip()
+        
+        # Se o nome NÃO contém "KIT", provavelmente é MESCLA, não KIT
+        if "KIT" not in descrfrm_upper:
+            print(f"  [DETECTA_KIT] ✗ Nome não contém 'KIT': '{descrfrm_upper[:50]}' - Ignorando")
+            return None
+        
+        # ... resto do código de validação de componentes ...
 ```
 
-### Alteração Alternativa (mais robusta)
-Como fallback, também verificar pelo nome:
+## Alterações no servidor.py
 
-```python
-# NOVO: Ignora se for repetição do nome do produto
-def is_repeticao_produto_kit(descr_comp, descr_produto):
-    """Verifica se o componente é apenas o próprio produto."""
-    if not descr_comp or not descr_produto:
-        return False
-    
-    # Normaliza ambos
-    comp_norm = unicodedata.normalize('NFD', descr_comp.upper())
-    prod_norm = unicodedata.normalize('NFD', descr_produto.upper())
-    
-    # Extrai palavras principais (ignora prefixos)
-    palavras_prod = [p for p in prod_norm.split() 
-                     if len(p) > 3 and p not in ['AMP', 'FRS', 'ENV', 'BIS']]
-    
-    if not palavras_prod:
-        return False
-    
-    # Se a palavra principal do produto está no componente = é o mesmo
-    return palavras_prod[0] in comp_norm
-```
+### Alteração 1: Adicionar pré-filtro por nome em `detecta_kit()`
 
----
+**Estratégia 1 (linhas ~314-364):**
+Após encontrar o produto na FC05000, verificar se o nome (DESCRFRM) contém "KIT".
 
-## Arquivos a Alterar
-
-| Arquivo | Linhas | Alteração |
-|---------|--------|-----------|
-| `servidor.py` | 337-357 | Adicionar verificação de CDPRO do componente vs CDPRO consultado |
-| `servidor.py` | 386-403 | Mesma alteração para estratégia 2 (busca por inteiro) |
-
----
-
-## Código Corrigido
-
-### Estratégia 1 (linhas 337-357)
-```python
-# Conta quantos componentes são "ativos reais" (não embalagem)
-ativos_reais = 0
-for comp in componentes:
-    cdpro_comp = comp[0]  # Código do componente
-    descr = comp[1] or ""
-    if hasattr(descr, 'read'):
-        descr = descr.read().decode('latin-1')
-    
-    # 1. Ignora embalagens
-    if is_embalagem_ou_obs(descr):
-        print(f"    [DETECTA_KIT] Embalagem ignorada: {descr[:50]}")
-        continue
-    
-    # 2. NOVO: Ignora se for o próprio produto (código igual)
-    if str(cdpro_comp).strip() == cdpro_str:
-        print(f"    [DETECTA_KIT] Próprio produto ignorado: {descr[:50]}")
-        continue
-    
-    ativos_reais += 1
-    print(f"    [DETECTA_KIT] Componente ativo: {descr[:50]}")
-
-# Só é KIT se tiver 2+ componentes ativos reais DIFERENTES do próprio produto
-if ativos_reais >= 2:
-    print(f"  [DETECTA_KIT] ✓ KIT VÁLIDO! {ativos_reais} ativos reais encontrados")
-    return kit_info
-else:
-    print(f"  [DETECTA_KIT] ✗ Não é KIT: apenas {ativos_reais} ativo(s) real(is)")
-    return None
-```
-
-### Estratégia 2 (linhas 386-403)
-Mesma lógica aplicada à busca por CDPRO inteiro.
-
----
+**Estratégia 2 (linhas ~372-418):**
+Mesma verificação.
 
 ## Fluxo Corrigido
 
 ### GLICOSE 75% (Item Único)
 ```text
-GLICOSE 75% 2ML (CDPRO=12345)
+GLICOSE 75% 2ML
       │
-      └─► detecta_kit(12345)
+      └─► detecta_kit()
               │
-              └─► FC05100: Busca componentes do CDFRM
+              └─► FC05000: DESCRFRM = "GLICOSE 75% 2ML"
                       │
-                      ├─► CDPRO=12345 "GLICOSE 75%"  → CDPRO == CONSULTADO → IGNORA
-                      ├─► "ÁGUA PARA INJETÁVEIS"     → is_embalagem = TRUE → IGNORA
-                      ├─► "AMPOLA ÂMBAR"             → is_embalagem = TRUE → IGNORA
-                      ├─► "SELO ALUMÍNIO"            → is_embalagem = TRUE → IGNORA
-                      └─► "TAMPA BORRACHA"           → is_embalagem = TRUE → IGNORA
-                      
-              └─► ativos_reais = 0
+                      └─► "KIT" não está no nome
+                              │
+                              └─► Retorna None imediatamente (NÃO É KIT) ✅
+```
+
+### CAF/CARN (Mescla)
+```text
+AMP CAF/CARN 20/60/ML - 2ML
+      │
+      └─► detecta_kit()
+              │
+              └─► FC05000: DESCRFRM = "CAF/CARN 20/60/ML"
                       │
-                      └─► Retorna None (NÃO É KIT) ✅
+                      └─► "KIT" não está no nome
+                              │
+                              └─► Retorna None imediatamente (NÃO É KIT) ✅
+                                      │
+                                      └─► Processado como MESCLA
+                                              │
+                                              └─► composição = "CAFEINA 20MG/ML, L-CARNITINA 60MG/ML"
+                                              └─► aplicação = "SC/IM"
 ```
 
 ### KIT INTRADERMO (Kit Verdadeiro)
 ```text
-KIT INTRADERMO (CDPRO=99999)
+KIT INTRADERMO
       │
-      └─► detecta_kit(99999)
+      └─► detecta_kit()
               │
-              └─► FC05100: Busca componentes do CDFRM
+              └─► FC05000: DESCRFRM = "KIT INTRADERMO MESOTERAPIA"
                       │
-                      ├─► CDPRO=11111 "LIDOCAÍNA 2%" → CDPRO ≠ 99999 → ATIVO ✅
-                      ├─► CDPRO=22222 "BICARBONATO"  → CDPRO ≠ 99999 → ATIVO ✅
-                      ├─► "ÁGUA ESTÉRIL"             → is_embalagem = TRUE → IGNORA
-                      └─► CDPRO=33333 "HIALURONIDASE"→ CDPRO ≠ 99999 → ATIVO ✅
-                      
-              └─► ativos_reais = 3
-                      │
-                      └─► Retorna kit_info (É KIT VÁLIDO) ✅
+                      └─► "KIT" ESTÁ no nome ✓
+                              │
+                              └─► Continua validação de componentes
+                                      │
+                                      ├─► LIDOCAÍNA 2%      → ATIVO ✅
+                                      ├─► BICARBONATO       → ATIVO ✅
+                                      └─► HIALURONIDASE     → ATIVO ✅
+                                      
+                              └─► ativos_reais = 3 ≥ 2
+                                      │
+                                      └─► Retorna kit_info (É KIT VÁLIDO) ✅
 ```
-
----
 
 ## Garantias
 
-1. **KITs verdadeiros continuam funcionando** - Componentes diferentes do produto principal são contados
-2. **Itens únicos não viram KIT** - O próprio produto é ignorado da contagem
-3. **Mesclas não afetadas** - Lógica separada
-4. **Aplicação não afetada** - Extração independente
-
----
+1. **GLICOSE (Item Único)**: Nome não contém "KIT" → Não é KIT → OK
+2. **CAF/CARN (Mescla)**: Nome não contém "KIT" → Não é KIT → Processa como Mescla via FC99999 → OK
+3. **KIT INTRADERMO (Kit)**: Nome contém "KIT" → Valida componentes → É KIT → OK
+4. **Mesclas em geral**: Não usam "KIT" no nome → Processadas corretamente
 
 ## Resultado Esperado
 
-**GLICOSE 75% 2ML (após correção):**
-```
-Retorno da API:
-{
-  "tipoItem": "PRODUTO ÚNICO",
-  "componentes": [],
-  "aplicacao": "EV"
-}
-
+**CAF/CARN (após correção):**
+```text
 Rótulo:
-AMP GLICOSE 75% – 2ML
-APLICAÇÃO: EV
-L: 272989/25  F: 06/05/2028  V: ...
+DR. FULANO - CRM 12345/SP
+PACIENTE: EXEMPLO
+CAFEINA 20MG/ML, L-CARNITINA 60MG/ML
+L: 12345   F: 01/25   V: 06/25
+APLICAÇÃO: SC/IM
 ```
 
-Sem água, sem ampola, sem selo, sem tampa!
+Sem componentes expandidos como se fosse KIT!
+
+## Seção Técnica
+
+### Arquivos a Alterar
+| Arquivo | Linhas | Alteração |
+|---------|--------|-----------|
+| `servidor.py` | ~314-320 | Adicionar verificação de "KIT" no nome antes de validar componentes |
+| `servidor.py` | ~372-378 | Mesma verificação para estratégia 2 |
+
+### Código da Alteração
+
+```python
+# Após obter kit_info em cada estratégia, ANTES de buscar componentes:
+
+# =====================================================
+# PRÉ-VALIDAÇÃO: Só considera KIT se o nome indicar isso
+# MESCLAS têm 2+ ativos na FC05100 mas NÃO são KITs reais
+# =====================================================
+descrfrm = kit_info.get("descrfrm", "")
+if descrfrm and hasattr(descrfrm, 'read'):
+    descrfrm = descrfrm.read().decode('latin-1')
+descrfrm_upper = (descrfrm or "").upper().strip()
+
+# Se o nome NÃO contém "KIT", provavelmente é MESCLA, não KIT
+if "KIT" not in descrfrm_upper:
+    print(f"  [DETECTA_KIT] ✗ Nome não contém 'KIT': '{descrfrm_upper[:50]}' - Tratando como NÃO-KIT")
+    return None
+```
+
