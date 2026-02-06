@@ -1377,7 +1377,7 @@ def debug_formulas(nr_requisicao):
         cursor.execute("""
             SELECT * FROM FC12100
             WHERE NRRQU = ? AND CDFIL = ?
-        """, (nr_requisicao, filial))
+        """, (int(nr_requisicao), int(filial)))
         colunas = [desc[0].strip() for desc in cursor.description]
         registros = []
         for row in cursor.fetchall():
@@ -1409,7 +1409,7 @@ def debug_produtos_requisicao(nr_requisicao):
             FROM FC12110
             WHERE NRRQU = ? AND CDFIL = ?
             ORDER BY ITEMID
-        """, (nr_requisicao, filial))
+        """, (int(nr_requisicao), int(filial)))
         produtos = []
         for row in cursor.fetchall():
             produtos.append({
@@ -1472,54 +1472,6 @@ def debug_fc12110_completo(nr_requisicao):
     except Exception as e:
         return jsonify({"success": False, "error": str(e)}), 500
 
-# Debug: verificar se requisição existe no banco
-@app.route('/api/debug/verificar-requisicao/<nr_requisicao>', methods=['GET'])
-def debug_verificar_requisicao(nr_requisicao):
-    """
-    Endpoint simples para verificar se uma requisição existe no banco.
-    Retorna apenas contagem de registros.
-    """
-    filial = request.args.get('filial', '1')
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        # Verifica FC12100 (cabeçalho da requisição)
-        cursor.execute("""
-            SELECT COUNT(*) FROM FC12100 
-            WHERE NRRQU = ? AND CDFIL = ?
-        """, (int(nr_requisicao), int(filial)))
-        count_12100 = cursor.fetchone()[0]
-        
-        # Verifica FC12110 (itens da requisição)
-        cursor.execute("""
-            SELECT COUNT(*) FROM FC12110 
-            WHERE NRRQU = ? AND CDFIL = ?
-        """, (int(nr_requisicao), int(filial)))
-        count_12110 = cursor.fetchone()[0]
-        
-        # Lista todas as filiais que têm essa requisição
-        cursor.execute("""
-            SELECT DISTINCT CDFIL FROM FC12100 
-            WHERE NRRQU = ?
-        """, (int(nr_requisicao),))
-        filiais = [row[0] for row in cursor.fetchall()]
-        
-        conn.close()
-        
-        return jsonify({
-            "success": True,
-            "requisicao": nr_requisicao,
-            "filialBuscada": filial,
-            "encontradoFC12100": count_12100 > 0,
-            "quantidadeFC12100": count_12100,
-            "encontradoFC12110": count_12110 > 0,
-            "quantidadeFC12110": count_12110,
-            "filiaisDisponiveis": filiais,
-            "mensagem": f"Requisição existe nas filiais: {filiais}" if filiais else "Requisição não encontrada em nenhuma filial"
-        })
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
 
 # Debug: observações por CDPRO com GRICP
 @app.route('/api/debug/observacoes/<cdpro>', methods=['GET'])
@@ -1609,7 +1561,7 @@ def debug_observacoes_requisicao(nr_requisicao):
         cursor.execute("""
             SELECT TPFORMAFARMA FROM FC12100
             WHERE NRRQU = ? AND CDFIL = ?
-        """, (nr_requisicao, filial))
+        """, (int(nr_requisicao), int(filial)))
         req_row = cursor.fetchone()
         tipo_forma = req_row[0] if req_row else None
         
@@ -1619,7 +1571,7 @@ def debug_observacoes_requisicao(nr_requisicao):
             LEFT JOIN FC03300 O ON I.CDPRO = O.CDPRO
             WHERE I.NRRQU = ? AND I.CDFIL = ? AND I.TPCMP IN ('C', 'S')
             ORDER BY I.ITEMID, O.GRICP, O.CDICP
-        """, (nr_requisicao, filial))
+        """, (int(nr_requisicao), int(filial)))
         
         produtos = []
         for row in cursor.fetchall():
@@ -1658,7 +1610,7 @@ def debug_verificar_obs_requisicao(nr_requisicao):
         cursor.execute("""
             SELECT TPFORMAFARMA FROM FC12100
             WHERE NRRQU = ? AND CDFIL = ?
-        """, (nr_requisicao, filial))
+        """, (int(nr_requisicao), int(filial)))
         req_row = cursor.fetchone()
         tipo_forma_requisicao = req_row[0] if req_row else None
         
@@ -1668,7 +1620,7 @@ def debug_verificar_obs_requisicao(nr_requisicao):
             FROM FC12110 I
             WHERE I.NRRQU = ? AND I.CDFIL = ? AND I.TPCMP IN ('C', 'S')
             ORDER BY I.ITEMID
-        """, (nr_requisicao, filial))
+        """, (int(nr_requisicao), int(filial)))
         
         itens = cursor.fetchall()
         
