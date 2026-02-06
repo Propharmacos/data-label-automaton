@@ -34,26 +34,147 @@ const defaultLines: LineConfig[] = [
 
 // Configurações padrão para cada tipo de layout
 export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
+  // Layout 1: AMP_CX (Ampola Caixa) - 7 linhas
+  AMP_CX: {
+    tipo: 'AMP_CX',
+    nome: 'Ampola Caixa',
+    dimensoes: { larguraMM: 76, alturaMM: 35 },
+    linhas: [
+      { id: 'linha1', campos: ['paciente', 'requisicao'], spacing: 'normal' },
+      { id: 'linha2', campos: ['medico'], spacing: 'normal' },
+      { id: 'linha3', campos: ['composicao', 'formula'], spacing: 'normal' },
+      { id: 'linha4', campos: ['ph', 'lote', 'fabricacao', 'validade'], spacing: 'compact' },
+      { id: 'linha5', campos: ['tipoUso', 'aplicacao'], spacing: 'normal' },
+      { id: 'linha6', campos: ['contem'], spacing: 'normal' },
+      { id: 'linha7', campos: ['registro'], spacing: 'normal' },
+    ],
+    campoConfig: {
+      paciente: { visible: true, fontSize: 9, bold: false, uppercase: true },
+      composicao: { visible: true, fontSize: 9, bold: false, uppercase: true },
+      requisicao: { visible: true, fontSize: 9, bold: false, uppercase: false },
+      formula: { visible: true, fontSize: 9, bold: false, uppercase: true },
+      lote: { visible: true, fontSize: 9, bold: false, uppercase: false },
+      fabricacao: { visible: true, fontSize: 9, bold: false, uppercase: false },
+      validade: { visible: true, fontSize: 9, bold: false, uppercase: false },
+      ph: { visible: true, fontSize: 9, bold: false, uppercase: false },
+      tipoUso: { visible: true, fontSize: 9, bold: false, uppercase: true },
+      aplicacao: { visible: true, fontSize: 9, bold: false, uppercase: true },
+      contem: { visible: true, fontSize: 9, bold: false, uppercase: true },
+      registro: { visible: true, fontSize: 9, bold: false, uppercase: false },
+      medico: { visible: true, fontSize: 9, bold: false, uppercase: true },
+      posologia: { visible: false, fontSize: 9, bold: false, uppercase: true },
+      observacoes: { visible: false, fontSize: 9, bold: false, uppercase: false },
+    },
+  },
+
+  // Layout 2: AMP10 (Ampola 10) - 7 linhas
   AMP10: {
     tipo: 'AMP10',
     nome: 'Ampola 10',
     linhas: [
-      { id: 'linha1', campos: ['requisicao'], spacing: 'normal' },
+      { id: 'linha1', campos: ['paciente', 'requisicao'], spacing: 'normal' },
       { id: 'linha2', campos: ['medico'], spacing: 'normal' },
-      { id: 'linha3', campos: ['paciente'], spacing: 'normal' },
-      { id: 'linha4', campos: ['composicao', 'formula'], spacing: 'normal' },
-      { id: 'linha5', campos: ['ph', 'lote', 'fabricacao', 'validade'], spacing: 'compact' },
-      { id: 'linha6', campos: ['tipoUso'], spacing: 'normal' },
-      { id: 'linha7', campos: ['posologia'], spacing: 'normal' },
-      { id: 'linha8', campos: ['contem'], spacing: 'normal' },
-      { id: 'linha9', campos: ['aplicacao'], spacing: 'normal' },
-      { id: 'linha10', campos: ['registro'], spacing: 'normal' },
+      { id: 'linha3', campos: ['composicao'], spacing: 'normal' },
+      { id: 'linha4', campos: ['formula'], spacing: 'normal' },
+      { id: 'linha5', campos: ['registro'], spacing: 'normal' },
+      { id: 'linha6', campos: ['ph', 'lote', 'validade', 'aplicacao'], spacing: 'compact' },
+      { id: 'linha7', campos: ['tipoUso', 'posologia'], spacing: 'normal' },
     ],
     campoConfig: {
       paciente: { visible: true, fontSize: 10, bold: true, uppercase: true },
       composicao: { visible: true, fontSize: 9, bold: false, uppercase: true },
       requisicao: { visible: true, fontSize: 9, bold: false, uppercase: false },
       formula: { visible: true, fontSize: 10, bold: true, uppercase: true },
+      lote: { visible: true, fontSize: 9, bold: false, uppercase: false },
+      fabricacao: { visible: false, fontSize: 9, bold: false, uppercase: false },
+      validade: { visible: true, fontSize: 9, bold: false, uppercase: false },
+      ph: { visible: true, fontSize: 9, bold: false, uppercase: false },
+      tipoUso: { visible: true, fontSize: 9, bold: false, uppercase: true },
+      aplicacao: { visible: true, fontSize: 9, bold: true, uppercase: true },
+      contem: { visible: false, fontSize: 9, bold: false, uppercase: true },
+      registro: { visible: true, fontSize: 8, bold: false, uppercase: false },
+      medico: { visible: true, fontSize: 9, bold: false, uppercase: true },
+      posologia: { visible: true, fontSize: 8, bold: false, uppercase: true },
+      observacoes: { visible: false, fontSize: 8, bold: false, uppercase: false },
+    },
+  },
+
+  // Layout 3: A_PAC_PEQ (Ampola Pacote Pequeno) - 3 linhas
+  A_PAC_PEQ: {
+    tipo: 'A_PAC_PEQ',
+    nome: 'Ampola Pacote Pequeno',
+    dimensoes: { larguraMM: 50, alturaMM: 20 },
+    linhas: [
+      { id: 'linha1', campos: ['paciente', 'requisicao'], spacing: 'normal' },
+      { id: 'linha2', campos: ['medico'], spacing: 'normal' },
+      { id: 'linha3', campos: ['registro'], spacing: 'normal' },
+    ],
+    campoConfig: {
+      paciente: { visible: true, fontSize: 8, bold: true, uppercase: true },
+      composicao: { visible: false, fontSize: 8, bold: false, uppercase: true },
+      requisicao: { visible: true, fontSize: 8, bold: false, uppercase: false },
+      formula: { visible: false, fontSize: 8, bold: false, uppercase: true },
+      lote: { visible: false, fontSize: 8, bold: false, uppercase: false },
+      fabricacao: { visible: false, fontSize: 8, bold: false, uppercase: false },
+      validade: { visible: false, fontSize: 8, bold: false, uppercase: false },
+      ph: { visible: false, fontSize: 8, bold: false, uppercase: false },
+      tipoUso: { visible: false, fontSize: 8, bold: false, uppercase: true },
+      aplicacao: { visible: false, fontSize: 8, bold: false, uppercase: true },
+      contem: { visible: false, fontSize: 8, bold: false, uppercase: true },
+      registro: { visible: true, fontSize: 8, bold: false, uppercase: false },
+      medico: { visible: true, fontSize: 8, bold: false, uppercase: true },
+      posologia: { visible: false, fontSize: 8, bold: false, uppercase: false },
+      observacoes: { visible: false, fontSize: 8, bold: false, uppercase: false },
+    },
+  },
+
+  // Layout 4: A_PAC_GRAN (Ampola Pacote Grande) - 2 linhas
+  A_PAC_GRAN: {
+    tipo: 'A_PAC_GRAN',
+    nome: 'Ampola Pacote Grande',
+    dimensoes: { larguraMM: 100, alturaMM: 25 },
+    linhas: [
+      { id: 'linha1', campos: ['paciente', 'requisicao'], spacing: 'normal' },
+      { id: 'linha2', campos: ['medico', 'registro'], spacing: 'normal' },
+    ],
+    campoConfig: {
+      paciente: { visible: true, fontSize: 10, bold: true, uppercase: true },
+      composicao: { visible: false, fontSize: 9, bold: false, uppercase: true },
+      requisicao: { visible: true, fontSize: 9, bold: false, uppercase: false },
+      formula: { visible: false, fontSize: 10, bold: true, uppercase: true },
+      lote: { visible: false, fontSize: 9, bold: false, uppercase: false },
+      fabricacao: { visible: false, fontSize: 9, bold: false, uppercase: false },
+      validade: { visible: false, fontSize: 9, bold: false, uppercase: false },
+      ph: { visible: false, fontSize: 9, bold: false, uppercase: false },
+      tipoUso: { visible: false, fontSize: 9, bold: false, uppercase: true },
+      aplicacao: { visible: false, fontSize: 9, bold: false, uppercase: true },
+      contem: { visible: false, fontSize: 9, bold: false, uppercase: true },
+      registro: { visible: true, fontSize: 8, bold: false, uppercase: false },
+      medico: { visible: true, fontSize: 9, bold: false, uppercase: true },
+      posologia: { visible: false, fontSize: 9, bold: false, uppercase: false },
+      observacoes: { visible: false, fontSize: 9, bold: false, uppercase: false },
+    },
+  },
+
+  // Layout 5: TIRZ (Tirzepatida) - 7 linhas
+  TIRZ: {
+    tipo: 'TIRZ',
+    nome: 'Tirzepatida',
+    dimensoes: { larguraMM: 76, alturaMM: 35 },
+    linhas: [
+      { id: 'linha1', campos: ['paciente', 'requisicao'], spacing: 'normal' },
+      { id: 'linha2', campos: ['medico'], spacing: 'normal' },
+      { id: 'linha3', campos: ['formula'], spacing: 'normal' },
+      { id: 'linha4', campos: ['posologia'], spacing: 'normal' },
+      { id: 'linha5', campos: ['ph', 'lote', 'fabricacao', 'validade'], spacing: 'compact' },
+      { id: 'linha6', campos: ['tipoUso', 'aplicacao'], spacing: 'normal' },
+      { id: 'linha7', campos: ['contem', 'registro'], spacing: 'normal' },
+    ],
+    campoConfig: {
+      paciente: { visible: true, fontSize: 10, bold: true, uppercase: true },
+      composicao: { visible: false, fontSize: 9, bold: false, uppercase: true },
+      requisicao: { visible: true, fontSize: 9, bold: false, uppercase: false },
+      formula: { visible: true, fontSize: 11, bold: true, uppercase: true },
       lote: { visible: true, fontSize: 9, bold: false, uppercase: false },
       fabricacao: { visible: true, fontSize: 9, bold: false, uppercase: false },
       validade: { visible: true, fontSize: 9, bold: false, uppercase: false },
@@ -63,89 +184,7 @@ export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
       contem: { visible: true, fontSize: 9, bold: false, uppercase: true },
       registro: { visible: true, fontSize: 8, bold: false, uppercase: false },
       medico: { visible: true, fontSize: 9, bold: false, uppercase: true },
-      posologia: { visible: true, fontSize: 8, bold: false, uppercase: true },
-      observacoes: { visible: false, fontSize: 8, bold: false, uppercase: false },
-    },
-  },
-  AMP_CX: {
-    tipo: 'AMP_CX',
-    nome: 'Ampola Caixa',
-    dimensoes: { larguraMM: 76, alturaMM: 35 },
-    linhas: [
-      // Linha 1: Paciente (esquerda) + Requisição (direita)
-      { id: 'linha1', campos: ['paciente', 'requisicao'], spacing: 'normal' },
-      // Linha 2: Prescritor
-      { id: 'linha2', campos: ['medico'], spacing: 'normal' },
-      // Linha 3: Composição OU Fórmula (exclusão mútua - só um aparece)
-      { id: 'linha3', campos: ['composicao', 'formula'], spacing: 'normal' },
-      // Linha 4: pH (editável), Lote, Fabricação, Validade
-      { id: 'linha4', campos: ['ph', 'lote', 'fabricacao', 'validade'], spacing: 'compact' },
-      // Linha 5: Tipo de Uso (quando existir)
-      { id: 'linha5', campos: ['tipoUso'], spacing: 'normal' },
-      // Linha 6: Posologia/Uso
-      { id: 'linha6', campos: ['posologia'], spacing: 'normal' },
-      // Linha 7: Aplicação
-      { id: 'linha7', campos: ['aplicacao'], spacing: 'normal' },
-      // Linha 8: Contém
-      { id: 'linha8', campos: ['contem'], spacing: 'normal' },
-      // Linha 9: Registro
-      { id: 'linha9', campos: ['registro'], spacing: 'normal' },
-    ],
-    campoConfig: {
-      // Todos os campos com MESMA fonte, SEM negrito - padronizado
-      paciente: { visible: true, fontSize: 9, bold: false, uppercase: true },
-      composicao: { visible: true, fontSize: 9, bold: false, uppercase: true },
-      requisicao: { visible: true, fontSize: 9, bold: false, uppercase: false },
-      formula: { visible: true, fontSize: 9, bold: false, uppercase: true },  // Visível para PRODUTO ÚNICO
-      lote: { visible: true, fontSize: 9, bold: false, uppercase: false },
-      fabricacao: { visible: true, fontSize: 9, bold: false, uppercase: false },
-      validade: { visible: true, fontSize: 9, bold: false, uppercase: false },
-      ph: { visible: true, fontSize: 9, bold: false, uppercase: false },
-      tipoUso: { visible: true, fontSize: 9, bold: false, uppercase: true },  // Visível para "USO EM CONSULTÓRIO"
-      aplicacao: { visible: true, fontSize: 9, bold: false, uppercase: true },
-      contem: { visible: true, fontSize: 9, bold: false, uppercase: true },
-      registro: { visible: true, fontSize: 9, bold: false, uppercase: false },
-      medico: { visible: true, fontSize: 9, bold: false, uppercase: true },
-      posologia: { visible: true, fontSize: 9, bold: false, uppercase: true },  // Visível - exibe posologia
-      observacoes: { visible: false, fontSize: 9, bold: false, uppercase: false },
-    },
-  },
-  A_PAC_GRAN: {
-    tipo: 'A_PAC_GRAN',
-    nome: 'Ampola Pacote Grande',
-    linhas: [
-      { id: 'linha1', campos: ['medico'], spacing: 'normal' },
-      { id: 'linha2', campos: ['paciente'], spacing: 'wide' },
-      { id: 'linha3', campos: ['formula'], spacing: 'wide' },
-      { id: 'linha4', campos: ['lote', 'fabricacao', 'validade'], spacing: 'compact' },
-      { id: 'linha5', campos: ['ph', 'aplicacao', 'contem'], spacing: 'compact' },
-      { id: 'linha6', campos: ['tipoUso'], spacing: 'normal' },
-      { id: 'linha7', campos: ['posologia'], spacing: 'normal' },
-      { id: 'linha8', campos: ['observacoes', 'registro'], spacing: 'compact' },
-    ],
-    campoConfig: {
-      ...defaultFieldConfig,
-      paciente: { visible: true, fontSize: 12, bold: true, uppercase: true },
-      formula: { visible: true, fontSize: 13, bold: true, uppercase: true },
-      medico: { visible: true, fontSize: 10, bold: false, uppercase: true },
-    },
-  },
-  TIRZ: {
-    tipo: 'TIRZ',
-    nome: 'Tirzepatida',
-    linhas: [
-      { id: 'linha1', campos: ['medico'], spacing: 'normal' },
-      { id: 'linha2', campos: ['paciente'], spacing: 'wide' },
-      { id: 'linha3', campos: ['formula'], spacing: 'wide' },
-      { id: 'linha4', campos: ['lote', 'fabricacao', 'validade'], spacing: 'compact' },
-      { id: 'linha5', campos: ['ph', 'aplicacao', 'contem'], spacing: 'compact' },
-      { id: 'linha6', campos: ['tipoUso'], spacing: 'normal' },
-      { id: 'linha7', campos: ['posologia'], spacing: 'normal' },
-    ],
-    campoConfig: {
-      ...defaultFieldConfig,
-      paciente: { visible: true, fontSize: 11, bold: true, uppercase: true },
-      formula: { visible: true, fontSize: 13, bold: true, uppercase: true },
+      posologia: { visible: true, fontSize: 9, bold: true, uppercase: true },
       observacoes: { visible: false, fontSize: 8, bold: false, uppercase: false },
     },
   },
@@ -233,13 +272,13 @@ const SELECTED_LAYOUT_KEY = 'selected_layout';
 export function getSelectedLayout(): LayoutType {
   try {
     const stored = localStorage.getItem(SELECTED_LAYOUT_KEY);
-    if (stored && ['AMP10', 'AMP_CX', 'A_PAC_GRAN', 'TIRZ'].includes(stored)) {
+    if (stored && ['AMP10', 'AMP_CX', 'A_PAC_GRAN', 'A_PAC_PEQ', 'TIRZ'].includes(stored)) {
       return stored as LayoutType;
     }
   } catch (e) {
     console.error('Erro ao carregar layout selecionado:', e);
   }
-  return 'AMP10';
+  return 'AMP_CX'; // Layout padrão agora é AMP_CX
 }
 
 export function setSelectedLayout(tipo: LayoutType): void {

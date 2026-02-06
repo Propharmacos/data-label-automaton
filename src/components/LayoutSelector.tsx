@@ -14,8 +14,9 @@ interface LayoutSelectorProps {
 }
 
 const layoutOptions: { value: LayoutType; label: string }[] = [
-  { value: 'AMP10', label: 'AMP 10' },
   { value: 'AMP_CX', label: 'AMP.CX' },
+  { value: 'AMP10', label: 'AMP 10' },
+  { value: 'A_PAC_PEQ', label: 'A.PAC.PEQ' },
   { value: 'A_PAC_GRAN', label: 'A.PAC.GRAN' },
   { value: 'TIRZ', label: 'TIRZ' },
 ];
