@@ -429,30 +429,41 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
         {/* Prescritor (segundo) */}
         <div className="text-[9px] leading-tight uppercase">{formatarPrescritor()}</div>
         
-        {/* Lista de componentes do kit: composição/nome na linha, metadados na seguinte */}
-        {rotulo.componentes.map((comp, idx) => (
-          <div key={idx} className="mt-0.5">
-            <div className="text-[9px] leading-tight uppercase">
-              {rotulo.eSinonimo
-                ? (comp.composicao || formatarNomeComponente(comp.nome))
-                : formatarNomeComponente(comp.nome)}
-            </div>
-            <div className="text-[9px] leading-tight flex flex-wrap gap-1">
-              {comp.ph && <span>pH:{comp.ph}</span>}
-              {comp.lote && <span>L:{comp.lote}</span>}
-              {comp.fabricacao && <span>F:{formatarDataCurta(comp.fabricacao)}</span>}
-              {comp.validade && <span>V:{formatarDataCurta(comp.validade)}</span>}
-              {comp.aplicacao && <span>APLICAÇÃO:{comp.aplicacao}</span>}
-            </div>
-          </div>
-        ))}
+        {/* Lista de componentes do kit */}
+        {rotulo.componentes.map((comp, idx) => {
+          const nomeExibicao = rotulo.eSinonimo
+            ? (comp.composicao || formatarNomeComponente(comp.nome))
+            : formatarNomeComponente(comp.nome);
+          const metaParts: string[] = [];
+          if (comp.ph) metaParts.push(`pH:${comp.ph}`);
+          if (comp.lote) metaParts.push(`L:${comp.lote}`);
+          if (comp.fabricacao) metaParts.push(`F:${formatarDataCurta(comp.fabricacao)}`);
+          if (comp.validade) metaParts.push(`V:${formatarDataCurta(comp.validade)}`);
+          if (comp.aplicacao) metaParts.push(`APLICAÇÃO:${comp.aplicacao}`);
+          const metaStr = metaParts.join('  ');
+
+          if (rotulo.eSinonimo) {
+            // Kit sinônimo: composição numa linha, metadados na seguinte
+            return (
+              <div key={idx} className="mt-0.5">
+                <div className="text-[9px] leading-tight uppercase">{nomeExibicao}</div>
+                {metaStr && <div className="text-[9px] leading-tight">{metaStr}</div>}
+              </div>
+            );
+          } else {
+            // Kit normal: tudo na mesma linha (nome + pH + L + F + V)
+            return (
+              <div key={idx} className="text-[9px] leading-tight uppercase mt-0.5">
+                {nomeExibicao}{metaStr ? `  ${metaStr}` : ''}
+              </div>
+            );
+          }
+        })}
         
-        {/* Tipo de Uso + Aplicação (mesma linha) */}
-        {(tipoUsoValido || aplicacao) && (
-          <div className="text-[9px] leading-tight uppercase">
-            {tipoUsoValido}{tipoUsoValido && aplicacao ? '  ' : ''}{aplicacao ? `APLICAÇÃO:${aplicacao}` : ''}
-          </div>
-        )}
+        {/* Tipo de Uso + Aplicação (sempre visível) */}
+        <div className="text-[9px] leading-tight uppercase">
+          {tipoUsoValido}{tipoUsoValido && aplicacao ? '  ' : ''}{`APLICAÇÃO:${aplicacao || ''}`}
+        </div>
         
         {/* Contém + Registro (mesma linha) */}
         {(rotulo.contem || rotulo.numeroRegistro) && (
