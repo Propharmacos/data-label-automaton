@@ -73,13 +73,13 @@ def gerar_pplb_ampcx(rotulo, farmacia):
 
     return pplb_label([
         pplb_text(1, 2, 1, 1, 10, 10, paciente),
-        pplb_text(1, 0, 1, 1, 10, 450, f"REQ:{nr_req}-{nr_item}"),
-        pplb_text(1, 0, 1, 1, 50, 10, f"DR. {nome_medico[:25]} CRM {crm}"),
+        pplb_text(1, 2, 1, 1, 10, 450, f"REQ:{nr_req}-{nr_item}"),
+        pplb_text(1, 2, 1, 1, 50, 10, f"DR. {nome_medico[:25]} CRM {crm}"),
         pplb_text(1, 2, 1, 1, 80, 10, composicao),
-        pplb_text(1, 0, 1, 1, 115, 10, linha_meta),
-        pplb_text(1, 0, 1, 1, 145, 10, f"APLICACAO: {aplicacao}"),
-        pplb_text(1, 0, 1, 1, 175, 10, f"CONTEM: {contem}"),
-        pplb_text(1, 0, 1, 1, 205, 10, f"Reg: {registro}"),
+        pplb_text(1, 2, 1, 1, 115, 10, linha_meta),
+        pplb_text(1, 2, 1, 1, 145, 10, f"APLICACAO: {aplicacao}"),
+        pplb_text(1, 2, 1, 1, 175, 10, f"CONTEM: {contem}"),
+        pplb_text(1, 2, 1, 1, 205, 10, f"Reg: {registro}"),
     ])
 
 
@@ -98,13 +98,13 @@ def gerar_pplb_amp10(rotulo, farmacia):
 
     return pplb_label([
         pplb_text(1, 2, 1, 1, 10, 10, paciente),
-        pplb_text(1, 0, 1, 1, 10, 450, f"REQ:{nr_req}-{nr_item}"),
-        pplb_text(1, 0, 1, 1, 50, 10, f"DR. {nome_medico[:25]} CRM {crm}"),
+        pplb_text(1, 2, 1, 1, 10, 450, f"REQ:{nr_req}-{nr_item}"),
+        pplb_text(1, 2, 1, 1, 50, 10, f"DR. {nome_medico[:25]} CRM {crm}"),
         pplb_text(1, 2, 1, 1, 80, 10, composicao),
-        pplb_text(1, 0, 1, 1, 115, 10, linha_meta),
-        pplb_text(1, 0, 1, 1, 145, 10, f"REG: {registro}  {composicao[:20]}"),
-        pplb_text(1, 0, 1, 1, 175, 10, f"APLICACAO: {aplicacao}"),
-        pplb_text(1, 0, 1, 1, 205, 10, f"CONTEM: {contem}"),
+        pplb_text(1, 2, 1, 1, 115, 10, linha_meta),
+        pplb_text(1, 2, 1, 1, 145, 10, f"REG: {registro}  {composicao[:20]}"),
+        pplb_text(1, 2, 1, 1, 175, 10, f"APLICACAO: {aplicacao}"),
+        pplb_text(1, 2, 1, 1, 205, 10, f"CONTEM: {contem}"),
     ])
 
 
@@ -119,8 +119,8 @@ def gerar_pplb_a_pac_peq(rotulo, farmacia):
 
     return pplb_label([
         pplb_text(1, 2, 1, 1, 20, 10, f"{paciente}  REQ:{nr_req}-{nr_item}"),
-        pplb_text(1, 0, 1, 1, 60, 10, f"DR. {nome_medico[:30]} CRM {crm}"),
-        pplb_text(1, 0, 1, 1, 100, 10, f"REG: {registro}"),
+        pplb_text(1, 2, 1, 1, 60, 10, f"DR. {nome_medico[:30]} CRM {crm}"),
+        pplb_text(1, 2, 1, 1, 100, 10, f"REG: {registro}"),
     ])
 
 
@@ -135,7 +135,7 @@ def gerar_pplb_a_pac_gran(rotulo, farmacia):
 
     return pplb_label([
         pplb_text(1, 2, 1, 1, 20, 10, f"{paciente}  REQ:{nr_req}-{nr_item}"),
-        pplb_text(1, 0, 1, 1, 60, 10, f"DR. {nome_medico[:25]} CRM {crm}  REG:{registro}"),
+        pplb_text(1, 2, 1, 1, 60, 10, f"DR. {nome_medico[:25]} CRM {crm}  REG:{registro}"),
     ])
 
 
@@ -155,13 +155,13 @@ def gerar_pplb_tirz(rotulo, farmacia):
 
     return pplb_label([
         pplb_text(1, 2, 1, 1, 10, 10, paciente),
-        pplb_text(1, 0, 1, 1, 10, 450, f"REQ:{nr_req}-{nr_item}"),
-        pplb_text(1, 0, 1, 1, 50, 10, f"DR. {nome_medico[:25]} CRM {crm}"),
+        pplb_text(1, 2, 1, 1, 10, 450, f"REQ:{nr_req}-{nr_item}"),
+        pplb_text(1, 2, 1, 1, 50, 10, f"DR. {nome_medico[:25]} CRM {crm}"),
         pplb_text(1, 2, 1, 1, 80, 10, composicao),
-        pplb_text(1, 0, 1, 1, 115, 10, posologia),
-        pplb_text(1, 0, 1, 1, 145, 10, linha_meta),
-        pplb_text(1, 0, 1, 1, 175, 10, f"APLICACAO: {aplicacao}"),
-        pplb_text(1, 0, 1, 1, 205, 10, f"CONTEM: {contem}  REG:{registro}"),
+        pplb_text(1, 2, 1, 1, 115, 10, posologia),
+        pplb_text(1, 2, 1, 1, 145, 10, linha_meta),
+        pplb_text(1, 2, 1, 1, 175, 10, f"APLICACAO: {aplicacao}"),
+        pplb_text(1, 2, 1, 1, 205, 10, f"CONTEM: {contem}  REG:{registro}"),
     ])
 
 
