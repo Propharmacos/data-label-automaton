@@ -218,8 +218,10 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
     
     // Linhas de componentes do kit (composição ou nome + metadados na linha seguinte)
     rotulo.componentes.forEach((comp) => {
-      // Se tem composição (ativos extraídos), usa ela; senão usa o nome do produto
-      const nomeExibicao = comp.composicao || formatarNomeComponente(comp.nome);
+      // Kit sinônimo: usa composição (observações do produto); Kit normal: usa nome do componente
+      const nomeExibicao = rotulo.eSinonimo
+        ? (comp.composicao || formatarNomeComponente(comp.nome))
+        : formatarNomeComponente(comp.nome);
       lines.push(nomeExibicao);
       const metaLine: string[] = [];
       if (comp.ph) metaLine.push(`pH:${comp.ph}`);
@@ -434,7 +436,9 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
         {rotulo.componentes.map((comp, idx) => (
           <div key={idx} className="mt-0.5">
             <div className="text-[9px] leading-tight font-semibold uppercase">
-              {comp.composicao || formatarNomeComponente(comp.nome)}
+              {rotulo.eSinonimo
+                ? (comp.composicao || formatarNomeComponente(comp.nome))
+                : formatarNomeComponente(comp.nome)}
             </div>
             <div className="text-[9px] leading-tight flex flex-wrap gap-1">
               {comp.ph && <span>pH:{comp.ph}</span>}

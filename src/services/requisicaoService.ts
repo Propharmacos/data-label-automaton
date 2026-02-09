@@ -46,6 +46,7 @@ const mapearRotulo = (data: any): RotuloItem => ({
   descricaoProduto: data.descricaoProduto || "",
   // Novos campos para suporte a kits
   tipoItem: data.tipoItem || undefined,
+  eSinonimo: data.eSinonimo || false,
   componentes: data.componentes ? data.componentes.map(mapearComponenteKit) : undefined,
 });
 
