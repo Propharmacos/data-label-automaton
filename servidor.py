@@ -2804,12 +2804,25 @@ def buscar_requisicao(nr_requisicao):
                     # Busca lote/fab/val para o componente
                     lote_str, fab_str, val_str = buscar_lote_componente(cursor, cdpro_comp, cdfil_int, lote_usar)
                     
-                    print(f"    [COMP] CDPRO={cdpro_comp}, NOME={nome_limpo[:40]}, LT:{lote_str}, F:{fab_str}, V:{val_str}")
+                    # Busca pH do componente na FC06100
+                    ph_comp = ""
+                    try:
+                        cursor.execute("""
+                            SELECT FIRST 1 PH FROM FC06100
+                            WHERE CDPRO = ? AND CDFIL = ?
+                        """, (cdpro_comp, cdfil_int))
+                        ph_row = cursor.fetchone()
+                        if ph_row and ph_row[0]:
+                            ph_comp = str(ph_row[0]).strip()
+                    except Exception as e:
+                        print(f"      [PH ERRO] {e}")
+                    
+                    print(f"    [COMP] CDPRO={cdpro_comp}, NOME={nome_limpo[:40]}, pH:{ph_comp}, LT:{lote_str}, F:{fab_str}, V:{val_str}")
                     
                     componentes.append({
                         "codigo": str(cdpro_comp),
                         "nome": nome_limpo,
-                        "ph": "",  # pH não está na FC12111, pode ser preenchido manualmente
+                        "ph": ph_comp,
                         "lote": lote_str,
                         "fabricacao": fab_str,
                         "validade": val_str
@@ -3466,7 +3479,7 @@ def buscar_requisicao(nr_requisicao):
                     componentes_kit.append({
                         "codigo": str(comp.get("cdpro", "")),
                         "nome": comp.get("descr", ""),
-                        "ph": "",  # pH será preenchido manualmente
+                        "ph": comp.get("ph", ""),
                         "lote": comp.get("lote", ""),
                         "fabricacao": comp.get("dtFab", ""),
                         "validade": comp.get("dtVal", "")

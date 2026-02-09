@@ -209,29 +209,38 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
     
     const lines: string[] = [];
     
-    // Linha 1: Prescritor
+    // Linha 1: Paciente (primeiro, conforme referência)
+    if (rotulo.nomePaciente) lines.push(rotulo.nomePaciente.toUpperCase());
+    
+    // Linha 2: Prescritor
     const prescritor = formatarPrescritor();
     if (prescritor) lines.push(prescritor);
     
-    // Linha 2: Paciente
-    if (rotulo.nomePaciente) lines.push(rotulo.nomePaciente.toUpperCase());
-    
-    // Linhas de componentes do kit
-    lines.push(""); // Linha em branco
+    // Linhas de componentes do kit (nome + metadados na linha seguinte)
     rotulo.componentes.forEach((comp) => {
-      const compLine: string[] = [formatarNomeComponente(comp.nome)];
-      if (comp.ph) compLine.push(`pH:${comp.ph}`);
-      if (comp.lote) compLine.push(`L:${comp.lote}`);
-      if (comp.validade) compLine.push(`V:${comp.validade}`);
-      lines.push(compLine.join("  "));
+      lines.push(formatarNomeComponente(comp.nome));
+      const metaLine: string[] = [];
+      if (comp.ph) metaLine.push(`pH:${comp.ph}`);
+      if (comp.lote) metaLine.push(`L:${comp.lote}`);
+      if (comp.fabricacao) metaLine.push(`F:${formatarDataCurta(comp.fabricacao)}`);
+      if (comp.validade) metaLine.push(`V:${formatarDataCurta(comp.validade)}`);
+      if (metaLine.length > 0) lines.push(metaLine.join("  "));
     });
     
-    // Aplicação
+    // Tipo de Uso + Aplicação (mesma linha)
     const aplicacao = getAplicacao();
-    if (aplicacao) lines.push(`APLICAÇÃO: ${aplicacao}`);
+    const tipoUso = rotulo.tipoUso?.toUpperCase() || "";
+    const tipoUsoValido = /^\d+$/.test(tipoUso) ? "" : tipoUso;
+    const usoApLine: string[] = [];
+    if (tipoUsoValido) usoApLine.push(tipoUsoValido);
+    if (aplicacao) usoApLine.push(`AP:${aplicacao}`);
+    if (usoApLine.length > 0) lines.push(usoApLine.join("  "));
     
-    // Registro
-    if (rotulo.numeroRegistro) lines.push(`REG: ${rotulo.numeroRegistro}`);
+    // Contém + Registro (mesma linha)
+    const contemRegLine: string[] = [];
+    if (rotulo.contem) contemRegLine.push(`CONTÉM: ${rotulo.contem}`);
+    if (rotulo.numeroRegistro) contemRegLine.push(`REG:${rotulo.numeroRegistro}`);
+    if (contemRegLine.length > 0) lines.push(contemRegLine.join("   "));
     
     return lines.join('\n');
   };
@@ -405,42 +414,48 @@ const LabelCard = ({ rotulo, pharmacyConfig, labelConfig, layoutConfig, selected
     }
 
     const aplicacao = getAplicacao();
+    const tipoUso = rotulo.tipoUso?.toUpperCase() || "";
+    const tipoUsoValido = /^\d+$/.test(tipoUso) ? "" : tipoUso;
     
     return (
       <div className="p-2 space-y-0.5 overflow-hidden">
-        {/* Prescritor */}
-        <div className="text-[9px] leading-tight uppercase">{formatarPrescritor()}</div>
-        
-        {/* Paciente + Requisição */}
+        {/* Paciente + Requisição (primeiro, conforme referência) */}
         <div className="flex justify-between text-[9px] leading-tight">
-          <span className="uppercase">{rotulo.nomePaciente}</span>
+          <span className="font-bold uppercase">{rotulo.nomePaciente}</span>
           <span>{normalizeReqBarra(rotulo.nrRequisicao, rotulo.nrItem)}</span>
         </div>
         
-        {/* Linha separadora */}
-        <div className="border-t border-border my-1"></div>
+        {/* Prescritor (segundo) */}
+        <div className="text-[9px] leading-tight uppercase">{formatarPrescritor()}</div>
         
-        {/* Lista de componentes do kit */}
+        {/* Lista de componentes do kit: nome na linha, metadados na seguinte */}
         {rotulo.componentes.map((comp, idx) => (
-          <div key={idx} className="text-[9px] leading-tight flex flex-wrap gap-1">
-            <span className="font-semibold uppercase">{formatarNomeComponente(comp.nome)}</span>
-            {comp.ph && <span>pH:{comp.ph}</span>}
-            {comp.lote && <span>L:{comp.lote}</span>}
-            {comp.validade && <span>V:{comp.validade}</span>}
+          <div key={idx} className="mt-0.5">
+            <div className="text-[9px] leading-tight font-semibold uppercase">
+              {formatarNomeComponente(comp.nome)}
+            </div>
+            <div className="text-[9px] leading-tight flex flex-wrap gap-1">
+              {comp.ph && <span>pH:{comp.ph}</span>}
+              {comp.lote && <span>L:{comp.lote}</span>}
+              {comp.fabricacao && <span>F:{formatarDataCurta(comp.fabricacao)}</span>}
+              {comp.validade && <span>V:{formatarDataCurta(comp.validade)}</span>}
+            </div>
           </div>
         ))}
         
-        {/* Linha separadora */}
-        <div className="border-t border-border my-1"></div>
-        
-        {/* Aplicação */}
-        {aplicacao && (
-          <div className="text-[9px] leading-tight uppercase">APLICAÇÃO: {aplicacao}</div>
+        {/* Tipo de Uso + Aplicação (mesma linha) */}
+        {(tipoUsoValido || aplicacao) && (
+          <div className="text-[9px] leading-tight uppercase">
+            {tipoUsoValido}{tipoUsoValido && aplicacao ? '  ' : ''}{aplicacao ? `AP:${aplicacao}` : ''}
+          </div>
         )}
         
-        {/* Registro */}
-        {rotulo.numeroRegistro && (
-          <div className="text-[8px] leading-tight">REG: {rotulo.numeroRegistro}</div>
+        {/* Contém + Registro (mesma linha) */}
+        {(rotulo.contem || rotulo.numeroRegistro) && (
+          <div className="text-[9px] leading-tight flex justify-between">
+            {rotulo.contem && <span>CONTÉM: {rotulo.contem}</span>}
+            {rotulo.numeroRegistro && <span>REG:{rotulo.numeroRegistro}</span>}
+          </div>
         )}
       </div>
     );
