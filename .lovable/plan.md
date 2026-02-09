@@ -1,65 +1,93 @@
 
 
-# Resolucao de Sinonimos via FC03200
+# Correcao da Renderizacao de KIT no Rotulo AMP.CX
 
 ## Problema
-Quando uma requisicao contem um produto que e sinonimo de um kit (ex: CDPRO 89404 e sinonimo de 86390), o sistema nao encontra o kit porque so busca pelo CDPRO original. A tabela FC03200 armazena esses relacionamentos (CDPRO = base, CDSIN = sinonimo), mas o backend ignora essa tabela.
+O rotulo de KIT esta quase correto apos a resolucao de sinonimos, porem faltam informacoes comparado com o sistema original do FormulaCerta. A imagem de referencia mostra o formato correto para Req 392-6806 -2.
 
-## Solucao
-Criar uma funcao utilitaria `resolver_sinonimo()` no backend (servidor.py) que, dado um CDPRO, verifica na FC03200 se esse codigo e sinonimo de outro produto. Se for, retorna o CDPRO base; senao, retorna o proprio codigo.
+## Diferencas Identificadas (referencia vs codigo atual)
 
-Essa resolucao sera chamada **antes** da deteccao de kit (`montar_kit_expandido` e `detecta_kit`), garantindo que sinonimos sejam tratados como o produto base.
-
-## Fluxo com a mudanca
-
+Referencia do FormulaCerta:
 ```text
-Requisicao (FC12110)
-   |
-   v
-CDPRO do item (ex: 89404)
-   |
-   v
-resolver_sinonimo(89404)  <-- NOVO
-   |
-   v
-FC03200: CDSIN=89404 -> CDPRO=86390  (encontrou sinonimo!)
-   |
-   v
-Usa 86390 para detecta_kit() e montar_kit_expandido()
-   |
-   v
-Kit encontrado normalmente via FC05000.CDSAC = 86390
+LENIE ANTONIA ALVES DE SOUZA    REQ:006806-2
+DR(A)LENIE ANTONIA A.DE SOUZA    COREN-SP-826211
+ACIDO HIALURONICO N RETIC. 5MG
+pH:6,0  L:12012/25   F:12/25  V:12/26
+ACIDO TRANEXAMICO 8MG, TGP2 20MG, BELIDES 2%
+LIP. VIT C 10MG, NIACINAMIDA 40MG pH:6,5
+L:329/25   F:11/25   V:05/26
+USO EM CONSULTORIO  AP:MICROAGULHAMENTO
+CONTEM: 4FR. DE 2ML   REG:15081
 ```
+
+### Problemas encontrados:
+
+1. **Fabricacao (F:) ausente nos componentes do kit** - O frontend (`renderKitContent`) exibe lote e validade mas NAO exibe a fabricacao de cada componente, embora o backend envie `comp.fabricacao`.
+
+2. **pH dos componentes sempre vazio** - No backend (linha 3469), o pH e hardcoded como `""` com comentario "sera preenchido manualmente". A referencia mostra pH individual por componente (6,0 e 6,5).
+
+3. **Tipo de Uso (USO EM CONSULTORIO) ausente** - O `renderKitContent` nao exibe o campo `tipoUso`, mas a referencia mostra na penultima linha.
+
+4. **CONTEM ausente** - O `renderKitContent` nao exibe o campo `contem` ("4FR. DE 2ML"), mas a referencia mostra na ultima linha junto com REG.
+
+5. **Formato AP: vs APLICACAO:** - A referencia usa "AP:MICROAGULHAMENTO" (abreviado na mesma linha do tipoUso), nao "APLICACAO:" em linha separada.
+
+## Alteracoes Necessarias
+
+### 1. Frontend: `src/components/LabelCard.tsx` - renderKitContent()
+
+Adicionar os campos ausentes na renderizacao de KIT:
+- Incluir `comp.fabricacao` (F:) na linha de cada componente
+- Adicionar linha de `tipoUso` + `aplicacao` (formato: "USO EM CONSULTORIO  AP:MICROAGULHAMENTO")
+- Adicionar `contem` na mesma linha do registro (formato: "CONTEM: 4FR. DE 2ML   REG:15081")
+
+### 2. Frontend: `src/components/LabelCard.tsx` - generateKitText()
+
+Atualizar o texto de edicao livre para incluir:
+- Fabricacao na linha de metadados de cada componente
+- tipoUso + aplicacao na mesma linha
+- contem + registro na mesma linha
+
+### 3. Backend: `servidor.py` - Mapeamento de componentes (linha 3469)
+
+O pH esta hardcoded como vazio. Verificar se o `kit_expandido` ja traz pH dos componentes ou se e necessario buscar. Se o campo existir no backend, mapear corretamente em vez de forcar "".
 
 ## Detalhes Tecnicos
 
-### 1. Nova funcao: `resolver_sinonimo(cursor, cdpro)`
-- Local: `servidor.py`, junto das funcoes auxiliares (antes de `detecta_kit`)
-- Logica:
-  - `SELECT CDPRO FROM FC03200 WHERE CDSIN = ?` (busca se o codigo e sinonimo de alguem)
-  - Se encontrar, retorna o CDPRO base
-  - Se nao encontrar, retorna o proprio cdpro original
-  - Inclui fallback para busca numerica (int) caso string nao funcione
-  - Logs com prefixo `[SINONIMO]` para rastreamento
+### LabelCard.tsx - renderKitContent (linhas 402-446)
 
-### 2. Integracao no loop principal (linha ~3411)
-- Antes de chamar `montar_kit_expandido(cursor, cdpro, ...)`, resolver o sinonimo:
-  ```
-  cdpro_resolvido = resolver_sinonimo(cursor, cdpro)
-  kit_expandido = montar_kit_expandido(cursor, cdpro_resolvido, ...)
-  ```
-- O CDPRO original continua sendo usado para os demais dados (lote, FC99999, etc.)
-- Apenas a deteccao de kit usa o cdpro_resolvido
+Estrutura atual:
+```
+Prescritor
+Paciente | REQ
+---
+Componente1 pH L: V:
+Componente2 pH L: V:
+---
+APLICACAO: xxx
+REG: xxx
+```
 
-### 3. Novo endpoint de debug (opcional mas recomendado)
-- `GET /api/debug/sinonimos/<cdpro>` - retorna todos os sinonimos de um produto (tanto como base quanto como sinonimo)
-- Util para validar que a FC03200 esta sendo lida corretamente
+Estrutura corrigida (conforme referencia):
+```
+Paciente | REQ
+Prescritor
+Componente1
+pH:x,x  L:xxx  F:mm/aa  V:mm/aa
+Componente2
+pH:x,x  L:xxx  F:mm/aa  V:mm/aa
+TIPO_USO  AP:xxx
+CONTEM: xxx   REG:xxx
+```
 
-### 4. Arquivos modificados
-- `servidor.py` - funcao `resolver_sinonimo()`, integracao no loop, endpoint de debug
+Mudancas especificas:
+- Inverter ordem: Paciente primeiro, Prescritor segundo (conforme referencia)
+- Separar nome do componente dos metadados (nome em uma linha, pH/L/F/V na linha seguinte)
+- Adicionar `comp.fabricacao` com formato `F:mm/aa`
+- Adicionar linha `tipoUso` + `AP:aplicacao` (juntos, sem "APLICACAO:", usar "AP:")
+- Adicionar linha `CONTEM: xxx   REG:xxxxx` (juntos na mesma linha)
 
-### 5. Impacto
-- Zero impacto na logica existente de kits, mesclas e itens unicos (conforme restricao de estabilidade)
-- A funcao e isolada e so adiciona um passo de resolucao antes da deteccao
-- Produtos que nao sao sinonimos continuam funcionando identicamente (a funcao retorna o mesmo CDPRO)
+### servidor.py - pH dos componentes (linha 3469)
+
+Verificar se `comp.get("ph", "")` existe nos dados do kit_expandido. Se nao existir no backend, manter vazio (editavel manualmente). Se existir, mapear corretamente.
 
