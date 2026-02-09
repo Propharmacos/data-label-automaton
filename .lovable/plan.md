@@ -1,89 +1,129 @@
 
 
-# Correcao: OBSFIC para Kit Sinonimo
+# Diagnostico e Correcao: Kit Sinonimo OBSFIC
 
-## Problema
+## Situacao Atual
 
-A funcao `extrair_composicao_componente` atual aplica filtros agressivos (is_ativo_mescla, is_embalagem_ou_obs, is_subtitulo_obs_ficha) projetados para extrair ingredientes individuais de mesclas. Para kits sinonimos, isso descarta o texto clinico/operacional que deveria aparecer no rotulo.
+O codigo em `servidor.py` (no projeto Lovable) ja contem todas as alteracoes corretas:
+- Funcao `extrair_obsfic_componente` (linha 852)
+- Flag `e_sinonimo` em `montar_kit_expandido` (linha 1115)
+- Chamada com `e_sinonimo` no loop principal (linha 3756)
+- Frontend `LabelCard.tsx` ja renderiza `comp.composicao` para sinonimos (linhas 222, 439)
 
-O resultado: composicao retorna vazio e o frontend faz fallback para o nome do produto (DESCR), que e incorreto para kits sinonimos.
+## Diagnostico: Por que nao funciona?
 
-## Solucao
+Existem 2 possibilidades:
 
-### 1. Nova funcao no backend: `extrair_obsfic_componente`
+### Possibilidade 1: Servidor local desatualizado (mais provavel)
 
-Criar uma funcao dedicada em `servidor.py` que busca as observacoes de ficha (OBSFIC) de um componente de kit **sem filtros de ingredientes**:
+O Flask roda em `C:\ServidorRotulos\servidor.py`. Se este arquivo nao foi atualizado com as mudancas do projeto Lovable, a logica antiga ainda esta em execucao.
+
+**Acao**: Copiar o `servidor.py` do projeto para `C:\ServidorRotulos\servidor.py` e reiniciar o servidor.
+
+### Possibilidade 2: Formato do ARGUMENTO na FC99999
+
+A funcao `extrair_obsfic_componente` usa `STARTING WITH 'OBSFIC92607'`, mas o campo ARGUMENTO na FC99999 pode ter formato diferente:
+- Pode ter espacos: `'OBSFIC 92607'`
+- Pode ter zeros a esquerda: `'OBSFIC00092607'`
+- O campo ARGUMENTO pode ser CHAR (com padding de espacos)
+
+## Plano de Acao
+
+### 1. Confirmar que o servidor local esta atualizado
+
+Verificar se o `servidor.py` em `C:\ServidorRotulos\` contem a funcao `extrair_obsfic_componente`. Se nao, copiar o arquivo do projeto.
+
+### 2. Adicionar endpoint de debug para OBSFIC
+
+Criar um endpoint `/api/debug/obsfic/<cdpro>` no `servidor.py` para inspecionar exatamente o que a FC99999 retorna:
 
 ```python
-def extrair_obsfic_componente(cursor, cdpro_comp):
-    """
-    Busca OBSFIC (observacoes de ficha) de um componente na FC99999.
-    Retorna o texto concatenado por ordem de SUBARGUM, sem filtragem de ativos.
-    Usado EXCLUSIVAMENTE para kits sinonimos.
-    """
-    cdpro_str = str(cdpro_comp).strip()
+@app.route('/api/debug/obsfic/<cdpro>')
+def debug_obsfic(cdpro):
+    """Debug: mostra OBSFIC bruto de um componente"""
+    cursor = get_cursor()
+    cdpro_str = str(cdpro).strip()
     
-    # Busca com ARGUMENTO = 'OBSFIC<CDPRO>'
+    # Busca 1: STARTING WITH (como a funcao faz)
     cursor.execute("""
-        SELECT PARAMETRO FROM FC99999 
+        SELECT ARGUMENTO, SUBARGUM, PARAMETRO, DESCRPAR 
+        FROM FC99999 
         WHERE ARGUMENTO STARTING WITH ?
         ORDER BY SUBARGUM
     """, (f'OBSFIC{cdpro_str}',))
+    resultado_starting = []
+    for row in cursor.fetchall():
+        arg = row[0]
+        if hasattr(arg, 'read'):
+            arg = arg.read().decode('latin-1')
+        param = row[2]
+        if param and hasattr(param, 'read'):
+            param = param.read().decode('latin-1')
+        descrpar = row[3]
+        if descrpar and hasattr(descrpar, 'read'):
+            descrpar = descrpar.read().decode('latin-1')
+        resultado_starting.append({
+            "argumento": str(arg).strip(),
+            "subargum": str(row[1]).strip(),
+            "parametro": str(param).strip() if param else "",
+            "descrpar": str(descrpar).strip() if descrpar else ""
+        })
     
-    registros = cursor.fetchall()
+    # Busca 2: LIKE (mais flexivel)
+    cursor.execute("""
+        SELECT ARGUMENTO, SUBARGUM, PARAMETRO, DESCRPAR 
+        FROM FC99999 
+        WHERE ARGUMENTO LIKE ?
+        ORDER BY SUBARGUM
+    """, (f'%OBSFIC%{cdpro_str}%',))
+    resultado_like = []
+    for row in cursor.fetchall():
+        arg = row[0]
+        if hasattr(arg, 'read'):
+            arg = arg.read().decode('latin-1')
+        param = row[2]
+        if param and hasattr(param, 'read'):
+            param = param.read().decode('latin-1')
+        descrpar = row[3]
+        if descrpar and hasattr(descrpar, 'read'):
+            descrpar = descrpar.read().decode('latin-1')
+        resultado_like.append({
+            "argumento": str(arg).strip(),
+            "subargum": str(row[1]).strip(),
+            "parametro": str(param).strip() if param else "",
+            "descrpar": str(descrpar).strip() if descrpar else ""
+        })
     
-    # Se nao encontrou, tenta com CDPRO padded
-    if not registros:
-        cdpro_padded = cdpro_str.zfill(8)
-        cursor.execute("""
-            SELECT PARAMETRO FROM FC99999 
-            WHERE ARGUMENTO STARTING WITH ?
-            ORDER BY SUBARGUM
-        """, (f'OBSFIC{cdpro_padded}',))
-        registros = cursor.fetchall()
-    
-    # Concatena textos, filtrando apenas linhas de aplicacao
-    textos = []
-    for reg in registros:
-        texto = reg[0]
-        if texto and hasattr(texto, 'read'):
-            texto = texto.read().decode('latin-1')
-        texto = texto.strip() if texto else ""
-        if texto and not texto.upper().startswith("APLICAC"):
-            textos.append(texto)
-    
-    return ", ".join(textos)
+    return jsonify({
+        "cdpro": cdpro_str,
+        "starting_with": resultado_starting,
+        "like": resultado_like,
+        "count_starting": len(resultado_starting),
+        "count_like": len(resultado_like)
+    })
 ```
 
-### 2. Alterar `montar_kit_expandido` para receber flag `e_sinonimo`
+### 3. Testar o endpoint de debug
 
-Adicionar parametro `e_sinonimo` a funcao `montar_kit_expandido`. Quando `e_sinonimo=True`, usar `extrair_obsfic_componente` em vez de `extrair_composicao_componente` para cada componente.
+Acessar no navegador:
+- `http://localhost:5000/api/debug/obsfic/92607`
+- `http://localhost:5000/api/debug/obsfic/92729`
 
-Nos dois blocos onde a composicao e buscada (linhas ~1142 e ~1167):
+Se `starting_with` retornar vazio mas `like` retornar dados, o formato do ARGUMENTO e diferente do esperado e a funcao `extrair_obsfic_componente` precisa de ajuste.
 
-```python
-if e_sinonimo:
-    composicao_comp = extrair_obsfic_componente(cursor, cdpro_comp)
-else:
-    composicao_comp = extrair_composicao_componente(cursor, cdpro_comp)
-```
+### 4. Corrigir formato se necessario
 
-### 3. Atualizar chamada de `montar_kit_expandido`
+Com base no resultado do debug, ajustar a query em `extrair_obsfic_componente` para usar o formato correto do ARGUMENTO.
 
-Na chamada existente no loop principal (~linha 3730), passar o flag:
+## Detalhes Tecnicos
 
-```python
-kit_data = montar_kit_expandido(cursor, cdpro_resolvido, cdfrm, cdfil, nrrqu, serier, e_sinonimo)
-```
+### Arquivo modificado
+- `servidor.py` - novo endpoint de debug `/api/debug/obsfic/<cdpro>`
 
-### 4. Frontend - Sem alteracoes
+### Sequencia de teste
+1. Copiar `servidor.py` atualizado para `C:\ServidorRotulos\`
+2. Reiniciar o Flask
+3. Acessar `/api/debug/obsfic/92607` para validar dados
+4. Buscar req 6806-2 e verificar nos logs do terminal se aparece `[OBSFIC_COMP]`
+5. Confirmar no frontend se a composicao aparece no rotulo
 
-O `LabelCard.tsx` ja tem a logica correta: quando `eSinonimo=true`, usa `comp.composicao` (que agora tera o texto OBSFIC). Nenhuma mudanca necessaria no frontend.
-
-## Arquivos Modificados
-
-- `servidor.py` - nova funcao + alteracao em `montar_kit_expandido`
-
-## Resultado Esperado
-
-Kit sinonimo (req 6806-2) exibira o texto clinico das observacoes de ficha (ex: "ACIDO HIALURONICO N RETIC. 5MG") em vez do nome do produto (ex: "POLIREVITALIZANTE AC HIA 2").
