@@ -3665,6 +3665,9 @@ def buscar_requisicao(nr_requisicao):
             
             # Resolve sinônimos antes da detecção de kit (FC03200)
             cdpro_resolvido = resolver_sinonimo(cursor, cdpro)
+            e_sinonimo = (str(cdpro).strip() != str(cdpro_resolvido).strip())
+            if e_sinonimo:
+                print(f"  [SINONIMO] Kit sinônimo detectado: CDPRO={cdpro} -> base={cdpro_resolvido}")
             
             # Usa função principal que encapsula toda a lógica
             kit_expandido = montar_kit_expandido(cursor, cdpro_resolvido, filial, nr_requisicao, serier)
@@ -4019,6 +4022,7 @@ def buscar_requisicao(nr_requisicao):
             # Se é KIT, adiciona dados completos ao rótulo
             if tipo_item == "KIT":
                 rotulo["isKit"] = True
+                rotulo["eSinonimo"] = e_sinonimo
                 rotulo["componentes"] = componentes_kit
                 
                 # Adiciona objeto kit expandido conforme especificação

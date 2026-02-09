@@ -97,6 +97,7 @@ export interface RotuloItem {
   descricaoProduto: string;  // Do banco (FC03300 CDICP 00004) - nome completo do produto
   textoLivre?: string;       // Texto editado livremente pelo usuário (bloco de notas)
   tipoItem?: TipoItem;       // Tipo do item: PRODUTO ÚNICO, MESCLA ou KIT
+  eSinonimo?: boolean;        // True se o kit foi resolvido via sinônimo (FC03200)
   componentes?: ComponenteKit[];  // Componentes do kit (apenas se tipoItem === 'KIT')
 }
 
