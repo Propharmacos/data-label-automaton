@@ -1,8 +1,6 @@
 """
 Agente de Impressão Local - ProPharmacos
-Roda no PC conectado à impressora Argox OS-2140 (PPLA).
-Recebe dados JSON do frontend e gera comandos PPLA internamente.
-
+Protocolo: PPLB (compatível Argox OS-2140)
 Porta: 5001
 Instalação: pip install flask flask-cors pywin32
 Execução: python agente_impressao.py
@@ -11,9 +9,7 @@ Execução: python agente_impressao.py
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 import platform
-import sys
 
-# Importa win32print apenas no Windows
 if platform.system() == 'Windows':
     try:
         import win32print
@@ -23,259 +19,202 @@ if platform.system() == 'Windows':
         PRINTING_AVAILABLE = False
 else:
     PRINTING_AVAILABLE = False
-    print("AVISO: Sistema não-Windows. Impressão desabilitada.")
 
 app = Flask(__name__)
 CORS(app)
 
-# Impressora padrão (nome exato do Windows)
-IMPRESSORA_PADRAO = "Argox OS-214v PPLA"
+IMPRESSORA_PADRAO = "AMP PEQUENO"
 
 
 # ============================================
-# GERAÇÃO DE COMANDOS PPLA
+# PPLB TEXT HELPER
 # ============================================
+# Formato PPLB texto: 1RFWH[YYYYY][XXXXX]DATA
+# R=rotação(1=0°,2=90°,3=180°,4=270°), F=fonte(0-4), W=mult larg, H=mult alt
+# YYYYY=posição Y (5 dígitos), XXXXX=posição X (5 dígitos)
 
-def gerar_ppla_ampcx(rotulo, farmacia):
+def pplb_text(rot, font, wmult, hmult, y, x, data):
+    """Gera uma linha de texto PPLB."""
+    return f"1{rot}{font}{wmult}{hmult}{y:05d}{x:05d}{data}"
+
+
+def pplb_label(linhas):
     """
-    Gera comandos PPLA para layout AMP_CX (76mm x 35mm).
-    Argox OS-2140 @ 203dpi: 76mm = 608 dots, 35mm = 280 dots
+    Monta um label PPLB completo.
+    linhas = lista de strings (cada uma é um comando PPLB de texto/barcode)
     """
+    partes = [
+        "\x02L",       # STX + início do label
+        "H10",         # Heat setting
+        "D11",         # Density
+    ]
+    partes.extend(linhas)
+    partes.append("E")  # Fim / imprimir
+    return "\r\n".join(partes) + "\r\n"
+
+
+# ============================================
+# GERAÇÃO DE COMANDOS PPLB POR LAYOUT
+# ============================================
+# Argox OS-2140 @ 203dpi: 76mm ≈ 608 dots, 35mm ≈ 280 dots
+
+def gerar_pplb_ampcx(rotulo, farmacia):
+    """Layout AMP_CX (76x35mm) - 7 linhas"""
     paciente = (rotulo.get('nomePaciente', '') or '')[:35].upper()
     nr_req = rotulo.get('nrRequisicao', '')
     nr_item = rotulo.get('nrItem', '1')
-
     nome_medico = (rotulo.get('nomeMedico', '') or '').upper()
-    prefixo_crm = rotulo.get('prefixoCRM', '')
-    numero_crm = rotulo.get('numeroCRM', '')
-    uf_crm = rotulo.get('ufCRM', '')
-    crm_completo = f"{prefixo_crm}{numero_crm}/{uf_crm}".strip('/')
-
-    composicao = rotulo.get('composicao', '') or rotulo.get('formula', '')
-    composicao = (composicao or '')[:50].upper()
-
-    ph = rotulo.get('ph', '')
-    lote = rotulo.get('lote', '')
-    fab = rotulo.get('dataFabricacao', '')
-    val = rotulo.get('dataValidade', '')
-
+    crm = _crm_completo(rotulo)
+    composicao = _composicao(rotulo, 50)
+    linha_meta = _linha_meta(rotulo)
     aplicacao = (rotulo.get('aplicacao', '') or '')[:30].upper()
     contem = (rotulo.get('contem', '') or '')[:30].upper()
     registro = rotulo.get('numeroRegistro', '')
 
-    linha4_parts = []
-    if ph:
-        linha4_parts.append(f"pH:{ph}")
-    if lote:
-        linha4_parts.append(f"LT:{lote}")
-    if fab:
-        linha4_parts.append(f"F:{fab}")
-    if val:
-        linha4_parts.append(f"V:{val}")
-    linha4 = " ".join(linha4_parts)
-
-    comandos = [
-        "N",
-        "q608",
-        "Q280,24",
-        f'A20,15,0,2,1,1,N,"{paciente}"',
-        f'A470,15,0,1,1,1,N,"REQ:{nr_req}-{nr_item}"',
-        f'A20,45,0,1,1,1,N,"DR. {nome_medico[:25]} CRM {crm_completo}"',
-        f'A20,75,0,2,1,1,N,"{composicao}"',
-        f'A20,105,0,1,1,1,N,"{linha4}"',
-        f'A20,135,0,1,1,1,N,"APLICACAO: {aplicacao}"',
-        f'A20,165,0,1,1,1,N,"CONTEM: {contem}"',
-        f'A20,195,0,1,1,1,N,"Reg: {registro}"',
-        "P1",
-    ]
-
-    return "\r\n".join(comandos)
+    return pplb_label([
+        pplb_text(1, 2, 1, 1, 10, 10, paciente),
+        pplb_text(1, 0, 1, 1, 10, 450, f"REQ:{nr_req}-{nr_item}"),
+        pplb_text(1, 0, 1, 1, 50, 10, f"DR. {nome_medico[:25]} CRM {crm}"),
+        pplb_text(1, 2, 1, 1, 80, 10, composicao),
+        pplb_text(1, 0, 1, 1, 115, 10, linha_meta),
+        pplb_text(1, 0, 1, 1, 145, 10, f"APLICACAO: {aplicacao}"),
+        pplb_text(1, 0, 1, 1, 175, 10, f"CONTEM: {contem}"),
+        pplb_text(1, 0, 1, 1, 205, 10, f"Reg: {registro}"),
+    ])
 
 
-def gerar_ppla_amp10(rotulo, farmacia):
-    """
-    Gera comandos PPLA para layout AMP10 (76mm x 35mm).
-    Similar ao AMP_CX mas com registro na linha 5.
-    """
+def gerar_pplb_amp10(rotulo, farmacia):
+    """Layout AMP10 (76x35mm) - 7 linhas, registro na linha 5"""
     paciente = (rotulo.get('nomePaciente', '') or '')[:35].upper()
     nr_req = rotulo.get('nrRequisicao', '')
     nr_item = rotulo.get('nrItem', '1')
-
     nome_medico = (rotulo.get('nomeMedico', '') or '').upper()
-    prefixo_crm = rotulo.get('prefixoCRM', '')
-    numero_crm = rotulo.get('numeroCRM', '')
-    uf_crm = rotulo.get('ufCRM', '')
-    crm_completo = f"{prefixo_crm}{numero_crm}/{uf_crm}".strip('/')
+    crm = _crm_completo(rotulo)
+    composicao = _composicao(rotulo, 50)
+    linha_meta = _linha_meta(rotulo)
+    registro = rotulo.get('numeroRegistro', '')
+    aplicacao = (rotulo.get('aplicacao', '') or '')[:30].upper()
+    contem = (rotulo.get('contem', '') or '')[:30].upper()
 
-    composicao = rotulo.get('composicao', '') or rotulo.get('formula', '')
-    composicao = (composicao or '')[:50].upper()
+    return pplb_label([
+        pplb_text(1, 2, 1, 1, 10, 10, paciente),
+        pplb_text(1, 0, 1, 1, 10, 450, f"REQ:{nr_req}-{nr_item}"),
+        pplb_text(1, 0, 1, 1, 50, 10, f"DR. {nome_medico[:25]} CRM {crm}"),
+        pplb_text(1, 2, 1, 1, 80, 10, composicao),
+        pplb_text(1, 0, 1, 1, 115, 10, linha_meta),
+        pplb_text(1, 0, 1, 1, 145, 10, f"REG: {registro}  {composicao[:20]}"),
+        pplb_text(1, 0, 1, 1, 175, 10, f"APLICACAO: {aplicacao}"),
+        pplb_text(1, 0, 1, 1, 205, 10, f"CONTEM: {contem}"),
+    ])
 
-    ph = rotulo.get('ph', '')
-    lote = rotulo.get('lote', '')
-    fab = rotulo.get('dataFabricacao', '')
-    val = rotulo.get('dataValidade', '')
+
+def gerar_pplb_a_pac_peq(rotulo, farmacia):
+    """Layout A.PAC.PEQ - 3 linhas mínimas"""
+    paciente = (rotulo.get('nomePaciente', '') or '')[:35].upper()
+    nr_req = rotulo.get('nrRequisicao', '')
+    nr_item = rotulo.get('nrItem', '1')
+    nome_medico = (rotulo.get('nomeMedico', '') or '').upper()
+    crm = _crm_completo(rotulo)
     registro = rotulo.get('numeroRegistro', '')
 
-    linha4_parts = []
-    if ph:
-        linha4_parts.append(f"pH:{ph}")
-    if lote:
-        linha4_parts.append(f"LT:{lote}")
-    if fab:
-        linha4_parts.append(f"F:{fab}")
-    if val:
-        linha4_parts.append(f"V:{val}")
-    linha4 = " ".join(linha4_parts)
-
-    comandos = [
-        "N",
-        "q608",
-        "Q280,24",
-        f'A20,15,0,2,1,1,N,"{paciente}"',
-        f'A470,15,0,1,1,1,N,"REQ:{nr_req}-{nr_item}"',
-        f'A20,45,0,1,1,1,N,"DR. {nome_medico[:25]} CRM {crm_completo}"',
-        f'A20,75,0,2,1,1,N,"{composicao}"',
-        f'A20,105,0,1,1,1,N,"{linha4}"',
-        f'A20,135,0,1,1,1,N,"REG: {registro}  {composicao[:20]}"',
-        f'A20,165,0,1,1,1,N,"APLICACAO: {(rotulo.get("aplicacao","") or "")[:30].upper()}"',
-        f'A20,195,0,1,1,1,N,"CONTEM: {(rotulo.get("contem","") or "")[:30].upper()}"',
-        "P1",
-    ]
-
-    return "\r\n".join(comandos)
+    return pplb_label([
+        pplb_text(1, 2, 1, 1, 20, 10, f"{paciente}  REQ:{nr_req}-{nr_item}"),
+        pplb_text(1, 0, 1, 1, 60, 10, f"DR. {nome_medico[:30]} CRM {crm}"),
+        pplb_text(1, 0, 1, 1, 100, 10, f"REG: {registro}"),
+    ])
 
 
-def gerar_ppla_a_pac_peq(rotulo, farmacia):
-    """
-    Gera comandos PPLA para layout A.PAC.PEQ (mínimo, 3 linhas).
-    """
+def gerar_pplb_a_pac_gran(rotulo, farmacia):
+    """Layout A.PAC.GRAN - 2 linhas compactas"""
     paciente = (rotulo.get('nomePaciente', '') or '')[:35].upper()
     nr_req = rotulo.get('nrRequisicao', '')
     nr_item = rotulo.get('nrItem', '1')
-
     nome_medico = (rotulo.get('nomeMedico', '') or '').upper()
-    prefixo_crm = rotulo.get('prefixoCRM', '')
-    numero_crm = rotulo.get('numeroCRM', '')
-    uf_crm = rotulo.get('ufCRM', '')
-    crm_completo = f"{prefixo_crm}{numero_crm}/{uf_crm}".strip('/')
+    crm = _crm_completo(rotulo)
     registro = rotulo.get('numeroRegistro', '')
 
-    comandos = [
-        "N",
-        "q608",
-        "Q200,24",
-        f'A20,20,0,2,1,1,N,"{paciente}  REQ:{nr_req}-{nr_item}"',
-        f'A20,60,0,1,1,1,N,"DR. {nome_medico[:30]} CRM {crm_completo}"',
-        f'A20,100,0,1,1,1,N,"REG: {registro}"',
-        "P1",
-    ]
-
-    return "\r\n".join(comandos)
+    return pplb_label([
+        pplb_text(1, 2, 1, 1, 20, 10, f"{paciente}  REQ:{nr_req}-{nr_item}"),
+        pplb_text(1, 0, 1, 1, 60, 10, f"DR. {nome_medico[:25]} CRM {crm}  REG:{registro}"),
+    ])
 
 
-def gerar_ppla_a_pac_gran(rotulo, farmacia):
-    """
-    Gera comandos PPLA para layout A.PAC.GRAN (compacto, 2 linhas).
-    """
+def gerar_pplb_tirz(rotulo, farmacia):
+    """Layout TIRZ (Tirzepatida) - 7 linhas com posologia"""
     paciente = (rotulo.get('nomePaciente', '') or '')[:35].upper()
     nr_req = rotulo.get('nrRequisicao', '')
     nr_item = rotulo.get('nrItem', '1')
-
     nome_medico = (rotulo.get('nomeMedico', '') or '').upper()
-    prefixo_crm = rotulo.get('prefixoCRM', '')
-    numero_crm = rotulo.get('numeroCRM', '')
-    uf_crm = rotulo.get('ufCRM', '')
-    crm_completo = f"{prefixo_crm}{numero_crm}/{uf_crm}".strip('/')
-    registro = rotulo.get('numeroRegistro', '')
-
-    comandos = [
-        "N",
-        "q608",
-        "Q160,24",
-        f'A20,20,0,2,1,1,N,"{paciente}  REQ:{nr_req}-{nr_item}"',
-        f'A20,60,0,1,1,1,N,"DR. {nome_medico[:25]} CRM {crm_completo}  REG:{registro}"',
-        "P1",
-    ]
-
-    return "\r\n".join(comandos)
-
-
-def gerar_ppla_tirz(rotulo, farmacia):
-    """
-    Gera comandos PPLA para layout TIRZ (Tirzepatida) - 7 linhas.
-    """
-    paciente = (rotulo.get('nomePaciente', '') or '')[:35].upper()
-    nr_req = rotulo.get('nrRequisicao', '')
-    nr_item = rotulo.get('nrItem', '1')
-
-    nome_medico = (rotulo.get('nomeMedico', '') or '').upper()
-    prefixo_crm = rotulo.get('prefixoCRM', '')
-    numero_crm = rotulo.get('numeroCRM', '')
-    uf_crm = rotulo.get('ufCRM', '')
-    crm_completo = f"{prefixo_crm}{numero_crm}/{uf_crm}".strip('/')
-
-    composicao = rotulo.get('composicao', '') or rotulo.get('formula', '')
-    composicao = (composicao or '')[:50].upper()
+    crm = _crm_completo(rotulo)
+    composicao = _composicao(rotulo, 50)
     posologia = (rotulo.get('posologia', '') or '')[:50].upper()
-
-    ph = rotulo.get('ph', '')
-    lote = rotulo.get('lote', '')
-    fab = rotulo.get('dataFabricacao', '')
-    val = rotulo.get('dataValidade', '')
+    linha_meta = _linha_meta(rotulo)
+    aplicacao = (rotulo.get('aplicacao', '') or '')[:30].upper()
     contem = (rotulo.get('contem', '') or '')[:30].upper()
     registro = rotulo.get('numeroRegistro', '')
 
-    linha4_parts = []
-    if ph:
-        linha4_parts.append(f"pH:{ph}")
-    if lote:
-        linha4_parts.append(f"LT:{lote}")
-    if fab:
-        linha4_parts.append(f"F:{fab}")
-    if val:
-        linha4_parts.append(f"V:{val}")
-    linha4 = " ".join(linha4_parts)
-
-    comandos = [
-        "N",
-        "q608",
-        "Q280,24",
-        f'A20,15,0,2,1,1,N,"{paciente}"',
-        f'A470,15,0,1,1,1,N,"REQ:{nr_req}-{nr_item}"',
-        f'A20,45,0,1,1,1,N,"DR. {nome_medico[:25]} CRM {crm_completo}"',
-        f'A20,75,0,2,1,1,N,"{composicao}"',
-        f'A20,105,0,1,1,1,N,"{posologia}"',
-        f'A20,135,0,1,1,1,N,"{linha4}"',
-        f'A20,165,0,1,1,1,N,"APLICACAO: {(rotulo.get("aplicacao","") or "")[:30].upper()}"',
-        f'A20,195,0,1,1,1,N,"CONTEM: {contem}  REG:{registro}"',
-        "P1",
-    ]
-
-    return "\r\n".join(comandos)
+    return pplb_label([
+        pplb_text(1, 2, 1, 1, 10, 10, paciente),
+        pplb_text(1, 0, 1, 1, 10, 450, f"REQ:{nr_req}-{nr_item}"),
+        pplb_text(1, 0, 1, 1, 50, 10, f"DR. {nome_medico[:25]} CRM {crm}"),
+        pplb_text(1, 2, 1, 1, 80, 10, composicao),
+        pplb_text(1, 0, 1, 1, 115, 10, posologia),
+        pplb_text(1, 0, 1, 1, 145, 10, linha_meta),
+        pplb_text(1, 0, 1, 1, 175, 10, f"APLICACAO: {aplicacao}"),
+        pplb_text(1, 0, 1, 1, 205, 10, f"CONTEM: {contem}  REG:{registro}"),
+    ])
 
 
-# Mapa de geradores por layout
-GERADORES_PPLA = {
-    'AMP_CX': gerar_ppla_ampcx,
-    'AMP10': gerar_ppla_amp10,
-    'A_PAC_PEQ': gerar_ppla_a_pac_peq,
-    'A_PAC_GRAN': gerar_ppla_a_pac_gran,
-    'TIRZ': gerar_ppla_tirz,
+# ============================================
+# HELPERS
+# ============================================
+
+def _crm_completo(rotulo):
+    prefixo = rotulo.get('prefixoCRM', '')
+    numero = rotulo.get('numeroCRM', '')
+    uf = rotulo.get('ufCRM', '')
+    return f"{prefixo}{numero}/{uf}".strip('/')
+
+
+def _composicao(rotulo, max_len=50):
+    comp = rotulo.get('composicao', '') or rotulo.get('formula', '')
+    return (comp or '')[:max_len].upper()
+
+
+def _linha_meta(rotulo):
+    parts = []
+    ph = rotulo.get('ph', '')
+    lote = rotulo.get('lote', '')
+    fab = rotulo.get('dataFabricacao', '')
+    val = rotulo.get('dataValidade', '')
+    if ph: parts.append(f"pH:{ph}")
+    if lote: parts.append(f"LT:{lote}")
+    if fab: parts.append(f"F:{fab}")
+    if val: parts.append(f"V:{val}")
+    return " ".join(parts)
+
+
+# Mapa de geradores
+GERADORES_PPLB = {
+    'AMP_CX': gerar_pplb_ampcx,
+    'AMP10': gerar_pplb_amp10,
+    'A_PAC_PEQ': gerar_pplb_a_pac_peq,
+    'A_PAC_GRAN': gerar_pplb_a_pac_gran,
+    'TIRZ': gerar_pplb_tirz,
 }
 
 
-def enviar_para_impressora(nome_impressora, comandos_ppla):
-    """Envia comandos PPLA para a impressora via win32print."""
+def enviar_para_impressora(nome_impressora, comandos_pplb):
+    """Envia comandos PPLB para a impressora via win32print."""
     if not PRINTING_AVAILABLE:
         return {"success": False, "error": "pywin32 não disponível"}
-
     try:
         hPrinter = win32print.OpenPrinter(nome_impressora)
         try:
             hJob = win32print.StartDocPrinter(hPrinter, 1, ("Etiqueta", None, "RAW"))
             try:
                 win32print.StartPagePrinter(hPrinter)
-                dados = comandos_ppla.encode('cp850', errors='replace')
+                dados = comandos_pplb.encode('cp850', errors='replace')
                 win32print.WritePrinter(hPrinter, dados)
                 win32print.EndPagePrinter(hPrinter)
             finally:
@@ -293,10 +232,9 @@ def enviar_para_impressora(nome_impressora, comandos_ppla):
 
 @app.route('/health', methods=['GET'])
 def health():
-    impressora = IMPRESSORA_PADRAO
     return jsonify({
         "status": "online",
-        "impressora_padrao": impressora,
+        "impressora_padrao": IMPRESSORA_PADRAO,
         "sistema": platform.system(),
         "impressao_disponivel": PRINTING_AVAILABLE,
     })
@@ -306,14 +244,12 @@ def health():
 def listar_impressoras():
     if not PRINTING_AVAILABLE:
         return jsonify({"impressoras": [], "padrao": ""})
-
     try:
         printers = []
         for flags, descr, name, comment in win32print.EnumPrinters(
             win32print.PRINTER_ENUM_LOCAL | win32print.PRINTER_ENUM_CONNECTIONS
         ):
             printers.append(name)
-        
         padrao = win32print.GetDefaultPrinter()
         return jsonify({"impressoras": printers, "padrao": padrao})
     except Exception as e:
@@ -322,18 +258,14 @@ def listar_impressoras():
 
 @app.route('/teste', methods=['POST'])
 def teste_impressao():
-    """Imprime etiqueta de teste."""
+    """Imprime etiqueta de teste PPLB."""
     impressora = request.json.get('impressora', IMPRESSORA_PADRAO) if request.json else IMPRESSORA_PADRAO
 
-    comandos = "\r\n".join([
-        "N",
-        "q608",
-        "Q280,24",
-        'A20,50,0,3,1,1,N,"*** TESTE DE IMPRESSAO ***"',
-        'A20,100,0,2,1,1,N,"Argox OS-2140 - PPLA"',
-        'A20,150,0,2,1,1,N,"Agente de Impressao OK!"',
-        f'A20,200,0,1,1,1,N,"Impressora: {impressora}"',
-        "P1",
+    comandos = pplb_label([
+        pplb_text(1, 3, 1, 1, 30, 10, "*** TESTE DE IMPRESSAO ***"),
+        pplb_text(1, 2, 1, 1, 80, 10, "Argox OS-2140 - PPLB"),
+        pplb_text(1, 2, 1, 1, 120, 10, "Agente de Impressao OK!"),
+        pplb_text(1, 0, 1, 1, 170, 10, f"Impressora: {impressora}"),
     ])
 
     resultado = enviar_para_impressora(impressora, comandos)
@@ -345,17 +277,7 @@ def teste_impressao():
 
 @app.route('/imprimir', methods=['POST'])
 def imprimir():
-    """
-    Recebe JSON com dados dos rótulos e imprime via PPLA.
-    
-    Payload esperado:
-    {
-        "impressora": "Nome da Impressora",
-        "layout_tipo": "AMP_CX",
-        "farmacia": {"nome": "...", "farmaceutico": "...", "crf": "..."},
-        "rotulos": [ { ...dados do rótulo... }, ... ]
-    }
-    """
+    """Recebe JSON com dados dos rótulos e imprime via PPLB."""
     data = request.get_json()
     if not data:
         return jsonify({"success": False, "error": "Nenhum dado recebido"}), 400
@@ -368,9 +290,7 @@ def imprimir():
     if not rotulos:
         return jsonify({"success": False, "error": "Nenhum rótulo para imprimir"}), 400
 
-    # Seleciona o gerador PPLA pelo layout
-    gerador = GERADORES_PPLA.get(layout_tipo, gerar_ppla_ampcx)
-
+    gerador = GERADORES_PPLB.get(layout_tipo, gerar_pplb_ampcx)
     impressos = 0
     erros = []
 
@@ -379,7 +299,6 @@ def imprimir():
             comandos = gerador(rotulo, farmacia)
             print(f"[AGENTE] Imprimindo rótulo {rotulo.get('id', '?')} layout={layout_tipo} impressora={impressora}")
             resultado = enviar_para_impressora(impressora, comandos)
-
             if resultado["success"]:
                 impressos += 1
             else:
@@ -397,7 +316,7 @@ def imprimir():
 
 if __name__ == '__main__':
     print("=" * 50)
-    print("Agente de Impressão - ProPharmacos")
+    print("Agente de Impressão PPLB - ProPharmacos")
     print(f"Porta: 5001")
     print(f"Impressora padrão: {IMPRESSORA_PADRAO}")
     print(f"Impressão disponível: {PRINTING_AVAILABLE}")
