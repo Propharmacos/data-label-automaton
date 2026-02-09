@@ -1,129 +1,130 @@
 
 
-# Diagnostico e Correcao: Kit Sinonimo OBSFIC
+# Correcao: APLICACAO no OBSFIC de Kit Sinonimo
 
-## Situacao Atual
+## Problema Identificado
 
-O codigo em `servidor.py` (no projeto Lovable) ja contem todas as alteracoes corretas:
-- Funcao `extrair_obsfic_componente` (linha 852)
-- Flag `e_sinonimo` em `montar_kit_expandido` (linha 1115)
-- Chamada com `e_sinonimo` no loop principal (linha 3756)
-- Frontend `LabelCard.tsx` ja renderiza `comp.composicao` para sinonimos (linhas 222, 439)
-
-## Diagnostico: Por que nao funciona?
-
-Existem 2 possibilidades:
-
-### Possibilidade 1: Servidor local desatualizado (mais provavel)
-
-O Flask roda em `C:\ServidorRotulos\servidor.py`. Se este arquivo nao foi atualizado com as mudancas do projeto Lovable, a logica antiga ainda esta em execucao.
-
-**Acao**: Copiar o `servidor.py` do projeto para `C:\ServidorRotulos\servidor.py` e reiniciar o servidor.
-
-### Possibilidade 2: Formato do ARGUMENTO na FC99999
-
-A funcao `extrair_obsfic_componente` usa `STARTING WITH 'OBSFIC92607'`, mas o campo ARGUMENTO na FC99999 pode ter formato diferente:
-- Pode ter espacos: `'OBSFIC 92607'`
-- Pode ter zeros a esquerda: `'OBSFIC00092607'`
-- O campo ARGUMENTO pode ser CHAR (com padding de espacos)
-
-## Plano de Acao
-
-### 1. Confirmar que o servidor local esta atualizado
-
-Verificar se o `servidor.py` em `C:\ServidorRotulos\` contem a funcao `extrair_obsfic_componente`. Se nao, copiar o arquivo do projeto.
-
-### 2. Adicionar endpoint de debug para OBSFIC
-
-Criar um endpoint `/api/debug/obsfic/<cdpro>` no `servidor.py` para inspecionar exatamente o que a FC99999 retorna:
+A funcao `extrair_obsfic_componente` em `servidor.py` (linha 887) filtra linhas de aplicacao com:
 
 ```python
-@app.route('/api/debug/obsfic/<cdpro>')
-def debug_obsfic(cdpro):
-    """Debug: mostra OBSFIC bruto de um componente"""
-    cursor = get_cursor()
-    cdpro_str = str(cdpro).strip()
-    
-    # Busca 1: STARTING WITH (como a funcao faz)
-    cursor.execute("""
-        SELECT ARGUMENTO, SUBARGUM, PARAMETRO, DESCRPAR 
-        FROM FC99999 
-        WHERE ARGUMENTO STARTING WITH ?
-        ORDER BY SUBARGUM
-    """, (f'OBSFIC{cdpro_str}',))
-    resultado_starting = []
-    for row in cursor.fetchall():
-        arg = row[0]
-        if hasattr(arg, 'read'):
-            arg = arg.read().decode('latin-1')
-        param = row[2]
-        if param and hasattr(param, 'read'):
-            param = param.read().decode('latin-1')
-        descrpar = row[3]
-        if descrpar and hasattr(descrpar, 'read'):
-            descrpar = descrpar.read().decode('latin-1')
-        resultado_starting.append({
-            "argumento": str(arg).strip(),
-            "subargum": str(row[1]).strip(),
-            "parametro": str(param).strip() if param else "",
-            "descrpar": str(descrpar).strip() if descrpar else ""
-        })
-    
-    # Busca 2: LIKE (mais flexivel)
-    cursor.execute("""
-        SELECT ARGUMENTO, SUBARGUM, PARAMETRO, DESCRPAR 
-        FROM FC99999 
-        WHERE ARGUMENTO LIKE ?
-        ORDER BY SUBARGUM
-    """, (f'%OBSFIC%{cdpro_str}%',))
-    resultado_like = []
-    for row in cursor.fetchall():
-        arg = row[0]
-        if hasattr(arg, 'read'):
-            arg = arg.read().decode('latin-1')
-        param = row[2]
-        if param and hasattr(param, 'read'):
-            param = param.read().decode('latin-1')
-        descrpar = row[3]
-        if descrpar and hasattr(descrpar, 'read'):
-            descrpar = descrpar.read().decode('latin-1')
-        resultado_like.append({
-            "argumento": str(arg).strip(),
-            "subargum": str(row[1]).strip(),
-            "parametro": str(param).strip() if param else "",
-            "descrpar": str(descrpar).strip() if descrpar else ""
-        })
-    
-    return jsonify({
-        "cdpro": cdpro_str,
-        "starting_with": resultado_starting,
-        "like": resultado_like,
-        "count_starting": len(resultado_starting),
-        "count_like": len(resultado_like)
-    })
+if texto and not texto.upper().startswith("APLICAC"):
 ```
 
-### 3. Testar o endpoint de debug
+Porem, o texto vindo do banco e `"APLICAÇÃO: MICROAGULHAMENTO"`. O `.upper()` do Python NAO remove acentos: `"APLICAÇÃO".upper()` = `"APLICAÇÃO"`, que NAO comeca com `"APLICAC"` (C != Ç). O filtro falha silenciosamente e a linha de aplicacao e concatenada junto com os ativos.
 
-Acessar no navegador:
-- `http://localhost:5000/api/debug/obsfic/92607`
-- `http://localhost:5000/api/debug/obsfic/92729`
+Resultado atual no rotulo:
+```
+APLICAÇÃO: MICROAGULHAMENTO, ACIDO HIALURONICO NÃO RETICULADO 5MG
+```
 
-Se `starting_with` retornar vazio mas `like` retornar dados, o formato do ARGUMENTO e diferente do esperado e a funcao `extrair_obsfic_componente` precisa de ajuste.
+Resultado correto:
+```
+ACIDO HIALURONICO NÃO RETICULADO 5MG
+(e AP:MICROAGULHAMENTO no rodape)
+```
 
-### 4. Corrigir formato se necessario
+## Solucao
 
-Com base no resultado do debug, ajustar a query em `extrair_obsfic_componente` para usar o formato correto do ARGUMENTO.
+### 1. Backend (`servidor.py`) - Corrigir `extrair_obsfic_componente`
 
-## Detalhes Tecnicos
+Alterar a funcao para:
+- Usar `norm_texto()` (ja existe no projeto) para normalizar acentos antes de comparar
+- Extrair o valor da aplicacao das linhas filtradas
+- Retornar um dicionario com `composicao` e `aplicacao` em vez de apenas string
 
-### Arquivo modificado
-- `servidor.py` - novo endpoint de debug `/api/debug/obsfic/<cdpro>`
+```python
+def extrair_obsfic_componente(cursor, cdpro_comp):
+    # ... busca existente ...
+    
+    textos = []
+    aplicacao_comp = ""
+    for reg in registros:
+        texto = ...  # leitura existente
+        texto_norm = norm_texto(texto.upper())
+        if texto_norm.startswith("APLIC") or "APLICAC" in texto_norm:
+            # Extrai valor apos ":"
+            if ":" in texto:
+                aplicacao_comp = texto.split(":", 1)[1].strip()
+        else:
+            textos.append(texto)
+    
+    return {
+        "composicao": ", ".join(textos),
+        "aplicacao": aplicacao_comp
+    }
+```
 
-### Sequencia de teste
-1. Copiar `servidor.py` atualizado para `C:\ServidorRotulos\`
-2. Reiniciar o Flask
-3. Acessar `/api/debug/obsfic/92607` para validar dados
-4. Buscar req 6806-2 e verificar nos logs do terminal se aparece `[OBSFIC_COMP]`
-5. Confirmar no frontend se a composicao aparece no rotulo
+### 2. Backend (`servidor.py`) - Atualizar `montar_kit_expandido`
+
+Nos dois blocos (linhas ~1186 e ~1213), tratar o retorno como dicionario e armazenar a aplicacao por componente:
+
+```python
+if e_sinonimo:
+    obsfic_data = extrair_obsfic_componente(cursor, cdpro_comp)
+    composicao_comp = obsfic_data["composicao"]
+    aplicacao_comp = obsfic_data["aplicacao"]
+else:
+    composicao_comp = extrair_composicao_componente(cursor, cdpro_comp)
+    aplicacao_comp = ""
+```
+
+Adicionar `"aplicacao": aplicacao_comp` ao dicionario do componente.
+
+### 3. Frontend - Tipo `ComponenteKit` (`src/types/requisicao.ts`)
+
+Adicionar campo opcional `aplicacao` ao tipo:
+
+```typescript
+export interface ComponenteKit {
+  // ... campos existentes ...
+  aplicacao?: string;
+}
+```
+
+### 4. Frontend - Mapeamento (`src/services/requisicaoService.ts`)
+
+Adicionar mapeamento do campo `aplicacao`:
+
+```typescript
+const mapearComponenteKit = (comp: any) => ({
+  // ... existente ...
+  aplicacao: comp.aplicacao || "",
+});
+```
+
+### 5. Frontend - Renderizacao (`src/components/LabelCard.tsx`)
+
+Na `renderKitContent`, para kits sinonimos, exibir a aplicacao de cada componente junto aos metadados (na mesma linha de pH/Lote/Fab/Val):
+
+```tsx
+{comp.aplicacao && <span>AP:{comp.aplicacao}</span>}
+```
+
+Isso segue o padrao visual dos outros kits, com "AP:" como prefixo.
+
+## Arquivos Modificados
+
+- `servidor.py` - Corrigir filtro de acentos e retornar aplicacao separada
+- `src/types/requisicao.ts` - Adicionar `aplicacao` ao `ComponenteKit`
+- `src/services/requisicaoService.ts` - Mapear campo `aplicacao`
+- `src/components/LabelCard.tsx` - Exibir `AP:` por componente
+
+## Resultado Esperado
+
+Componente 1:
+```
+ACIDO HIALURONICO NÃO RETICULADO 5MG
+pH:6,0  L:12012  F:12/25  V:12/26
+```
+
+Componente 2:
+```
+ACIDO TRANEXAMICO 8MG, TGP2 20MG, BELIDES 2%, LIP. VIT C 10MG, NIACINAMIDA 40MG
+pH:6,5  L:329  F:11/25  V:05/26
+```
+
+Rodape (ou por componente):
+```
+USO EM CONSULTORIO  AP:MICROAGULHAMENTO
+```
 
