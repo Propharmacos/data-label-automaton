@@ -1,44 +1,57 @@
 
 
-## Correções: Quantidade de Impressão, Dimensões no Frontend e Agente
+## Correção: Rótulos Saindo Separados (Pulando Etiquetas)
 
-### Problema 1: Quantidade de cópias
-A lógica de quantidade no frontend (Index.tsx) ja esta correta -- ela duplica os rotulos no array antes de enviar ao agente. O agente tambem ja itera sobre cada rotulo recebido e imprime um label por item. Portanto, se voce seleciona "2", o frontend envia 2 copias do mesmo rotulo e o agente imprime 2 etiquetas. Isso ja funciona corretamente no codigo.
+### Causa Raiz Identificada
 
-Porem, preciso verificar se o componente LabelCard esta passando corretamente o callback de quantidade. Vou garantir que o fluxo completo esteja funcionando.
+O problema principal esta no `agente_impressao.py`, na funcao `imprimir()`. Atualmente, para cada rotulo no array, o agente:
 
-### Problema 2: Impressao parou de sair
-O agente_impressao.py no repositorio esta identico ao que foi fornecido para copiar. Se parou de imprimir, pode ser que:
-- O agente nao foi reiniciado apos a ultima alteracao
-- O arquivo local nao foi substituido pelo novo
+1. Abre a impressora (`OpenPrinter`)
+2. Inicia um documento (`StartDocPrinter`)
+3. Envia os comandos PPLB
+4. Fecha o documento (`EndDocPrinter`)
+5. Fecha a impressora (`ClosePrinter`)
 
-Nao ha mudanca de codigo necessaria aqui -- o agente precisa ser re-copiado e reiniciado no PC Campos2.
+Isso significa que se voce seleciona 4 rotulos, a impressora recebe **4 trabalhos de impressao separados**. Entre cada trabalho, a Argox OS-2140 recalibra o sensor de gap, avanca o papel e reposiciona -- causando o "pulo" entre etiquetas.
 
-### Problema 3: Dimensoes dos rotulos no frontend nao atualizadas
-As dimensoes no `src/config/layouts.ts` estao incorretas para a visualizacao:
+### Solucao
 
-| Layout | Atual (mm) | Correto (pol -> mm) |
-|--------|-----------|-------------------|
-| AMP_CX | 60 x 10 | 109 x 25 (4.3" x 1") |
-| AMP10 | 54 x 12 | 89 x 38 (3.5" x 1.5") |
-| A_PAC_PEQ | 50 x 20 | 35 x 25 (1.39" x 1") |
-| A_PAC_GRAN | 100 x 25 | 35 x 25 (1.39" x 1") |
-| TIRZ | 76 x 35 | 109 x 25 (4.3" x 1") |
+Concatenar todos os comandos PPLB em uma unica string e enviar tudo em **um unico trabalho de impressao**. Cada bloco PPLB ja contem seu proprio comando `E` (fim/imprimir), entao a impressora processa cada etiqueta sequencialmente dentro do mesmo job sem recalibrar.
 
-### Alteracoes planejadas
+### Alteracoes no `agente_impressao.py`
 
-**Arquivo: `src/config/layouts.ts`**
-- Corrigir `dimensoes` de todos os 5 layouts para os valores reais em milimetros baseados nas configuracoes do Formula Certa
+**Funcao `imprimir()` -- logica de envio:**
 
-**Arquivo: `agente_impressao.py`**
-- Nenhuma alteracao de logica necessaria -- o codigo ja esta correto com os comandos `q` e `Q`
-- Sera fornecida novamente a versao completa para garantir que o usuario copie o arquivo correto
+Antes (problematico):
+```text
+para cada rotulo:
+    gerar comandos PPLB
+    abrir impressora
+    enviar comandos
+    fechar impressora
+```
+
+Depois (corrigido):
+```text
+comandos_todos = ""
+para cada rotulo:
+    gerar comandos PPLB
+    concatenar em comandos_todos
+abrir impressora UMA VEZ
+enviar comandos_todos
+fechar impressora UMA VEZ
+```
 
 ### Detalhes tecnicos
 
-As dimensoes em milimetros sao convertidas a partir das polegadas do Formula Certa:
-- 4.3" = 109.22mm, 3.5" = 88.9mm, 1.39" = 35.31mm
-- 1" = 25.4mm, 1.5" = 38.1mm
+- A funcao `enviar_para_impressora` continua igual, mas recebe a string concatenada de todos os rotulos
+- Cada bloco PPLB individual ja possui `\x02L` (inicio) e `E` (fim), garantindo que a impressora interpreta cada etiqueta corretamente
+- O encoding `cp850` e o modo `RAW` permanecem inalterados
+- A contagem de `impressos` sera ajustada para refletir o total enviado no batch
 
-O `LabelCard.tsx` ja usa `layoutConfig.dimensoes` para renderizar o preview, entao basta corrigir os valores em `layouts.ts`.
+### Resultado esperado
+
+- Todos os rotulos saem em sequencia sem pulos
+- A quantidade de copias (ex: 2x) funciona corretamente pois o frontend ja duplica os rotulos no array
+- A impressora nao recalibra entre etiquetas
 
