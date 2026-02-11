@@ -99,15 +99,15 @@ export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
     }),
   },
 
-  // Layout 3: A_PAC_PEQ (Ampola Pacote Pequeno) - 3 linhas
+  // Layout 3: A_PAC_PEQ (Ampola Pacote Pequeno) - 45x25mm
   A_PAC_PEQ: {
     tipo: 'A_PAC_PEQ',
     nome: 'Ampola Pacote Pequeno',
-    dimensoes: { larguraMM: 35, alturaMM: 25 },
+    dimensoes: { larguraMM: 45, alturaMM: 25 },
     linhas: [
-      { id: 'linha1', campos: ['paciente', 'requisicao'], spacing: 'normal' },
-      { id: 'linha2', campos: ['medico'], spacing: 'normal' },
-      { id: 'linha3', campos: ['registro'], spacing: 'normal' },
+      { id: 'linha1', campos: ['paciente'], spacing: 'normal' },
+      { id: 'linha2', campos: ['requisicao'], spacing: 'normal' },
+      { id: 'linha3', campos: ['medico'], spacing: 'normal' },
     ],
     campoConfig: baseCampoConfig({
       composicao: { visible: false },
@@ -121,17 +121,19 @@ export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
       contem: { visible: false },
       posologia: { visible: false },
       observacoes: { visible: false },
+      registro: { visible: false },
     }),
   },
 
-  // Layout 4: A_PAC_GRAN (Ampola Pacote Grande) - 2 linhas
+  // Layout 4: A_PAC_GRAN (Ampola Pacote Grande) - 76x25mm
   A_PAC_GRAN: {
     tipo: 'A_PAC_GRAN',
     nome: 'Ampola Pacote Grande',
-    dimensoes: { larguraMM: 35, alturaMM: 25 },
+    dimensoes: { larguraMM: 76, alturaMM: 25 },
     linhas: [
-      { id: 'linha1', campos: ['paciente', 'requisicao'], spacing: 'normal' },
-      { id: 'linha2', campos: ['medico', 'registro'], spacing: 'normal' },
+      { id: 'linha1', campos: ['paciente'], spacing: 'normal' },
+      { id: 'linha2', campos: ['requisicao'], spacing: 'normal' },
+      { id: 'linha3', campos: ['medico'], spacing: 'normal' },
     ],
     campoConfig: baseCampoConfig({
       composicao: { visible: false },
@@ -145,6 +147,7 @@ export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
       contem: { visible: false },
       posologia: { visible: false },
       observacoes: { visible: false },
+      registro: { visible: false },
     }),
   },
 
