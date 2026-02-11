@@ -226,17 +226,36 @@ GERADORES_PPLB = {
 }
 
 
-def enviar_para_impressora(nome_impressora, comandos_pplb):
-    """Envia comandos PPLB para a impressora via win32print."""
+def _detectar_raw_type(nome_impressora):
+    """Detecta se o driver requer XPS_PASS (v4) ou RAW (v3 e anteriores)."""
+    try:
+        drivers = win32print.EnumPrinterDrivers(None, None, 2)
+        for drv in drivers:
+            if drv.get('Name', '').upper() in nome_impressora.upper() or \
+               nome_impressora.upper() in drv.get('Name', '').upper():
+                version = drv.get('Version', 3)
+                print(f"[AGENTE] Driver '{drv.get('Name')}' versão {version} detectado")
+                return "XPS_PASS" if version == 4 else "RAW"
+    except Exception as e:
+        print(f"[AGENTE] Erro ao detectar versão do driver: {e}")
+    return "RAW"
+
+
+def enviar_para_impressora(nome_impressora, comandos_ppla):
+    """Envia comandos PPLA para a impressora via win32print."""
     if not PRINTING_AVAILABLE:
         return {"success": False, "error": "pywin32 não disponível"}
     try:
+        # Detectar o tipo de dados correto para o driver
+        raw_type = _detectar_raw_type(nome_impressora)
+        print(f"[AGENTE] Usando datatype '{raw_type}' para '{nome_impressora}'")
+
         hPrinter = win32print.OpenPrinter(nome_impressora)
         try:
-            hJob = win32print.StartDocPrinter(hPrinter, 1, ("Etiqueta", None, "RAW"))
+            hJob = win32print.StartDocPrinter(hPrinter, 1, ("Etiqueta", None, raw_type))
             try:
                 win32print.StartPagePrinter(hPrinter)
-                dados = comandos_pplb.encode('cp850', errors='replace')
+                dados = comandos_ppla.encode('cp850', errors='replace')
                 win32print.WritePrinter(hPrinter, dados)
                 win32print.EndPagePrinter(hPrinter)
             finally:
@@ -245,7 +264,25 @@ def enviar_para_impressora(nome_impressora, comandos_pplb):
             win32print.ClosePrinter(hPrinter)
         return {"success": True}
     except Exception as e:
-        return {"success": False, "error": str(e)}
+        # Fallback: tentar com o outro tipo se falhar
+        fallback_type = "RAW" if raw_type == "XPS_PASS" else "XPS_PASS"
+        print(f"[AGENTE] Falha com '{raw_type}', tentando fallback '{fallback_type}': {e}")
+        try:
+            hPrinter = win32print.OpenPrinter(nome_impressora)
+            try:
+                hJob = win32print.StartDocPrinter(hPrinter, 1, ("Etiqueta", None, fallback_type))
+                try:
+                    win32print.StartPagePrinter(hPrinter)
+                    dados = comandos_ppla.encode('cp850', errors='replace')
+                    win32print.WritePrinter(hPrinter, dados)
+                    win32print.EndPagePrinter(hPrinter)
+                finally:
+                    win32print.EndDocPrinter(hPrinter)
+            finally:
+                win32print.ClosePrinter(hPrinter)
+            return {"success": True}
+        except Exception as e2:
+            return {"success": False, "error": f"RAW falhou: {e} | XPS_PASS falhou: {e2}"}
 
 
 # ============================================
