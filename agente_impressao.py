@@ -436,7 +436,7 @@ def imprimir():
     # Debug: mostrar comandos PPLB
     logger.info(f"\n{'='*60}")
     logger.info(f"[DEBUG PPLB] Comandos completos ({len(comandos_todos)} bytes):")
-    for i, line in enumerate(comandos_todos.split('\r\n')):
+    for i, line in enumerate(comandos_todos.split('\n')):
         display = line.replace('\x02', '<STX>')
         logger.info(f"  [{i:02d}] {display}")
     logger.info(f"{'='*60}")
@@ -529,9 +529,10 @@ def analisar_prn():
 
 
 
+if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5001))
     logger.info("=" * 50)
-    logger.info("Agente de Impressão PPLB - ProPharmacos V2.3")
+    logger.info("Agente de Impressão PPLB - ProPharmacos V2.4")
     logger.info(f"Hostname: {socket.gethostname()}")
     logger.info(f"Porta: {port}")
     logger.info(f"Impressora padrão: {IMPRESSORA_PADRAO}")
