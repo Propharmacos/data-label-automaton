@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Printer, CheckSquare, Square, Settings, Edit, LogOut, ChevronDown } from "lucide-react";
+import { Printer, CheckSquare, Square, Settings, Edit, LogOut, ChevronDown, ListOrdered } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -233,6 +233,11 @@ const Index = () => {
             </div>
             <div className="flex items-center gap-3">
               <span className="text-sm text-muted-foreground hidden md:inline">{user?.email}</span>
+              <Button variant="outline" size="icon" className="border-primary/20 hover:bg-accent" asChild>
+                <Link to="/fila">
+                  <ListOrdered className="h-5 w-5 text-primary" />
+                </Link>
+              </Button>
               {isAdmin && (
                 <Button variant="outline" size="icon" className="border-primary/20 hover:bg-accent" asChild>
                   <Link to="/configuracoes">

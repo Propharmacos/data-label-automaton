@@ -7,6 +7,7 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Settings from "./pages/Settings";
+import PrintQueue from "./pages/PrintQueue";
 import Login from "./pages/Login";
 import NotFound from "./pages/NotFound";
 
@@ -40,8 +41,15 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/fila"
+              element={
+                <ProtectedRoute>
+                  <PrintQueue />
+                </ProtectedRoute>
+              }
+            />
             
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
