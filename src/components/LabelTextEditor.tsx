@@ -4,6 +4,36 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RotuloItem, PharmacyConfig, LayoutConfig, LayoutType } from "@/types/requisicao";
 
+// ---- Word-wrap utility ----
+function wrapText(text: string, maxCols: number, maxLines: number): string {
+  const inputLines = text.split('\n');
+  const wrapped: string[] = [];
+
+  for (const line of inputLines) {
+    if (line.length <= maxCols) {
+      wrapped.push(line);
+    } else {
+      let remaining = line;
+      while (remaining.length > maxCols) {
+        // Find last space before limit
+        let breakAt = remaining.lastIndexOf(' ', maxCols);
+        if (breakAt <= 0) {
+          // No space found — force break at maxCols
+          breakAt = maxCols;
+        }
+        wrapped.push(remaining.substring(0, breakAt));
+        remaining = remaining.substring(breakAt).trimStart();
+      }
+      if (remaining.length > 0) {
+        wrapped.push(remaining);
+      }
+    }
+    if (wrapped.length >= maxLines) break;
+  }
+
+  return wrapped.slice(0, maxLines).join('\n');
+}
+
 interface LabelTextEditorProps {
   rotulos: RotuloItem[];
   currentIndex: number;
@@ -169,12 +199,19 @@ const LabelTextEditor = ({
   const [cursorInfo, setCursorInfo] = useState({ line: 1, col: 1, totalLines: 1, totalCols: 1 });
 
   const rotulo = rotulos[currentIndex];
+  const maxCols = layoutConfig.colunasMax;
+  const maxLines = layoutConfig.linhasMax;
+
   const text = rotulo?.textoLivre ?? generateText(rotulo, layoutConfig);
 
   // Initialize textoLivre on load or layout change
   useEffect(() => {
     if (rotulo) {
-      onTextChange(rotulo.id, generateText(rotulo, layoutConfig));
+      let generated = generateText(rotulo, layoutConfig);
+      if (maxCols && maxLines) {
+        generated = wrapText(generated, maxCols, maxLines);
+      }
+      onTextChange(rotulo.id, generated);
     }
   }, [rotulo?.id, layoutConfig.tipo]);
 
@@ -204,7 +241,11 @@ const LabelTextEditor = ({
   }, []);
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    onTextChange(rotulo.id, e.target.value);
+    let newText = e.target.value;
+    if (maxCols && maxLines) {
+      newText = wrapText(newText, maxCols, maxLines);
+    }
+    onTextChange(rotulo.id, newText);
     setTimeout(updateCursorInfo, 0);
   };
 
@@ -248,7 +289,7 @@ const LabelTextEditor = ({
 
       {/* Cursor info bar */}
       <div className="bg-muted/30 border-t border-border px-4 py-1 text-xs text-muted-foreground font-mono">
-        Lin: {cursorInfo.line}/{cursorInfo.totalLines}  Col: {cursorInfo.col}/{cursorInfo.totalCols}
+        Lin: {cursorInfo.line}{maxLines ? `/${maxLines}` : `/${cursorInfo.totalLines}`}  Col: {cursorInfo.col}{maxCols ? `/${maxCols}` : `/${cursorInfo.totalCols}`}
       </div>
 
       {/* Navigation */}

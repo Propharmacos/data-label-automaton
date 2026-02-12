@@ -44,6 +44,8 @@ export interface LayoutConfig {
     larguraMM: number;
     alturaMM: number;
   };
+  colunasMax?: number;  // limite físico de colunas da impressora
+  linhasMax?: number;   // limite físico de linhas da impressora
 }
 
 // Manter compatibilidade com formato antigo (deprecado)

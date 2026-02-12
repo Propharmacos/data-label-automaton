@@ -64,6 +64,8 @@ export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
     tipo: 'AMP_CX',
     nome: 'Ampola Caixa',
     dimensoes: { larguraMM: 109, alturaMM: 25 },
+    colunasMax: 73,
+    linhasMax: 8,
     linhas: [
       { id: 'linha1', campos: ['paciente', 'requisicao'], spacing: 'normal' },
       { id: 'linha2', campos: ['medico'], spacing: 'normal' },
@@ -83,6 +85,8 @@ export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
     tipo: 'AMP10',
     nome: 'Ampola 10',
     dimensoes: { larguraMM: 89, alturaMM: 38 },
+    colunasMax: 65,
+    linhasMax: 10,
     linhas: [
       { id: 'linha1', campos: ['paciente', 'requisicao'], spacing: 'normal' },
       { id: 'linha2', campos: ['medico'], spacing: 'normal' },
@@ -104,6 +108,8 @@ export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
     tipo: 'A_PAC_PEQ',
     nome: 'Ampola Pacote Pequeno',
     dimensoes: { larguraMM: 45, alturaMM: 25 },
+    colunasMax: 27,
+    linhasMax: 8,
     linhas: [
       { id: 'linha1', campos: ['paciente'], spacing: 'normal' },
       { id: 'linha2', campos: ['requisicao'], spacing: 'normal' },
@@ -130,6 +136,8 @@ export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
     tipo: 'A_PAC_GRAN',
     nome: 'Ampola Pacote Grande',
     dimensoes: { larguraMM: 76, alturaMM: 25 },
+    colunasMax: 57,
+    linhasMax: 8,
     linhas: [
       { id: 'linha1', campos: ['paciente'], spacing: 'normal' },
       { id: 'linha2', campos: ['requisicao'], spacing: 'normal' },
@@ -156,6 +164,8 @@ export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
     tipo: 'TIRZ',
     nome: 'Tirzepatida',
     dimensoes: { larguraMM: 109, alturaMM: 25 },
+    colunasMax: 73,
+    linhasMax: 8,
     linhas: [
       { id: 'linha1', campos: ['paciente', 'requisicao'], spacing: 'normal' },
       { id: 'linha2', campos: ['medico'], spacing: 'normal' },
