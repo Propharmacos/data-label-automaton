@@ -130,8 +130,10 @@ const PrintQueue = () => {
                       <SelectValue placeholder="Selecione impressora" />
                     </SelectTrigger>
                     <SelectContent className="bg-popover">
-                      {impressoras.map((imp) => (
-                        <SelectItem key={imp.portaRede} value={imp.portaRede}>
+                      {impressoras
+                        .filter((imp) => imp.portaRede && imp.portaRede.trim() !== "")
+                        .map((imp, idx) => (
+                        <SelectItem key={`${imp.portaRede}-${idx}`} value={imp.portaRede}>
                           {imp.nomePC} — {imp.portaRede}
                         </SelectItem>
                       ))}
