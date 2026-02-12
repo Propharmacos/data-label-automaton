@@ -1,57 +1,73 @@
 
 
-## Correção: Rótulos Saindo Separados (Pulando Etiquetas)
+## Implementacao: Pagina de Fila de Impressao + Endpoint FC90100
 
-### Causa Raiz Identificada
+### Resumo
 
-O problema principal esta no `agente_impressao.py`, na funcao `imprimir()`. Atualmente, para cada rotulo no array, o agente:
+Criar uma nova pagina no frontend para visualizar a fila de impressao (FC12B00) e adicionar endpoints no backend para consultar FC12B00 (pendentes) e FC90100 (configuracoes de impressora com dimensoes automaticas).
 
-1. Abre a impressora (`OpenPrinter`)
-2. Inicia um documento (`StartDocPrinter`)
-3. Envia os comandos PPLB
-4. Fecha o documento (`EndDocPrinter`)
-5. Fecha a impressora (`ClosePrinter`)
+---
 
-Isso significa que se voce seleciona 4 rotulos, a impressora recebe **4 trabalhos de impressao separados**. Entre cada trabalho, a Argox OS-2140 recalibra o sensor de gap, avanca o papel e reposiciona -- causando o "pulo" entre etiquetas.
+### Parte 1: Backend (servidor.py)
 
-### Solucao
+**1.1 - Novo endpoint: GET /api/fila-impressao**
+- Consulta FC12B00 filtrando por STATUS=0 (pendentes) e CDFIL (filial)
+- Para cada registro, faz JOIN com FC12300 para trazer dados do rotulo (SERIER, NRRQU)
+- Retorna lista com: NRRQU, SERIER, STATUS, CODIGOROTULO, DTCRIACAO
 
-Concatenar todos os comandos PPLB em uma unica string e enviar tudo em **um unico trabalho de impressao**. Cada bloco PPLB ja contem seu proprio comando `E` (fim/imprimir), entao a impressora processa cada etiqueta sequencialmente dentro do mesmo job sem recalibrar.
+**1.2 - Novo endpoint: POST /api/fila-impressao/marcar**
+- Recebe array de IDs (NRRQU + SERIER) para marcar como "em impressao"
+- Atualiza STATUS na FC12B00 (ex: 0 -> 1)
 
-### Alteracoes no `agente_impressao.py`
+**1.3 - Novo endpoint: GET /api/impressoras-config**
+- Consulta FC90100 e retorna as configuracoes de impressora
+- Expoe campos: ROTULOID, ALTURA, LARGURA, TPIMPRESSORA, PORTAREDE, NOMEPC
+- O frontend usa ALTURA/LARGURA para configurar automaticamente as dimensoes do layout
 
-**Funcao `imprimir()` -- logica de envio:**
+---
 
-Antes (problematico):
+### Parte 2: Frontend
+
+**2.1 - Nova pagina: src/pages/PrintQueue.tsx**
+- Tabela listando rotulos pendentes (STATUS=0) da FC12B00
+- Colunas: Requisicao, Serie, Data Criacao, Status, Acoes
+- Botao "Atualizar" para recarregar a fila
+- Checkbox para selecionar rotulos e botao "Imprimir Selecionados"
+- Seletor de impressora (usando dados do FC90100)
+
+**2.2 - Novo service: src/services/filaImpressaoService.ts**
+- `buscarFilaImpressao(filial)` - GET /api/fila-impressao
+- `marcarParaImpressao(ids)` - POST /api/fila-impressao/marcar
+- `buscarConfigImpressoras()` - GET /api/impressoras-config
+
+**2.3 - Novos tipos em src/types/requisicao.ts**
+- `FilaImpressaoItem` - representa um registro da FC12B00
+- `ImpressoraConfig` - representa configuracao da FC90100
+
+**2.4 - Rota e navegacao**
+- Nova rota `/fila` em App.tsx (protegida)
+- Botao de acesso na header do Index.tsx (icone de lista/fila)
+
+---
+
+### Parte 3: Fluxo do Usuario
+
 ```text
-para cada rotulo:
-    gerar comandos PPLB
-    abrir impressora
-    enviar comandos
-    fechar impressora
+1. Usuario acessa /fila
+2. Frontend chama GET /api/fila-impressao?filial=279
+3. Backend consulta FC12B00 WHERE STATUS=0
+4. Tabela mostra rotulos pendentes
+5. Usuario seleciona rotulos e clica "Imprimir"
+6. Frontend chama POST /api/fila-impressao/marcar
+7. Backend atualiza STATUS e dispara impressao via agente
 ```
 
-Depois (corrigido):
-```text
-comandos_todos = ""
-para cada rotulo:
-    gerar comandos PPLB
-    concatenar em comandos_todos
-abrir impressora UMA VEZ
-enviar comandos_todos
-fechar impressora UMA VEZ
-```
+---
 
-### Detalhes tecnicos
+### Detalhes Tecnicos
 
-- A funcao `enviar_para_impressora` continua igual, mas recebe a string concatenada de todos os rotulos
-- Cada bloco PPLB individual ja possui `\x02L` (inicio) e `E` (fim), garantindo que a impressora interpreta cada etiqueta corretamente
-- O encoding `cp850` e o modo `RAW` permanecem inalterados
-- A contagem de `impressos` sera ajustada para refletir o total enviado no batch
-
-### Resultado esperado
-
-- Todos os rotulos saem em sequencia sem pulos
-- A quantidade de copias (ex: 2x) funciona corretamente pois o frontend ja duplica os rotulos no array
-- A impressora nao recalibra entre etiquetas
+- Os endpoints do backend seguem o padrao existente (Flask + fdb + ngrok headers)
+- A pagina usa os mesmos componentes UI (Card, Table, Button, Select) do projeto
+- As dimensoes de FC90100 (ALTURA/LARGURA) sao usadas para pre-configurar o LabelConfig automaticamente
+- O seletor de impressora na fila usa as impressoras do FC90100 (PORTAREDE) em vez do agente local
 
