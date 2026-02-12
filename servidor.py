@@ -4749,11 +4749,190 @@ def debug_fc90100():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# =====================================================
+# ENDPOINTS DE PRODUÇÃO: FILA DE IMPRESSÃO + IMPRESSORAS
+# =====================================================
+
+@app.route('/api/fila-impressao', methods=['GET'])
+def fila_impressao():
+    """Retorna rótulos pendentes (STATUS=0) da FC12B00 para uma filial."""
+    filial = request.args.get('filial', '1')
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Verifica se tabela existe
+        cursor.execute("""
+            SELECT COUNT(*) FROM RDB$RELATIONS WHERE RDB$RELATION_NAME = 'FC12B00'
+        """)
+        if cursor.fetchone()[0] == 0:
+            cursor.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Tabela FC12B00 não existe"})
+
+        # Descobre colunas disponíveis
+        cursor.execute("""
+            SELECT TRIM(RDB$FIELD_NAME)
+            FROM RDB$RELATION_FIELDS
+            WHERE RDB$RELATION_NAME = 'FC12B00'
+        """)
+        colunas = [r[0] for r in cursor.fetchall()]
+
+        tem_nomepc = 'NOMEPC' in colunas
+        tem_dtcriacao = 'DTCRIACAO' in colunas
+        tem_codigorotulo = 'CODIGOROTULO' in colunas
+
+        select_cols = ['NRRQU', 'SERIER', 'STATUS']
+        if tem_codigorotulo:
+            select_cols.append('CODIGOROTULO')
+        if tem_dtcriacao:
+            select_cols.append('DTCRIACAO')
+        if tem_nomepc:
+            select_cols.append('NOMEPC')
+
+        filial_int = mapear_filial(int(filial))
+
+        cursor.execute(f"""
+            SELECT {', '.join(select_cols)}
+            FROM FC12B00
+            WHERE STATUS = 0 AND CDFIL = ?
+            ORDER BY NRRQU DESC
+        """, (filial_int,))
+
+        cols = [desc[0].strip() for desc in cursor.description]
+        items = []
+        for row in cursor.fetchall():
+            reg = {}
+            for i, col in enumerate(cols):
+                val = row[i]
+                if val is None:
+                    reg[col] = None
+                elif hasattr(val, 'read'):
+                    try:
+                        reg[col] = val.read().decode('latin-1').strip()
+                    except:
+                        reg[col] = ""
+                elif hasattr(val, 'strftime'):
+                    reg[col] = val.strftime('%d/%m/%Y %H:%M:%S')
+                else:
+                    reg[col] = str(val).strip()
+            items.append(reg)
+
+        cursor.close()
+        conn.close()
+        return jsonify({"success": True, "data": items, "total": len(items)})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/fila-impressao/marcar', methods=['POST'])
+def fila_impressao_marcar():
+    """Marca rótulos como 'em impressão' (STATUS 0 -> 1)."""
+    data = request.get_json()
+    ids = data.get('ids', [])
+
+    if not ids:
+        return jsonify({"success": False, "error": "Nenhum ID fornecido"}), 400
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        atualizados = 0
+
+        for item in ids:
+            nrrqu = item.get('nrRequisicao', '')
+            serier = item.get('serieRotulo', '')
+            if not nrrqu or not serier:
+                continue
+
+            cursor.execute("""
+                UPDATE FC12B00 SET STATUS = 1
+                WHERE NRRQU = ? AND SERIER = ? AND STATUS = 0
+            """, (nrrqu, serier))
+            atualizados += cursor.rowcount
+
+        conn.commit()
+        cursor.close()
+        conn.close()
+
+        return jsonify({
+            "success": True,
+            "data": {"atualizados": atualizados}
+        })
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+@app.route('/api/impressoras-config', methods=['GET'])
+def impressoras_config():
+    """Retorna configurações de impressora da FC90100."""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # Verifica se tabela existe
+        cursor.execute("""
+            SELECT COUNT(*) FROM RDB$RELATIONS WHERE RDB$RELATION_NAME = 'FC90100'
+        """)
+        if cursor.fetchone()[0] == 0:
+            cursor.close()
+            conn.close()
+            return jsonify({"success": False, "error": "Tabela FC90100 não existe"})
+
+        # Descobre colunas
+        cursor.execute("""
+            SELECT TRIM(RDB$FIELD_NAME)
+            FROM RDB$RELATION_FIELDS
+            WHERE RDB$RELATION_NAME = 'FC90100'
+        """)
+        colunas = [r[0] for r in cursor.fetchall()]
+
+        # Monta SELECT com colunas disponíveis
+        campos_desejados = ['ROTULOID', 'ALTURA', 'LARGURA', 'TPIMPRESSORA', 'PORTAREDE', 'NOMEPC']
+        select_cols = [c for c in campos_desejados if c in colunas]
+
+        if not select_cols:
+            cursor.close()
+            conn.close()
+            return jsonify({"success": False, "error": f"Nenhuma coluna esperada encontrada. Disponíveis: {colunas}"})
+
+        cursor.execute(f"SELECT {', '.join(select_cols)} FROM FC90100")
+        cols = [desc[0].strip() for desc in cursor.description]
+        items = []
+        for row in cursor.fetchall():
+            reg = {}
+            for i, col in enumerate(cols):
+                val = row[i]
+                if val is None:
+                    reg[col] = None
+                elif hasattr(val, 'read'):
+                    try:
+                        reg[col] = val.read().decode('latin-1').strip()
+                    except:
+                        reg[col] = ""
+                elif hasattr(val, 'strftime'):
+                    reg[col] = val.strftime('%d/%m/%Y %H:%M:%S')
+                else:
+                    reg[col] = str(val).strip() if isinstance(val, str) else val
+            items.append(reg)
+
+        cursor.close()
+        conn.close()
+        return jsonify({"success": True, "data": items, "total": len(items)})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 if __name__ == '__main__':
     print("=" * 50)
     print("Servidor iniciando na porta 5000...")
     print(f"Impressao disponivel: {PRINTING_AVAILABLE}")
     print("Teste: http://localhost:5000/api/health")
+    print("Fila impressao: http://localhost:5000/api/fila-impressao?filial=279")
+    print("Impressoras config: http://localhost:5000/api/impressoras-config")
     print("Debug rotulos: http://localhost:5000/api/debug/fc12300/<nr_requisicao>")
     print("Debug fila: http://localhost:5000/api/debug/fc12b00")
     print("Debug impressoras DB: http://localhost:5000/api/debug/fc90100")
