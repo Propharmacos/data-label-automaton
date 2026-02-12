@@ -131,3 +131,23 @@ export interface PrintAgentConfig {
   agentUrl: string;
   impressora: string;
 }
+
+// Fila de impressão (FC12B00)
+export interface FilaImpressaoItem {
+  nrRequisicao: string;
+  serieRotulo: string;
+  status: number;
+  codigoRotulo: string;
+  dataCriacao: string;
+  nomePC?: string;
+}
+
+// Configuração de impressora (FC90100)
+export interface ImpressoraConfig {
+  rotuloId: string;
+  altura: number;
+  largura: number;
+  tipoImpressora: string;
+  portaRede: string;
+  nomePC: string;
+}
