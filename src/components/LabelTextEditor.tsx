@@ -254,7 +254,7 @@ const getStoredFontSize = (layoutTipo?: string) => {
     if (stored) return parseInt(stored, 10);
   } catch {}
   // A_PAC_PEQ usa fonte mínima por padrão (etiqueta pequena 45x25mm)
-  if (layoutTipo === 'A_PAC_PEQ') return 8;
+  if (layoutTipo === 'A_PAC_PEQ') return 5;
   return 14;
 };
 
