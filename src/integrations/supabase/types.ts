@@ -14,6 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
+      dim_loja: {
+        Row: {
+          ativa: boolean
+          created_at: string
+          grupo: string
+          loja_id: number
+          loja_nome: string | null
+        }
+        Insert: {
+          ativa?: boolean
+          created_at?: string
+          grupo: string
+          loja_id: number
+          loja_nome?: string | null
+        }
+        Update: {
+          ativa?: boolean
+          created_at?: string
+          grupo?: string
+          loja_id?: number
+          loja_nome?: string | null
+        }
+        Relationships: []
+      }
+      gerencial_lancamentos_ajuste: {
+        Row: {
+          categoria: string
+          competencia: string
+          created_at: string | null
+          descricao: string | null
+          id: number
+          loja_id: number | null
+          origem: string | null
+          tipo: string
+          valor: number
+        }
+        Insert: {
+          categoria: string
+          competencia: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: number
+          loja_id?: number | null
+          origem?: string | null
+          tipo: string
+          valor: number
+        }
+        Update: {
+          categoria?: string
+          competencia?: string
+          created_at?: string | null
+          descricao?: string | null
+          id?: number
+          loja_id?: number | null
+          origem?: string | null
+          tipo?: string
+          valor?: number
+        }
+        Relationships: []
+      }
       raw_alpha_cmv_diario: {
         Row: {
           competencia: string
@@ -191,6 +251,24 @@ export type Database = {
         }
         Relationships: []
       }
+      raw_alpha_unidade_negocio: {
+        Row: {
+          created_at: string
+          loja_id: number
+          nome: string | null
+        }
+        Insert: {
+          created_at?: string
+          loja_id: number
+          nome?: string | null
+        }
+        Update: {
+          created_at?: string
+          loja_id?: number
+          nome?: string | null
+        }
+        Relationships: []
+      }
       raw_alpha_vendas: {
         Row: {
           competencia: string
@@ -275,6 +353,17 @@ export type Database = {
           diferenca: number | null
           dre_receita: number | null
           loja_id: number | null
+        }
+        Relationships: []
+      }
+      vw_dfc_gerencial_diario: {
+        Row: {
+          ajuste_entrada: number | null
+          ajuste_saida: number | null
+          competencia: string | null
+          loja_id: number | null
+          valor_gerencial: number | null
+          valor_oficial: number | null
         }
         Relationships: []
       }
