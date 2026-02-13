@@ -105,13 +105,14 @@ const Index = () => {
     setRotulos(prev => prev.map(r => r.id === id ? { ...r, textoLivre: text } : r));
   };
 
-  const handlePrint = async () => {
+  const handlePrint = async (quantity: number = 1) => {
     if (rotulos.length === 0) return;
 
     setIsPrinting(true);
     
     const rotuloAtual = rotulos[currentIndex];
-    const rotulosSelecionados = [rotuloAtual];
+    // Duplicar o rótulo conforme a quantidade solicitada
+    const rotulosSelecionados = Array.from({ length: quantity }, () => ({ ...rotuloAtual }));
     
     const farmaciaData = {
       nome: pharmacyConfig.nome,
