@@ -218,7 +218,7 @@ def gerar_pplb_a_pac_peq(rotulo, farmacia, dims=None):
         # Usar texto editado pelo usuário, linha por linha
         linhas_texto = texto_livre.split('\n')
         pplb_lines = []
-        y_positions = [5, 30, 55, 80, 105, 130, 155]
+        y_positions = [5, 21, 37, 53, 69, 85, 101]
         for i, y in enumerate(y_positions):
             line_text = linhas_texto[i] if i < len(linhas_texto) else ''
             if line_text.strip():
@@ -243,7 +243,7 @@ def gerar_pplb_a_pac_peq(rotulo, farmacia, dims=None):
     line3 = (' ' * (w - len(reg_str))) + reg_str if reg_str else ""
 
     pplb_lines = []
-    y_positions = [5, 30, 55, 80, 105, 130, 155]
+    y_positions = [5, 21, 37, 53, 69, 85, 101]
     texts = [line1, line2, line3, '', '', '', '']
     for i, y in enumerate(y_positions):
         if texts[i].strip():
