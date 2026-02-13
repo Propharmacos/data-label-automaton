@@ -4495,6 +4495,7 @@ def _mapear_para_agente(data: dict) -> dict:
             "contem": str(r.get("contem") or ""),
             "ph": str(r.get("ph") or ""),
             "lote": str(r.get("lote") or ""),
+            "textoLivre": str(r.get("textoLivre") or ""),
             "componentes": r.get("componentes") or [],
         })
 
