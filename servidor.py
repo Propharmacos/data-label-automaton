@@ -4390,8 +4390,8 @@ def _fc12300_colunas(cursor):
 
 def buscar_rotutx_fc12300(nr_requisicao: int, filial: int = 1, serie: int | None = None, item: int | None = None):
     """
-    Busca o BLOB ROTUTX (PPLB/PPLA já pronto) na FC12300.
-    Faz detecção de colunas para suportar variações de base (SERIE/SERIER, NRITE/NRITEM, etc.).
+    Busca o BLOB ROTUTX (PPLB/PPLA ja pronto) na FC12300.
+    Faz deteccao de colunas para suportar variacoes de base (SERIE/SERIER, NRITE/NRITEM, etc.).
     Retorna bytes ou None.
     """
     conn = get_db_connection()
@@ -4410,7 +4410,7 @@ def buscar_rotutx_fc12300(nr_requisicao: int, filial: int = 1, serie: int | None
                     params.append(int(item))
                     break
 
-        # Série
+        # Serie
         if serie is not None:
             for c in ("SERIER", "SERIE", "SERIERQ", "SERIERQU"):
                 if c in cols:
@@ -4430,14 +4430,61 @@ def buscar_rotutx_fc12300(nr_requisicao: int, filial: int = 1, serie: int | None
 
         # fdb retorna BLOB com .read()
         if hasattr(blob, "read"):
-            return blob.read()
-        # ou já vem como bytes/str
-        if isinstance(blob, (bytes, bytearray)):
-            return bytes(blob)
-        if isinstance(blob, str):
-            # fallback: tenta latin-1 para preservar byte->char (não é o ideal, mas evita quebra)
-            return blob.encode("latin-1", errors="replace")
-        return None
+            rotutx_bytes = blob.read()
+        elif isinstance(blob, (bytes, bytearray)):
+            rotutx_bytes = bytes(blob)
+        elif isinstance(blob, str):
+            rotutx_bytes = blob.encode("latin-1", errors="replace")
+        else:
+            return None
+
+        # =====================================================
+        # DIAGNOSTICO ROTUTX - Detecta formato e valida conteudo
+        # =====================================================
+        print(f"\n{'='*60}")
+        print(f"[ROTUTX DIAG] REQ={nr_requisicao} FIL={filial} SERIE={serie} ITEM={item}")
+        print(f"[ROTUTX DIAG] Tamanho: {len(rotutx_bytes)} bytes")
+        print(f"[ROTUTX DIAG] Primeiros 200 bytes (hex): {rotutx_bytes[:200].hex(' ')}")
+
+        try:
+            texto_preview = rotutx_bytes[:300].decode('latin-1', errors='ignore')
+            print(f"[ROTUTX DIAG] Primeiros 300 chars: {repr(texto_preview)}")
+        except Exception:
+            print(f"[ROTUTX DIAG] Nao foi possivel decodificar como texto")
+
+        # Detectar formato
+        formato_detectado = "DESCONHECIDO"
+        if b'\x02L' in rotutx_bytes or b'\x02l' in rotutx_bytes:
+            formato_detectado = "PPLB (STX+L detectado)"
+        elif b'^w' in rotutx_bytes or b'^W' in rotutx_bytes or b'^h' in rotutx_bytes or b'^H' in rotutx_bytes:
+            formato_detectado = "PPLA (^w/^h detectado)"
+        elif b'~' in rotutx_bytes[:10]:
+            formato_detectado = "ZPL (Zebra - til no inicio)"
+        elif b'\x1b' in rotutx_bytes[:20] or b'\x1b@' in rotutx_bytes[:20]:
+            formato_detectado = "ESC/POS (escape detectado)"
+
+        print(f"[ROTUTX DIAG] Formato detectado: {formato_detectado}")
+
+        # Verificar terminadores
+        tem_E_final = rotutx_bytes.strip().endswith(b'E') or rotutx_bytes.strip().endswith(b'^E')
+        print(f"[ROTUTX DIAG] Termina com E ou ^E: {tem_E_final}")
+        print(f"[ROTUTX DIAG] CR count: {rotutx_bytes.count(b'\\r')}")
+        print(f"[ROTUTX DIAG] LF count: {rotutx_bytes.count(b'\\n')}")
+        print(f"[ROTUTX DIAG] CRLF count: {rotutx_bytes.count(b'\\r\\n')}")
+        print(f"[ROTUTX DIAG] STX (0x02) count: {rotutx_bytes.count(b'\\x02')}")
+
+        # Salvar arquivo de debug
+        try:
+            debug_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'rotutx_debug.bin')
+            with open(debug_path, 'wb') as f:
+                f.write(rotutx_bytes)
+            print(f"[ROTUTX DIAG] Arquivo debug salvo em: {debug_path}")
+        except Exception as e_debug:
+            print(f"[ROTUTX DIAG] Erro ao salvar debug: {e_debug}")
+
+        print(f"{'='*60}\n")
+
+        return rotutx_bytes
     finally:
         try:
             cursor.close()
@@ -4449,12 +4496,21 @@ def buscar_rotutx_fc12300(nr_requisicao: int, filial: int = 1, serie: int | None
             pass
 
 def enviar_raw_para_agente(impressora: str, dados_bytes: bytes):
-    """Envia bytes em base64 para o agente imprimir em RAW."""
+    """Envia bytes em base64 para o agente imprimir em RAW.
+    Adiciona ^E no final se ausente (comando de print PPLA)."""
+
+    # Garantir que termina com comando de print
+    dados_final = dados_bytes
+    if not dados_bytes.strip().endswith(b'E') and not dados_bytes.strip().endswith(b'^E'):
+        print("[RAW] ROTUTX nao termina com E/^E - adicionando ^E")
+        dados_final = dados_bytes.strip() + b'\r\n^E\r\n'
+
     payload = {
         "impressora": impressora,
-        "dados_base64": base64.b64encode(dados_bytes).decode("ascii")
+        "dados_base64": base64.b64encode(dados_final).decode("ascii")
     }
     url = f"{AGENTE_URL}{AGENTE_RAW_ENDPOINT}"
+    print(f"[RAW] Enviando {len(dados_final)} bytes para {url} impressora={impressora}")
     resp = http_requests.post(
         url,
         json=payload,
