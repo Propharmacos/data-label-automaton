@@ -4,6 +4,8 @@ import fdb
 import platform
 import os
 import requests as http_requests
+import base64
+import traceback
 
 # Importa win32print apenas no Windows
 if platform.system() == 'Windows':
@@ -29,7 +31,7 @@ FILIAL_MAP = {
 def mapear_filial(filial: int) -> int:
     return FILIAL_MAP.get(filial, filial)
 
-DB_PATH = '192.168.6.46/3050:C:\\Fcerta\\DB\\ALTERDB.IB'
+DB_PATH = '192.168.5.4/3050:D:\\Fcerta\\DB\\ALTERDB.IB'
 DB_USER = 'SYSDBA'
 DB_PASSWORD = 'masterkey'
 
@@ -4369,6 +4371,104 @@ AGENTE_HEADERS = {
 }
 
 
+# === Integração RAW (copiar exatamente o ROTUTX do Fórmula Certa e imprimir no PC do agente) ===
+# O servidor central (este arquivo) tem acesso ao Firebird. O PC do agente NÃO precisa ter Firebird.
+# Ele só recebe bytes (base64) e manda para a Argox em modo RAW.
+AGENTE_RAW_ENDPOINT = os.environ.get("AGENTE_RAW_ENDPOINT", "/raw")
+
+# Para ambientes com problemas de certificado/inspeção SSL, podemos desabilitar a verificação.
+# (Mantém a integração funcionando via ngrok mesmo quando o Windows bloqueia o certificado.)
+REQUESTS_VERIFY_SSL = os.environ.get("REQUESTS_VERIFY_SSL", "false").lower() not in ("0", "false", "no")
+
+def _fc12300_colunas(cursor):
+    cursor.execute("""
+        SELECT TRIM(RDB$FIELD_NAME)
+        FROM RDB$RELATION_FIELDS
+        WHERE RDB$RELATION_NAME = 'FC12300'
+    """)
+    return {r[0].upper() for r in cursor.fetchall()}
+
+def buscar_rotutx_fc12300(nr_requisicao: int, filial: int = 1, serie: int | None = None, item: int | None = None):
+    """
+    Busca o BLOB ROTUTX (PPLB/PPLA já pronto) na FC12300.
+    Faz detecção de colunas para suportar variações de base (SERIE/SERIER, NRITE/NRITEM, etc.).
+    Retorna bytes ou None.
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    try:
+        cols = _fc12300_colunas(cursor)
+
+        where = ["NRRQU = ?", "CDFIL = ?"]
+        params = [int(nr_requisicao), int(filial)]
+
+        # Item
+        if item is not None:
+            for c in ("NRITE", "NRITEM", "NRIT", "NR_ITEM"):
+                if c in cols:
+                    where.append(f"{c} = ?")
+                    params.append(int(item))
+                    break
+
+        # Série
+        if serie is not None:
+            for c in ("SERIER", "SERIE", "SERIERQ", "SERIERQU"):
+                if c in cols:
+                    where.append(f"{c} = ?")
+                    params.append(int(serie))
+                    break
+
+        sql = "SELECT FIRST 1 ROTUTX FROM FC12300 WHERE " + " AND ".join(where) + " ORDER BY 1 DESC"
+        cursor.execute(sql, tuple(params))
+        row = cursor.fetchone()
+        if not row:
+            return None
+
+        blob = row[0]
+        if blob is None:
+            return None
+
+        # fdb retorna BLOB com .read()
+        if hasattr(blob, "read"):
+            return blob.read()
+        # ou já vem como bytes/str
+        if isinstance(blob, (bytes, bytearray)):
+            return bytes(blob)
+        if isinstance(blob, str):
+            # fallback: tenta latin-1 para preservar byte->char (não é o ideal, mas evita quebra)
+            return blob.encode("latin-1", errors="replace")
+        return None
+    finally:
+        try:
+            cursor.close()
+        except:
+            pass
+        try:
+            conn.close()
+        except:
+            pass
+
+def enviar_raw_para_agente(impressora: str, dados_bytes: bytes):
+    """Envia bytes em base64 para o agente imprimir em RAW."""
+    payload = {
+        "impressora": impressora,
+        "dados_base64": base64.b64encode(dados_bytes).decode("ascii")
+    }
+    url = f"{AGENTE_URL}{AGENTE_RAW_ENDPOINT}"
+    resp = http_requests.post(
+        url,
+        json=payload,
+        headers=AGENTE_HEADERS,
+        timeout=40,
+        verify=REQUESTS_VERIFY_SSL
+    )
+    # tenta devolver json do agente, se existir
+    try:
+        return resp.status_code, resp.json()
+    except Exception:
+        return resp.status_code, {"raw": resp.text}
+
+
 def _mapear_para_agente(data: dict) -> dict:
     """Converte payload do frontend para o formato esperado pelo agente."""
     impressora = data.get("caminho") or data.get("impressora") or ""
@@ -4413,7 +4513,8 @@ def agente_health():
         resp = http_requests.get(
             f"{AGENTE_URL}/health",
             headers={"ngrok-skip-browser-warning": "true"},
-            timeout=5
+            timeout=5,
+            verify=REQUESTS_VERIFY_SSL
         )
         return (resp.text, resp.status_code, {"Content-Type": resp.headers.get("Content-Type", "application/json")})
     except Exception as e:
@@ -4427,7 +4528,8 @@ def agente_impressoras():
         resp = http_requests.get(
             f"{AGENTE_URL}/impressoras",
             headers={"ngrok-skip-browser-warning": "true"},
-            timeout=5
+            timeout=5,
+            verify=REQUESTS_VERIFY_SSL
         )
         return (resp.text, resp.status_code, {"Content-Type": resp.headers.get("Content-Type", "application/json")})
     except Exception as e:
@@ -4445,7 +4547,8 @@ def imprimir_teste():
             f"{AGENTE_URL}/teste",
             json={"impressora": impressora},
             headers=AGENTE_HEADERS,
-            timeout=15
+            timeout=15,
+            verify=REQUESTS_VERIFY_SSL
         )
         return (
             resp.text,
@@ -4468,7 +4571,8 @@ def imprimir_rotulos():
             f"{AGENTE_URL}/imprimir",
             json=payload_agente,
             headers=AGENTE_HEADERS,
-            timeout=30
+            timeout=30,
+            verify=REQUESTS_VERIFY_SSL
         )
         return (
             resp.text,
@@ -4477,6 +4581,72 @@ def imprimir_rotulos():
         )
     except Exception as e:
         return jsonify({"success": False, "error": f"Falha ao encaminhar para o agente: {e}"}), 500
+
+
+# ============================================
+# IMPRESSÃO "IGUAL AO FÓRMULA CERTA" (ROTUTX/RAW)
+# ============================================
+# Este endpoint pega o ROTUTX na FC12300 e manda como RAW para o PC do agente (Campos Sales).
+# Assim você não precisa “reconstruir layout” (linhas/colunas) — imprime exatamente o que o Fórmula gerou.
+
+@app.route('/api/imprimir_fc', methods=['POST'])
+@app.route('/imprimir_fc', methods=['POST'])  # alias sem /api para facilitar testes
+def imprimir_fc_raw():
+    data = request.get_json(force=True) or {}
+
+    nr_requisicao = data.get("req") or data.get("nrRequisicao") or data.get("nr_requisicao")
+    if nr_requisicao is None:
+        return jsonify({"success": False, "error": "Informe 'req' (número da requisição)"}), 400
+
+    filial_in = data.get("filial", 1)
+    filial = mapear_filial(int(filial_in))
+
+    serie = data.get("serie")
+    if serie is None:
+        # algumas telas mandam "serier" ou "serieR"
+        serie = data.get("serier") if "serier" in data else None
+    item = data.get("item") or data.get("nrItem") or data.get("nr_item")
+    # defaults comuns
+    if item is None:
+        item = 1
+
+    impressora = data.get("impressora") or data.get("caminho") or data.get("printer") or ""
+    if not impressora:
+        return jsonify({"success": False, "error": "Informe 'impressora' (ex: AMP PEQUENO / AMP GRANDE)"}), 400
+
+    try:
+        rotutx_bytes = buscar_rotutx_fc12300(int(nr_requisicao), filial=filial, serie=(int(serie) if serie is not None else None), item=int(item))
+        if not rotutx_bytes:
+            return jsonify({
+                "success": False,
+                "error": "ROTUTX não encontrado na FC12300 para esta requisição (verifique filial/serie/item)",
+                "req": int(nr_requisicao),
+                "filial": filial,
+                "serie": serie,
+                "item": item
+            }), 404
+
+        status_code, agent_json = enviar_raw_para_agente(impressora, rotutx_bytes)
+
+        return jsonify({
+            "success": (200 <= status_code < 300) and bool(agent_json.get("success", True)),
+            "req": int(nr_requisicao),
+            "filial": filial,
+            "serie": serie,
+            "item": int(item),
+            "impressora": impressora,
+            "bytes_enviados": len(rotutx_bytes),
+            "agent_status": status_code,
+            "agent_response": agent_json,
+            "raw_endpoint": f"{AGENTE_URL}{AGENTE_RAW_ENDPOINT}"
+        }), (200 if (200 <= status_code < 300) else 502)
+
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "trace": traceback.format_exc()[:2000]
+        }), 500
 
 
 # Debug: sinônimos de um produto via FC03200
