@@ -631,17 +631,251 @@ def analisar_prn():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# ============================================
+# ENDPOINT /raw - Recebe bytes RAW (base64) e imprime direto
+# ============================================
+@app.route('/raw', methods=['POST'])
+def raw_print():
+    """Recebe dados RAW em base64 e envia direto para a impressora.
+    Payload: {"impressora": "AMP PEQUENO", "dados_base64": "...", "raw_base64": "..."}
+    Aceita tanto 'dados_base64' quanto 'raw_base64' como chave."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "error": "Nenhum dado recebido"}), 400
+
+        impressora_req = data.get('impressora', '') or IMPRESSORA_PADRAO
+        raw_b64 = data.get('dados_base64') or data.get('raw_base64') or ''
+
+        if not raw_b64:
+            return jsonify({"success": False, "error": "Nenhum dado base64 recebido"}), 400
+
+        impressora = find_printer_match(impressora_req) or impressora_req
+
+        # Decodifica base64
+        import base64
+        raw_bytes = base64.b64decode(raw_b64)
+
+        # DEBUG: Mostra primeiros bytes e detecta formato
+        logger.info(f"\n{'='*60}")
+        logger.info(f"[RAW] Impressora: {impressora}")
+        logger.info(f"[RAW] Tamanho: {len(raw_bytes)} bytes")
+        logger.info(f"[RAW] Primeiros 100 bytes (hex): {raw_bytes[:100].hex(' ')}")
+
+        try:
+            preview = raw_bytes[:200].decode('latin-1', errors='ignore')
+            logger.info(f"[RAW] Preview texto: {repr(preview)}")
+        except Exception:
+            pass
+
+        # Detectar formato
+        formato = "DESCONHECIDO"
+        if b'\x02L' in raw_bytes or b'\x02l' in raw_bytes:
+            formato = "PPLB"
+        elif b'^w' in raw_bytes or b'^W' in raw_bytes:
+            formato = "PPLA"
+        elif b'~' in raw_bytes[:10]:
+            formato = "ZPL"
+        elif b'\x1b' in raw_bytes[:20]:
+            formato = "ESC/POS"
+        logger.info(f"[RAW] Formato detectado: {formato}")
+
+        # Verificar e adicionar ^E se faltar (PPLA)
+        if formato == "PPLA" and not raw_bytes.strip().endswith(b'^E'):
+            raw_bytes = raw_bytes.strip() + b'\r\n^E\r\n'
+            logger.info("[RAW] Adicionei ^E no final (PPLA)")
+
+        # Verificar e adicionar E se faltar (PPLB)
+        if formato == "PPLB":
+            stripped = raw_bytes.strip()
+            if not stripped.endswith(b'E') and not stripped.endswith(b'\rE'):
+                raw_bytes = raw_bytes.strip() + b'\rE\r'
+                logger.info("[RAW] Adicionei E no final (PPLB)")
+
+        logger.info(f"{'='*60}")
+
+        # Enviar para impressora
+        resultado = enviar_para_impressora(impressora, raw_bytes.decode('latin-1', errors='replace'))
+
+        if resultado.get("success"):
+            return jsonify({
+                "success": True,
+                "bytes_enviados": len(raw_bytes),
+                "formato_detectado": formato,
+                "impressora": impressora,
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": resultado.get("error", "Falha ao enviar para impressora"),
+                "formato_detectado": formato,
+            }), 500
+
+    except Exception as e:
+        logger.error(f"[RAW] Erro: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================
+# ENDPOINT /test_notepad - Salva RAW em arquivo para inspeção
+# ============================================
+@app.route('/test_notepad', methods=['POST'])
+def test_notepad():
+    """Salva conteudo RAW em arquivo para inspecao visual.
+    Payload: {"dados_base64": "...", "raw_base64": "..."}"""
+    try:
+        import base64
+        import tempfile
+        import subprocess
+
+        data = request.get_json() or {}
+        raw_b64 = data.get('dados_base64') or data.get('raw_base64') or ''
+
+        if not raw_b64:
+            return jsonify({"success": False, "error": "Nenhum dado base64"}), 400
+
+        raw_bytes = base64.b64decode(raw_b64)
+
+        # Salva em arquivo temporario
+        temp_file = os.path.join(tempfile.gettempdir(), 'rotutx_debug.txt')
+        with open(temp_file, 'wb') as f:
+            f.write(raw_bytes)
+
+        # Tenta abrir no Notepad (Windows)
+        try:
+            subprocess.Popen(['notepad.exe', temp_file])
+        except Exception:
+            pass
+
+        # Analise do conteudo
+        analise = {
+            "tamanho": len(raw_bytes),
+            "arquivo": temp_file,
+        }
+
+        # Detectar formato
+        if b'^w' in raw_bytes or b'^W' in raw_bytes:
+            analise["formato"] = "PPLA"
+        elif b'\x02L' in raw_bytes:
+            analise["formato"] = "PPLB"
+        elif b'~' in raw_bytes[:10]:
+            analise["formato"] = "ZPL"
+        elif b'\x1b' in raw_bytes[:20]:
+            analise["formato"] = "ESC/POS"
+        else:
+            analise["formato"] = "DESCONHECIDO"
+
+        # Preview como texto
+        try:
+            analise["preview_texto"] = raw_bytes[:500].decode('latin-1', errors='ignore')
+        except Exception:
+            analise["preview_texto"] = "(nao decodificavel)"
+
+        # Verificar terminadores
+        analise["tem_E_final"] = raw_bytes.strip().endswith(b'E') or raw_bytes.strip().endswith(b'^E')
+        analise["count_CR"] = raw_bytes.count(b'\r')
+        analise["count_LF"] = raw_bytes.count(b'\n')
+        analise["count_CRLF"] = raw_bytes.count(b'\r\n')
+        analise["count_STX"] = raw_bytes.count(b'\x02')
+
+        return jsonify({"success": True, "analise": analise})
+
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================
+# ENDPOINT /raw_tcp - Bypass do driver, envia via TCP porta 9100
+# ============================================
+@app.route('/raw_tcp', methods=['POST'])
+def raw_tcp():
+    """Envia dados RAW direto para a impressora via TCP porta 9100 (bypass do driver Windows).
+    Payload: {"host": "192.168.1.X", "port": 9100, "dados_base64": "...", "raw_base64": "..."}"""
+    try:
+        import base64
+
+        data = request.get_json() or {}
+        host = data.get('host', '')
+        port = int(data.get('port', 9100))
+        raw_b64 = data.get('dados_base64') or data.get('raw_base64') or ''
+
+        if not host:
+            return jsonify({"success": False, "error": "Informe 'host' (IP da impressora)"}), 400
+        if not raw_b64:
+            return jsonify({"success": False, "error": "Nenhum dado base64"}), 400
+
+        raw_bytes = base64.b64decode(raw_b64)
+
+        logger.info(f"[TCP] Enviando {len(raw_bytes)} bytes para {host}:{port}")
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s.settimeout(10)
+        s.connect((host, port))
+        s.sendall(raw_bytes)
+        s.close()
+
+        logger.info(f"[TCP] Enviado com sucesso para {host}:{port}")
+
+        return jsonify({
+            "success": True,
+            "bytes_enviados": len(raw_bytes),
+            "host": host,
+            "port": port,
+        })
+
+    except Exception as e:
+        logger.error(f"[TCP] Erro: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
+# ============================================
+# ENDPOINT /diagnostico - Resumo completo do sistema
+# ============================================
+@app.route('/diagnostico', methods=['GET'])
+def diagnostico():
+    """Retorna diagnostico completo do agente e impressoras."""
+    printers = get_available_printers()
+    diag = {
+        "agente_versao": "2.5.0",
+        "hostname": socket.gethostname(),
+        "sistema": platform.system(),
+        "pywin32": PYWIN32_OK,
+        "impressora_padrao": IMPRESSORA_PADRAO,
+        "impressoras_disponiveis": printers,
+        "layouts_suportados": list(GERADORES_PPLB.keys()),
+        "configs_impressora": {k: v for k, v in PRINTER_CONFIGS.items()},
+    }
+
+    # Verificar config de cada impressora
+    if PYWIN32_OK:
+        for p in printers:
+            try:
+                hPrinter = win32print.OpenPrinter(p)
+                info = win32print.GetPrinter(hPrinter, 2)
+                win32print.ClosePrinter(hPrinter)
+                diag[f"printer_{p}"] = {
+                    "driver": info.get("pDriverName", "?"),
+                    "port": info.get("pPortName", "?"),
+                    "datatype": info.get("pDatatype", "?"),
+                    "status": info.get("Status", 0),
+                }
+            except Exception as e:
+                diag[f"printer_{p}"] = {"error": str(e)}
+
+    return jsonify(diag)
+
 
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5001))
     logger.info("=" * 50)
-    logger.info("Agente de Impressão PPLB - ProPharmacos V2.4")
+    logger.info("Agente de Impressao PPLB - ProPharmacos V2.5")
     logger.info(f"Hostname: {socket.gethostname()}")
     logger.info(f"Porta: {port}")
-    logger.info(f"Impressora padrão: {IMPRESSORA_PADRAO}")
-    logger.info(f"pywin32 disponível: {PYWIN32_OK}")
+    logger.info(f"Impressora padrao: {IMPRESSORA_PADRAO}")
+    logger.info(f"pywin32 disponivel: {PYWIN32_OK}")
     logger.info(f"Impressoras: {get_available_printers()}")
     logger.info(f"Layouts: {list(GERADORES_PPLB.keys())}")
+    logger.info(f"Endpoints: /health /impressoras /imprimir /raw /raw_tcp /test_notepad /diagnostico")
     for k, v in PRINTER_CONFIGS.items():
         logger.info(f"  {k}: q{v['largura_dots']} Q{v['altura_dots']},{v['gap_dots']} ({v['cols_max']} cols)")
     logger.info(f"Health: http://localhost:{port}/health")
