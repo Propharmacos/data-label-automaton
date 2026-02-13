@@ -57,7 +57,7 @@ interface LabelTextEditorProps {
   pharmacyConfig: PharmacyConfig;
   searchedRequisition: string;
   // Print
-  onPrint: () => void;
+  onPrint: (quantity: number) => void;
   isPrinting: boolean;
   availablePrinters: string[];
   selectedPrinter: string;
@@ -259,6 +259,7 @@ const LabelTextEditor = ({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [cursorInfo, setCursorInfo] = useState({ line: 1, col: 1, totalLines: 1, totalCols: 1 });
   const [editorFontSize, setEditorFontSize] = useState(getStoredFontSize);
+  const [printQuantity, setPrintQuantity] = useState(1);
 
   const rotulo = rotulos[currentIndex];
   const maxCols = layoutConfig.colunasMax;
@@ -413,9 +414,18 @@ const LabelTextEditor = ({
               </SelectContent>
             </Select>
           )}
-          <Button size="sm" onClick={onPrint} disabled={isPrinting} className="bg-secondary hover:bg-secondary/90">
+          <div className="flex items-center gap-1 border border-border rounded-md px-1">
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setPrintQuantity(q => Math.max(1, q - 1))}>
+              <Minus className="h-3 w-3" />
+            </Button>
+            <span className="text-sm font-mono w-6 text-center">{printQuantity}</span>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setPrintQuantity(q => Math.min(50, q + 1))}>
+              <Plus className="h-3 w-3" />
+            </Button>
+          </div>
+          <Button size="sm" onClick={() => onPrint(printQuantity)} disabled={isPrinting} className="bg-secondary hover:bg-secondary/90">
             <Printer className={`h-4 w-4 mr-1 ${isPrinting ? 'animate-pulse' : ''}`} />
-            {isPrinting ? 'Imprimindo...' : 'Imprimir'}
+            {isPrinting ? 'Imprimindo...' : `Imprimir${printQuantity > 1 ? ` (${printQuantity})` : ''}`}
           </Button>
         </div>
       </div>
