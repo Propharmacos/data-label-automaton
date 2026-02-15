@@ -80,6 +80,78 @@ export type Database = {
         }
         Relationships: []
       }
+      f_mov_estoque_classificada: {
+        Row: {
+          alpha7_mov_id: number
+          baixaestoque_motivoid: number | null
+          baixaestoque_observacao: string | null
+          categoria_dre_estoque: string | null
+          codigo: string | null
+          custo: number | null
+          customedio: number | null
+          datahora: string | null
+          descricao_tipo: string | null
+          entrada: boolean | null
+          etl_loaded_at: string | null
+          impacta_dre: boolean | null
+          impacta_saldo_estoque: boolean | null
+          natureza_estoque: string | null
+          perdas_detalhe: string | null
+          perdas_subtipo: string | null
+          perdas_titulo: string | null
+          qtd_sinalizada: number | null
+          quantidade: number | null
+          tipomovimentacaoestoqueid: number | null
+          valor_cmv_sinalizado: number | null
+        }
+        Insert: {
+          alpha7_mov_id: number
+          baixaestoque_motivoid?: number | null
+          baixaestoque_observacao?: string | null
+          categoria_dre_estoque?: string | null
+          codigo?: string | null
+          custo?: number | null
+          customedio?: number | null
+          datahora?: string | null
+          descricao_tipo?: string | null
+          entrada?: boolean | null
+          etl_loaded_at?: string | null
+          impacta_dre?: boolean | null
+          impacta_saldo_estoque?: boolean | null
+          natureza_estoque?: string | null
+          perdas_detalhe?: string | null
+          perdas_subtipo?: string | null
+          perdas_titulo?: string | null
+          qtd_sinalizada?: number | null
+          quantidade?: number | null
+          tipomovimentacaoestoqueid?: number | null
+          valor_cmv_sinalizado?: number | null
+        }
+        Update: {
+          alpha7_mov_id?: number
+          baixaestoque_motivoid?: number | null
+          baixaestoque_observacao?: string | null
+          categoria_dre_estoque?: string | null
+          codigo?: string | null
+          custo?: number | null
+          customedio?: number | null
+          datahora?: string | null
+          descricao_tipo?: string | null
+          entrada?: boolean | null
+          etl_loaded_at?: string | null
+          impacta_dre?: boolean | null
+          impacta_saldo_estoque?: boolean | null
+          natureza_estoque?: string | null
+          perdas_detalhe?: string | null
+          perdas_subtipo?: string | null
+          perdas_titulo?: string | null
+          qtd_sinalizada?: number | null
+          quantidade?: number | null
+          tipomovimentacaoestoqueid?: number | null
+          valor_cmv_sinalizado?: number | null
+        }
+        Relationships: []
+      }
       gerencial_lancamentos_ajuste: {
         Row: {
           categoria: string
@@ -113,6 +185,96 @@ export type Database = {
           origem?: string | null
           tipo?: string
           valor?: number
+        }
+        Relationships: []
+      }
+      map_baixa_motivo_subtipo: {
+        Row: {
+          categoria_dre_override: string | null
+          comentario: string | null
+          motivoid: number
+          perdas_subtipo: string
+          updated_at: string | null
+        }
+        Insert: {
+          categoria_dre_override?: string | null
+          comentario?: string | null
+          motivoid: number
+          perdas_subtipo: string
+          updated_at?: string | null
+        }
+        Update: {
+          categoria_dre_override?: string | null
+          comentario?: string | null
+          motivoid?: number
+          perdas_subtipo?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      map_perdas_subtipo: {
+        Row: {
+          codigo: string
+          perdas_detalhe_padrao: string | null
+          perdas_subtipo: string
+          status: string
+          updated_at: string | null
+        }
+        Insert: {
+          codigo: string
+          perdas_detalhe_padrao?: string | null
+          perdas_subtipo: string
+          status?: string
+          updated_at?: string | null
+        }
+        Update: {
+          codigo?: string
+          perdas_detalhe_padrao?: string | null
+          perdas_subtipo?: string
+          status?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      map_tipo_mov_estoque: {
+        Row: {
+          categoria_dre_estoque: string
+          codigo: string
+          descricao: string | null
+          impacta_dre: boolean
+          impacta_saldo_estoque: boolean
+          natureza_estoque: string
+          observacao_regra: string | null
+          sinal_quantidade: number
+          sinal_valor_cmv: number
+          status_mapeamento: string
+          validado_em: string | null
+        }
+        Insert: {
+          categoria_dre_estoque: string
+          codigo: string
+          descricao?: string | null
+          impacta_dre: boolean
+          impacta_saldo_estoque: boolean
+          natureza_estoque: string
+          observacao_regra?: string | null
+          sinal_quantidade: number
+          sinal_valor_cmv: number
+          status_mapeamento?: string
+          validado_em?: string | null
+        }
+        Update: {
+          categoria_dre_estoque?: string
+          codigo?: string
+          descricao?: string | null
+          impacta_dre?: boolean
+          impacta_saldo_estoque?: boolean
+          natureza_estoque?: string
+          observacao_regra?: string | null
+          sinal_quantidade?: number
+          sinal_valor_cmv?: number
+          status_mapeamento?: string
+          validado_em?: string | null
         }
         Relationships: []
       }
@@ -415,6 +577,68 @@ export type Database = {
       }
     }
     Views: {
+      v_dre_estoque_diario: {
+        Row: {
+          categoria_dre_estoque: string | null
+          dia: string | null
+          qtd_movimentos: number | null
+          valor_cmv: number | null
+          valor_estimado_perdas_ou_ajuste: number | null
+        }
+        Relationships: []
+      }
+      v_dre_estoque_mensal: {
+        Row: {
+          categoria_dre_estoque: string | null
+          mes: string | null
+          qtd_movimentos: number | null
+          valor_cmv: number | null
+          valor_estimado_perdas_ou_ajuste: number | null
+        }
+        Relationships: []
+      }
+      v_perdas_operacionais_detalhe: {
+        Row: {
+          alpha7_mov_id: number | null
+          baixaestoque_motivoid: number | null
+          baixaestoque_observacao: string | null
+          customedio: number | null
+          datahora: string | null
+          perdas_subtipo: string | null
+          quantidade: number | null
+          valor_estimado: number | null
+        }
+        Insert: {
+          alpha7_mov_id?: number | null
+          baixaestoque_motivoid?: number | null
+          baixaestoque_observacao?: string | null
+          customedio?: number | null
+          datahora?: string | null
+          perdas_subtipo?: string | null
+          quantidade?: number | null
+          valor_estimado?: never
+        }
+        Update: {
+          alpha7_mov_id?: number | null
+          baixaestoque_motivoid?: number | null
+          baixaestoque_observacao?: string | null
+          customedio?: number | null
+          datahora?: string | null
+          perdas_subtipo?: string | null
+          quantidade?: number | null
+          valor_estimado?: never
+        }
+        Relationships: []
+      }
+      v_perdas_operacionais_mensal: {
+        Row: {
+          mes: string | null
+          perdas_subtipo: string | null
+          qtd_mov: number | null
+          valor_estimado: number | null
+        }
+        Relationships: []
+      }
       vw_compare_dre_dfc_diario: {
         Row: {
           competencia: string | null
