@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      dim_laboratorio: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id_laboratorio: number
+          id_loja_vinculada: number | null
+          nome_laboratorio: string
+          tipo: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id_laboratorio?: number
+          id_loja_vinculada?: number | null
+          nome_laboratorio: string
+          tipo: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id_laboratorio?: number
+          id_loja_vinculada?: number | null
+          nome_laboratorio?: string
+          tipo?: string
+        }
+        Relationships: []
+      }
       dim_loja: {
         Row: {
           ativa: boolean
@@ -80,6 +107,91 @@ export type Database = {
         }
         Relationships: []
       }
+      f_cmv_manipulados: {
+        Row: {
+          created_at: string
+          custo_perdas_rateadas: number
+          custo_total_final: number
+          custo_total_insumos: number
+          data: string
+          id: number
+          id_laboratorio: number
+          id_loja_venda: number | null
+        }
+        Insert: {
+          created_at?: string
+          custo_perdas_rateadas?: number
+          custo_total_final?: number
+          custo_total_insumos?: number
+          data: string
+          id?: number
+          id_laboratorio: number
+          id_loja_venda?: number | null
+        }
+        Update: {
+          created_at?: string
+          custo_perdas_rateadas?: number
+          custo_total_final?: number
+          custo_total_insumos?: number
+          data?: string
+          id?: number
+          id_laboratorio?: number
+          id_loja_venda?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "f_cmv_manipulados_id_laboratorio_fkey"
+            columns: ["id_laboratorio"]
+            isOneToOne: false
+            referencedRelation: "dim_laboratorio"
+            referencedColumns: ["id_laboratorio"]
+          },
+        ]
+      }
+      f_dre_oficial: {
+        Row: {
+          ano: number
+          categoria_dre: string
+          created_at: string
+          id: number
+          id_laboratorio: number | null
+          id_loja: number | null
+          mes: number
+          origem_dado: string
+          valor: number
+        }
+        Insert: {
+          ano: number
+          categoria_dre: string
+          created_at?: string
+          id?: number
+          id_laboratorio?: number | null
+          id_loja?: number | null
+          mes: number
+          origem_dado: string
+          valor?: number
+        }
+        Update: {
+          ano?: number
+          categoria_dre?: string
+          created_at?: string
+          id?: number
+          id_laboratorio?: number | null
+          id_loja?: number | null
+          mes?: number
+          origem_dado?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "f_dre_oficial_id_laboratorio_fkey"
+            columns: ["id_laboratorio"]
+            isOneToOne: false
+            referencedRelation: "dim_laboratorio"
+            referencedColumns: ["id_laboratorio"]
+          },
+        ]
+      }
       f_mov_estoque_classificada: {
         Row: {
           alpha7_mov_id: number
@@ -102,6 +214,8 @@ export type Database = {
           qtd_sinalizada: number | null
           quantidade: number | null
           tipomovimentacaoestoqueid: number | null
+          unidadenegocioid_destino: number | null
+          unidadenegocioid_origem: number | null
           valor_cmv_sinalizado: number | null
         }
         Insert: {
@@ -125,6 +239,8 @@ export type Database = {
           qtd_sinalizada?: number | null
           quantidade?: number | null
           tipomovimentacaoestoqueid?: number | null
+          unidadenegocioid_destino?: number | null
+          unidadenegocioid_origem?: number | null
           valor_cmv_sinalizado?: number | null
         }
         Update: {
@@ -148,9 +264,136 @@ export type Database = {
           qtd_sinalizada?: number | null
           quantidade?: number | null
           tipomovimentacaoestoqueid?: number | null
+          unidadenegocioid_destino?: number | null
+          unidadenegocioid_origem?: number | null
           valor_cmv_sinalizado?: number | null
         }
         Relationships: []
+      }
+      f_perdas_baixa: {
+        Row: {
+          alpha7_mov_id: number
+          baixa_status: string | null
+          baixaestoqueid: number | null
+          customedio: number | null
+          datahora: string | null
+          item_status: string | null
+          loaded_at: string | null
+          motivoid: number | null
+          observacao: string | null
+          perdas_detalhe: string | null
+          perdas_subtipo: string | null
+          perdas_titulo: string | null
+          quantidade: number | null
+          unidadenegocioid: number | null
+          valor_estimado: number | null
+        }
+        Insert: {
+          alpha7_mov_id: number
+          baixa_status?: string | null
+          baixaestoqueid?: number | null
+          customedio?: number | null
+          datahora?: string | null
+          item_status?: string | null
+          loaded_at?: string | null
+          motivoid?: number | null
+          observacao?: string | null
+          perdas_detalhe?: string | null
+          perdas_subtipo?: string | null
+          perdas_titulo?: string | null
+          quantidade?: number | null
+          unidadenegocioid?: number | null
+          valor_estimado?: number | null
+        }
+        Update: {
+          alpha7_mov_id?: number
+          baixa_status?: string | null
+          baixaestoqueid?: number | null
+          customedio?: number | null
+          datahora?: string | null
+          item_status?: string | null
+          loaded_at?: string | null
+          motivoid?: number | null
+          observacao?: string | null
+          perdas_detalhe?: string | null
+          perdas_subtipo?: string | null
+          perdas_titulo?: string | null
+          quantidade?: number | null
+          unidadenegocioid?: number | null
+          valor_estimado?: number | null
+        }
+        Relationships: []
+      }
+      f_vendas_itens: {
+        Row: {
+          cfop: string | null
+          chave_acesso: string | null
+          created_at: string
+          data_emissao: string
+          descricao_produto: string | null
+          id: number
+          id_embalagem: number | null
+          id_laboratorio_origem: number | null
+          id_loja: number | null
+          id_venda: string
+          numero_documento: string | null
+          origem_dado: string
+          quantidade: number
+          tipo_documento: string | null
+          tipo_produto: string
+          valor_bruto: number
+          valor_liquido: number
+          valor_total: number
+        }
+        Insert: {
+          cfop?: string | null
+          chave_acesso?: string | null
+          created_at?: string
+          data_emissao: string
+          descricao_produto?: string | null
+          id?: number
+          id_embalagem?: number | null
+          id_laboratorio_origem?: number | null
+          id_loja?: number | null
+          id_venda: string
+          numero_documento?: string | null
+          origem_dado?: string
+          quantidade?: number
+          tipo_documento?: string | null
+          tipo_produto: string
+          valor_bruto?: number
+          valor_liquido?: number
+          valor_total?: number
+        }
+        Update: {
+          cfop?: string | null
+          chave_acesso?: string | null
+          created_at?: string
+          data_emissao?: string
+          descricao_produto?: string | null
+          id?: number
+          id_embalagem?: number | null
+          id_laboratorio_origem?: number | null
+          id_loja?: number | null
+          id_venda?: string
+          numero_documento?: string | null
+          origem_dado?: string
+          quantidade?: number
+          tipo_documento?: string | null
+          tipo_produto?: string
+          valor_bruto?: number
+          valor_liquido?: number
+          valor_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "f_vendas_itens_id_laboratorio_origem_fkey"
+            columns: ["id_laboratorio_origem"]
+            isOneToOne: false
+            referencedRelation: "dim_laboratorio"
+            referencedColumns: ["id_laboratorio"]
+          },
+        ]
       }
       gerencial_lancamentos_ajuste: {
         Row: {
@@ -185,6 +428,39 @@ export type Database = {
           origem?: string | null
           tipo?: string
           valor?: number
+        }
+        Relationships: []
+      }
+      in_itempedido: {
+        Row: {
+          created_at: string
+          i_codigointegracao: string
+          i_codigopedidointegracao: string
+          i_idoutembalagem: number
+          i_quantidade: number
+          i_valortotal: number
+          i_valorunitariobruto: number
+          i_valorunitarioliquido: number
+        }
+        Insert: {
+          created_at?: string
+          i_codigointegracao: string
+          i_codigopedidointegracao: string
+          i_idoutembalagem: number
+          i_quantidade: number
+          i_valortotal: number
+          i_valorunitariobruto: number
+          i_valorunitarioliquido: number
+        }
+        Update: {
+          created_at?: string
+          i_codigointegracao?: string
+          i_codigopedidointegracao?: string
+          i_idoutembalagem?: number
+          i_quantidade?: number
+          i_valortotal?: number
+          i_valorunitariobruto?: number
+          i_valorunitarioliquido?: number
         }
         Relationships: []
       }
@@ -302,6 +578,90 @@ export type Database = {
           mes?: number
           updated_at?: string | null
           valor_rateio?: number
+        }
+        Relationships: []
+      }
+      out_documentofiscalpedido: {
+        Row: {
+          created_at: string
+          io_integracaoconcluida: boolean
+          o_cfop: string | null
+          o_chaveacesso: string | null
+          o_codigopedidointegracao: string | null
+          o_datahoraemissao: string | null
+          o_id: number
+          o_numero: string | null
+          o_serie: string | null
+          o_tipodocumento: string | null
+          o_valorprodutos: number | null
+          o_valortotal: number | null
+        }
+        Insert: {
+          created_at?: string
+          io_integracaoconcluida?: boolean
+          o_cfop?: string | null
+          o_chaveacesso?: string | null
+          o_codigopedidointegracao?: string | null
+          o_datahoraemissao?: string | null
+          o_id: number
+          o_numero?: string | null
+          o_serie?: string | null
+          o_tipodocumento?: string | null
+          o_valorprodutos?: number | null
+          o_valortotal?: number | null
+        }
+        Update: {
+          created_at?: string
+          io_integracaoconcluida?: boolean
+          o_cfop?: string | null
+          o_chaveacesso?: string | null
+          o_codigopedidointegracao?: string | null
+          o_datahoraemissao?: string | null
+          o_id?: number
+          o_numero?: string | null
+          o_serie?: string | null
+          o_tipodocumento?: string | null
+          o_valorprodutos?: number | null
+          o_valortotal?: number | null
+        }
+        Relationships: []
+      }
+      out_embalagem: {
+        Row: {
+          created_at: string
+          io_integracaoconcluida: boolean
+          o_caminhoclassificacao: string | null
+          o_codigobarras: string | null
+          o_descricao: string | null
+          o_id: number
+          o_idclassificacao: number | null
+          o_nomeclassificacaoprimeironivel: string | null
+          o_nomeclassificacaosegundonivel: string | null
+          o_nomeclassificacaoterceironivel: string | null
+        }
+        Insert: {
+          created_at?: string
+          io_integracaoconcluida?: boolean
+          o_caminhoclassificacao?: string | null
+          o_codigobarras?: string | null
+          o_descricao?: string | null
+          o_id: number
+          o_idclassificacao?: number | null
+          o_nomeclassificacaoprimeironivel?: string | null
+          o_nomeclassificacaosegundonivel?: string | null
+          o_nomeclassificacaoterceironivel?: string | null
+        }
+        Update: {
+          created_at?: string
+          io_integracaoconcluida?: boolean
+          o_caminhoclassificacao?: string | null
+          o_codigobarras?: string | null
+          o_descricao?: string | null
+          o_id?: number
+          o_idclassificacao?: number | null
+          o_nomeclassificacaoprimeironivel?: string | null
+          o_nomeclassificacaosegundonivel?: string | null
+          o_nomeclassificacaoterceironivel?: string | null
         }
         Relationships: []
       }
@@ -597,35 +957,117 @@ export type Database = {
         }
         Relationships: []
       }
+      v_dre_gerencial: {
+        Row: {
+          cmv_manipulado_real: number | null
+          cmv_revenda: number | null
+          cmv_total: number | null
+          despesas_operacionais_loja: number | null
+          impostos_sobre_vendas: number | null
+          margem_servicos: number | null
+          mes: string | null
+          perdas_operacionais: number | null
+          rateio_empreendimento: number | null
+          rateio_marketing: number | null
+          receita_bruta: number | null
+          receita_liquida: number | null
+          resultado_operacional: number | null
+          unidade_id: number | null
+          vale_compra: number | null
+          verba_fornecedor: number | null
+        }
+        Relationships: []
+      }
+      v_dre_perdas_operacionais: {
+        Row: {
+          mes: string | null
+          unidade: number | null
+          valor_perdas: number | null
+        }
+        Relationships: []
+      }
+      v_dre_perdas_operacionais_v2: {
+        Row: {
+          mes: string | null
+          perdas_subtipo: string | null
+          unidade_id: number | null
+          valor: number | null
+        }
+        Relationships: []
+      }
+      v_perdas_operacionais: {
+        Row: {
+          codigo: string | null
+          mes: string | null
+          perdas_subtipo: string | null
+          qtd_linhas: number | null
+          unidade_id: number | null
+          valor_total: number | null
+        }
+        Relationships: []
+      }
       v_perdas_operacionais_detalhe: {
         Row: {
           alpha7_mov_id: number | null
           baixaestoque_motivoid: number | null
           baixaestoque_observacao: string | null
+          codigo: string | null
+          custo: number | null
           customedio: number | null
           datahora: string | null
+          descricao_tipo: string | null
+          entrada: boolean | null
+          etl_loaded_at: string | null
+          perdas_detalhe: string | null
           perdas_subtipo: string | null
+          perdas_titulo: string | null
           quantidade: number | null
+          tipomovimentacaoestoqueid: number | null
+          unidade_id: number | null
+          unidadenegocioid_destino: number | null
+          unidadenegocioid_origem: number | null
           valor_estimado: number | null
         }
         Insert: {
           alpha7_mov_id?: number | null
           baixaestoque_motivoid?: number | null
           baixaestoque_observacao?: string | null
+          codigo?: string | null
+          custo?: number | null
           customedio?: number | null
           datahora?: string | null
-          perdas_subtipo?: string | null
+          descricao_tipo?: string | null
+          entrada?: boolean | null
+          etl_loaded_at?: string | null
+          perdas_detalhe?: string | null
+          perdas_subtipo?: never
+          perdas_titulo?: string | null
           quantidade?: number | null
+          tipomovimentacaoestoqueid?: number | null
+          unidade_id?: never
+          unidadenegocioid_destino?: number | null
+          unidadenegocioid_origem?: number | null
           valor_estimado?: never
         }
         Update: {
           alpha7_mov_id?: number | null
           baixaestoque_motivoid?: number | null
           baixaestoque_observacao?: string | null
+          codigo?: string | null
+          custo?: number | null
           customedio?: number | null
           datahora?: string | null
-          perdas_subtipo?: string | null
+          descricao_tipo?: string | null
+          entrada?: boolean | null
+          etl_loaded_at?: string | null
+          perdas_detalhe?: string | null
+          perdas_subtipo?: never
+          perdas_titulo?: string | null
           quantidade?: number | null
+          tipomovimentacaoestoqueid?: number | null
+          unidade_id?: never
+          unidadenegocioid_destino?: number | null
+          unidadenegocioid_origem?: number | null
           valor_estimado?: never
         }
         Relationships: []
@@ -636,6 +1078,89 @@ export type Database = {
           perdas_subtipo: string | null
           qtd_mov: number | null
           valor_estimado: number | null
+        }
+        Relationships: []
+      }
+      v_raw_alpha_vendas_validas: {
+        Row: {
+          competencia: string | null
+          created_at: string | null
+          data_emissao: string | null
+          id: number | null
+          loja_id: number | null
+          numero_documento: string | null
+          settlement_method: string | null
+          valor_total: number | null
+        }
+        Insert: {
+          competencia?: string | null
+          created_at?: string | null
+          data_emissao?: string | null
+          id?: number | null
+          loja_id?: number | null
+          numero_documento?: string | null
+          settlement_method?: string | null
+          valor_total?: number | null
+        }
+        Update: {
+          competencia?: string | null
+          created_at?: string | null
+          data_emissao?: string | null
+          id?: number | null
+          loja_id?: number | null
+          numero_documento?: string | null
+          settlement_method?: string | null
+          valor_total?: number | null
+        }
+        Relationships: []
+      }
+      v_vendas_documentos: {
+        Row: {
+          data_emissao: string | null
+          id_loja: number | null
+          id_venda: string | null
+          numero_documento: string | null
+          settlement_method: string | null
+          valor_total: number | null
+        }
+        Insert: {
+          data_emissao?: string | null
+          id_loja?: never
+          id_venda?: never
+          numero_documento?: string | null
+          settlement_method?: string | null
+          valor_total?: never
+        }
+        Update: {
+          data_emissao?: string | null
+          id_loja?: never
+          id_venda?: never
+          numero_documento?: string | null
+          settlement_method?: string | null
+          valor_total?: never
+        }
+        Relationships: []
+      }
+      v_vendas_itens_origem: {
+        Row: {
+          caminho_classificacao: string | null
+          cfop: string | null
+          chave_acesso: string | null
+          competencia: string | null
+          data_emissao: string | null
+          descricao_produto: string | null
+          dfe_id: string | null
+          id_embalagem: number | null
+          id_loja: number | null
+          id_venda_item: string | null
+          item_id: string | null
+          numero_documento: string | null
+          quantidade: number | null
+          tipo_documento: string | null
+          tipo_produto: string | null
+          valor_bruto: number | null
+          valor_liquido: number | null
+          valor_total: number | null
         }
         Relationships: []
       }
