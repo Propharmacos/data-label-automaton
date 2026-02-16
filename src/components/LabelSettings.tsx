@@ -48,6 +48,11 @@ const LabelSettings = () => {
   const [printerConfig, setPrinterConfigState] = useState<PrinterConfig>(getPrinterConfig());
   const [agentConfig, setAgentConfigState] = useState<PrintAgentConfig>(getPrintAgentConfig());
 
+  // Auto-salvar agentConfig sempre que mudar
+  useEffect(() => {
+    setPrintAgentConfig(agentConfig);
+  }, [agentConfig]);
+
   // Verificar status do agente ao carregar
   useEffect(() => {
     if (agentConfig.agentUrl) {
