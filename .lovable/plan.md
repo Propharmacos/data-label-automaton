@@ -1,80 +1,50 @@
 
-
-## Comparador PPLA Inteligente: Diagnosticar + Corrigir Automaticamente
+## Fazer as Etiquetas Imprimirem com Informacao
 
 ### O Problema
-Hoje o comparador mostra as diferenças entre o nosso sistema e o Formula Certa, mas para na tela. O usuario tem que olhar os numeros, entender o que significa, e ir manualmente nos campos de calibracao para ajustar. Isso nao faz sentido -- se o sistema ja sabe a diferenca, ele deveria corrigir sozinho.
+Quando voce manda imprimir, a etiqueta sai mas esta em branco -- sem nenhum texto. Isso acontece porque os parametros de calibracao do nosso sistema (contraste, fonte, rotacao) estao diferentes do que a impressora Argox precisa para funcionar. O comparador PPLA que criamos mostrou que o Formula Certa usa valores diferentes dos nossos.
 
-### A Solucao
-Transformar o comparador em um **diagnosticador com autocorrecao**. Apos a analise, o sistema vai:
+### A Solucao (3 partes)
 
-1. **Identificar as diferencas corrigiveis** -- quais parametros do nosso sistema podem ser ajustados
-2. **Mostrar um resumo claro** -- "O FC usa contraste H14, nos usamos H08. Quer corrigir?"
-3. **Aplicar com um clique** -- botao "Aplicar Correcoes" que atualiza automaticamente os campos de calibracao
+**Parte 1: Corrigir os valores padrao de calibracao**
 
-### O que pode ser corrigido automaticamente
+O valor padrao de contraste no sistema esta em `12`, mas o comparador mostrou que o Formula Certa usa `14` (comando H14). Alem disso, a rotacao padrao esta em `1` (90 graus), o que pode estar jogando o texto para fora da area da etiqueta em algumas impressoras.
 
-O nosso sistema tem estes campos ajustaveis na calibracao:
+Vamos atualizar o `src/config/api.ts` com valores padrao que funcionam:
+- Contraste: 12 -> 14 (para garantir que a impressao termica fique visivel)
+- Rotacao: manter como 1 (padrao PPLA para Argox)
 
-| Campo | Comando PPLA | O que faz |
-|-------|-------------|-----------|
-| Contraste | Hxx | Intensidade de impressao |
-| Fonte PPLA | 0-9 | Tamanho da fonte |
-| Rotacao | 0-3 | Orientacao do texto |
-| Margem Esquerda | Cxxxx | Deslocamento horizontal |
-| Offset Vertical | Rxxxx | Deslocamento vertical |
+**Parte 2: Adicionar botao "Impressao de Diagnostico" na tela principal**
 
-Se o comparador detectar que o FC usa H14 e nos usamos H08, ele pode automaticamente mudar o contraste para 14. Se o FC usa fonte 2 e nos usamos fonte 5, ele pode ajustar.
+Na tela principal (Index), quando o usuario tiver rotulos carregados, adicionar um botao que imprime UMA etiqueta de teste com os dados reais do rotulo atual, mostrando no toast exatamente quais parametros foram usados (contraste, fonte, rotacao, impressora). Assim o usuario sabe imediatamente o que esta sendo enviado.
 
-### Como vai funcionar para o usuario
+**Parte 3: Adicionar "Teste Progressivo" nas Configuracoes**
 
-1. Roda o Diagnostico PPLA (como ja faz)
-2. Clica "Comparar com FC" e cola os comandos do .prn
-3. Clica "Analisar" -- ve as diferencas agrupadas (como ja existe)
-4. **NOVO**: Aparece um painel "Correcoes Sugeridas" com cada diferenca corrigivel listada
-5. **NOVO**: Botao "Aplicar Todas as Correcoes" que atualiza os campos de calibracao do nosso sistema automaticamente
-6. Os campos de Contraste, Fonte, Rotacao, Margem e Offset sao atualizados instantaneamente
-7. O usuario pode rodar o diagnostico novamente para confirmar que agora esta igual
+Na aba Agente HTTP das configuracoes, adicionar um botao "Teste Progressivo" que imprime 3 etiquetas de teste automaticamente, cada uma com configuracoes diferentes:
+- Etiqueta 1: Rotacao 0 (horizontal), Fonte 2, Contraste 14
+- Etiqueta 2: Rotacao 1 (90 graus), Fonte 2, Contraste 14
+- Etiqueta 3: Rotacao 1, Fonte 0, Contraste 16
+
+Cada etiqueta tera um titulo identificando qual configuracao esta usando (ex: "TESTE R0 F2 H14"). Assim o usuario identifica visualmente qual combinacao funciona na impressora dele e pode aplicar aquela configuracao.
 
 ### Detalhes Tecnicos
 
-**Arquivos modificados:**
+**Arquivo 1: `src/config/api.ts`**
+- Alterar `DEFAULT_PRINT_AGENT_CONFIG.calibracao.contraste` de `12` para `14`
 
-1. **`src/utils/pplaParser.ts`** -- Adicionar nova funcao `extractCalibrationFromDiff()`:
-   - Recebe o array de `DiffResult[]`
-   - Extrai os valores de calibracao do lado direito (Formula Certa): contraste (H), fonte, rotacao
-   - Extrai diferencas de coordenadas para calcular offsets de margem e deslocamento vertical
-   - Retorna um objeto `SuggestedFixes` com os valores sugeridos e a justificativa de cada um
+**Arquivo 2: `src/services/printAgentService.ts`**
+- Adicionar funcao `testeProgressivoAgente(url, impressora)` que envia 3 etiquetas com configuracoes diferentes, cada uma com texto identificando os parametros usados
+- Cada etiqueta usa o endpoint `/teste` ou `/imprimir` do agente com calibracao especifica
 
-2. **`src/components/PPLAComparer.tsx`** -- Adicionar painel de correcoes:
-   - Nova secao "Correcoes Sugeridas" que aparece apos a analise
-   - Lista cada correcao com valor atual vs valor sugerido
-   - Checkbox para selecionar/deselecionar correcoes individuais
-   - Botao "Aplicar Correcoes Selecionadas"
-   - Recebe uma callback `onApplyFixes` do componente pai (LabelSettings) que atualiza o `agentConfig.calibracao`
+**Arquivo 3: `src/components/LabelSettings.tsx`**
+- Adicionar botao "Teste Progressivo" na secao do Agente HTTP, ao lado do botao de teste existente
+- Ao clicar, chama `testeProgressivoAgente` e exibe toast com resultado
+- Ao identificar qual configuracao funciona, o usuario pode ajustar os campos de calibracao manualmente ou usar o comparador para aplicar automaticamente
 
-3. **`src/components/LabelSettings.tsx`** -- Conectar a aplicacao das correcoes:
-   - Passar callback `onApplyFixes` para o PPLAComparer
-   - A callback recebe o objeto `SuggestedFixes` e atualiza `agentConfig.calibracao` com os novos valores
-   - Como ja existe auto-save via useEffect, os valores sao persistidos automaticamente no localStorage
-   - Exibir toast de confirmacao "Calibracao atualizada com base no Formula Certa"
+**Arquivo 4: `src/pages/Index.tsx`**
+- Adicionar indicador visual dos parametros de impressao ativos (contraste, fonte, rotacao) proximo ao seletor de impressora, para que o usuario veja o que esta sendo usado sem precisar ir nas configuracoes
 
-**Estrutura do `SuggestedFixes`:**
-```text
-{
-  contraste: { atual: 8, sugerido: 14, motivo: "FC usa H14, sistema usa H08" },
-  fonte: { atual: 2, sugerido: 2, motivo: null },  // sem diferenca
-  rotacao: { atual: 1, sugerido: 1, motivo: null },
-  margem_c: { atual: 0, sugerido: 15, motivo: "Coords X do FC deslocadas ~15 unidades" },
-  offset_r: { atual: 0, sugerido: 0, motivo: null }
-}
-```
-
-**Logica de extracao dos valores do FC:**
-- Contraste: procurar linha de config com prefixo "H", extrair numero (ex: H14 -> 14)
-- Fonte: pegar a fonte mais frequente nas linhas de texto do FC
-- Rotacao: pegar a rotacao mais frequente nas linhas de texto do FC
-- Margem/Offset: calcular a media das diferencas de coordenadas X e Y entre linhas pareadas
-
-### Resultado Final
-O comparador deixa de ser apenas informativo e passa a ser uma ferramenta de **autocalibracao**: compara, diagnostica e corrige com um clique.
+### Resultado Esperado
+1. Com o contraste padrao atualizado para H14, etiquetas que antes saiam em branco devem comecar a mostrar texto
+2. Se ainda nao funcionar, o teste progressivo revela exatamente qual combinacao de parametros a impressora aceita
+3. O usuario tem visibilidade total do que esta sendo enviado para a impressora
