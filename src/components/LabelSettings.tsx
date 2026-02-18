@@ -23,7 +23,7 @@ import {
   setPrintAgentConfig,
 } from "@/config/api";
 import { verificarConexao, verificarImpressora, imprimirTeste } from "@/services/requisicaoService";
-import { verificarAgente, listarImpressoras, testeImpressaoAgente, diagnosticoPPLA, capturarPorta9100 } from "@/services/printAgentService";
+import { verificarAgente, listarImpressoras, testeImpressaoAgente, diagnosticoPPLA, capturarPorta9100, testeProgressivoAgente } from "@/services/printAgentService";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ApiConfig, PharmacyConfig, LabelConfig, LayoutType, LayoutConfig, PrinterConfig, PrintAgentConfig, PrinterCalibrationConfig } from "@/types/requisicao";
 import { getLayouts, fieldLabels } from "@/config/layouts";
@@ -44,6 +44,7 @@ const LabelSettings = () => {
   const [isPrintingAgentTest, setIsPrintingAgentTest] = useState(false);
   const [agentPrinters, setAgentPrinters] = useState<string[]>([]);
   const [isLoadingPrinters, setIsLoadingPrinters] = useState(false);
+  const [isProgressiveTest, setIsProgressiveTest] = useState(false);
   const [isDiagnosticOpen, setIsDiagnosticOpen] = useState(false);
   const [isDiagnosticLoading, setIsDiagnosticLoading] = useState(false);
   const [diagnosticResult, setDiagnosticResult] = useState<any>(null);
@@ -278,6 +279,22 @@ const LabelSettings = () => {
     }
   };
 
+  const handleProgressiveTest = async () => {
+    setIsProgressiveTest(true);
+    const result = await testeProgressivoAgente(agentConfig.agentUrl, agentConfig.impressora);
+    setIsProgressiveTest(false);
+    if (result.success && result.data) {
+      const sucesso = result.data.resultados.filter(r => r.sucesso).length;
+      const total = result.data.resultados.length;
+      toast({
+        title: `Teste Progressivo: ${sucesso}/${total} enviadas`,
+        description: result.data.resultados.map(r => `${r.config}: ${r.sucesso ? '✓' : '✗ ' + r.erro}`).join(' | '),
+      });
+    } else {
+      toast({ title: "Erro no teste progressivo", variant: "destructive" });
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Tabs defaultValue="servidor" className="w-full">
@@ -452,6 +469,14 @@ const LabelSettings = () => {
                 >
                   <Radio className={`h-4 w-4 mr-2 ${isCapturing ? 'animate-pulse' : ''}`} />
                   Capturar FC (9100)
+                </Button>
+                <Button 
+                  variant="secondary" 
+                  onClick={handleProgressiveTest}
+                  disabled={isProgressiveTest || !isAgentOnline}
+                >
+                  <TestTube className={`h-4 w-4 mr-2 ${isProgressiveTest ? 'animate-pulse' : ''}`} />
+                  {isProgressiveTest ? 'Imprimindo 3 testes...' : 'Teste Progressivo'}
                 </Button>
               {diagnosticResult && (
                   <Button 

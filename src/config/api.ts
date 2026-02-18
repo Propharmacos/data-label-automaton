@@ -40,7 +40,7 @@ const DEFAULT_PRINT_AGENT_CONFIG: PrintAgentConfig = {
   calibracao: {
     margem_c: 0,
     offset_r: 0,
-    contraste: 12,
+    contraste: 14,
     fonte: 2,
     rotacao: 1,
   },
