@@ -173,6 +173,67 @@ export const capturarPorta9100 = async (
   }
 };
 
+// Teste Progressivo - imprime 3 etiquetas com configurações diferentes para identificar qual funciona
+export const testeProgressivoAgente = async (
+  url: string,
+  impressora: string
+): Promise<ApiResponse<{ resultados: { config: string; sucesso: boolean; erro?: string }[] }>> => {
+  const configuracoes = [
+    { rotacao: 0, fonte: 2, contraste: 14, label: "TESTE R0 F2 H14" },
+    { rotacao: 1, fonte: 2, contraste: 14, label: "TESTE R1 F2 H14" },
+    { rotacao: 1, fonte: 0, contraste: 16, label: "TESTE R1 F0 H16" },
+  ];
+
+  const resultados: { config: string; sucesso: boolean; erro?: string }[] = [];
+
+  for (const cfg of configuracoes) {
+    try {
+      const payload = {
+        impressora,
+        layout_tipo: "TESTE_PROGRESSIVO",
+        farmacia: { nome: cfg.label, farmaceutico: `Rot=${cfg.rotacao} Fonte=${cfg.fonte}`, crf: `H${cfg.contraste}` },
+        calibracao: { margem_c: 0, offset_r: 0, contraste: cfg.contraste, fonte: cfg.fonte, rotacao: cfg.rotacao },
+        rotulos: [{
+          id: `teste-${cfg.rotacao}-${cfg.fonte}-${cfg.contraste}`,
+          nrRequisicao: "0000",
+          nrItem: "1",
+          nomePaciente: cfg.label,
+          nomeMedico: `ROTACAO ${cfg.rotacao}`,
+          prefixoCRM: "CRM",
+          numeroCRM: "0000",
+          ufCRM: "SP",
+          formula: `Fonte ${cfg.fonte} | Contraste H${cfg.contraste}`,
+          dataFabricacao: new Date().toISOString().split("T")[0],
+          dataValidade: new Date().toISOString().split("T")[0],
+          posologia: `Config: R${cfg.rotacao} F${cfg.fonte} H${cfg.contraste}`,
+          quantidade: 1,
+        }],
+      };
+
+      const response = await fetch(`${url}/imprimir`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "ngrok-skip-browser-warning": "true" },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15000),
+      });
+
+      if (response.ok) {
+        resultados.push({ config: cfg.label, sucesso: true });
+      } else {
+        const err = await response.json().catch(() => ({}));
+        resultados.push({ config: cfg.label, sucesso: false, erro: err.error || "Erro" });
+      }
+    } catch (error) {
+      resultados.push({ config: cfg.label, sucesso: false, erro: "Timeout/conexão" });
+    }
+
+    // Esperar 2s entre etiquetas para a impressora processar
+    await new Promise(resolve => setTimeout(resolve, 2000));
+  }
+
+  return { success: true, data: { resultados } };
+};
+
 
 export const imprimirViaAgente = async (
   config: PrintAgentConfig,

@@ -209,11 +209,30 @@ const Index = () => {
 
         {/* Layout selector (only when rotulos loaded) */}
         {rotulos.length > 0 && (
-          <div className="flex items-center justify-center gap-2 mb-6">
-            <LayoutSelector value={layoutType} onChange={handleLayoutChange} />
-            <Button variant="ghost" size="icon" onClick={() => setEditorOpen(true)} title="Editar layout">
-              <Edit className="h-4 w-4" />
-            </Button>
+          <div className="flex flex-col items-center gap-2 mb-6">
+            <div className="flex items-center gap-2">
+              <LayoutSelector value={layoutType} onChange={handleLayoutChange} />
+              <Button variant="ghost" size="icon" onClick={() => setEditorOpen(true)} title="Editar layout">
+                <Edit className="h-4 w-4" />
+              </Button>
+            </div>
+            {(() => {
+              const ac = getPrintAgentConfig();
+              if (ac.enabled && ac.calibracao) {
+                return (
+                  <div className="flex items-center gap-3 text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-full">
+                    <span title="Contraste">H{ac.calibracao.contraste}</span>
+                    <span className="text-border">|</span>
+                    <span title="Fonte">F{ac.calibracao.fonte}</span>
+                    <span className="text-border">|</span>
+                    <span title="Rotação">R{ac.calibracao.rotacao}</span>
+                    <span className="text-border">|</span>
+                    <span title="Impressora">{selectedPrinter || ac.impressora}</span>
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </div>
         )}
 
