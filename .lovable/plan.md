@@ -1,52 +1,66 @@
 
-## Comparador PPLA: Campo de Colagem para Comandos do Formula Certa
 
-### Objetivo
-Adicionar ao modal de diagnostico PPLA existente um campo de texto onde o usuario pode colar os comandos capturados do arquivo `.prn` do Formula Certa, com comparacao lado a lado e destaque visual nas diferencas.
+## Melhorar Comparador PPLA: Alinhamento por Tipo
 
-### O que sera feito
+### Problema Atual
+O comparador atual compara linha 1 com linha 1, linha 2 com linha 2, etc. Como o sistema e o Formula Certa geram comandos em ordens diferentes, quase tudo aparece como "diferente" mesmo quando os comandos sao equivalentes -- so estao em posicoes diferentes.
 
-1. **Campo de texto para colagem** - Um textarea no modal de diagnostico onde o usuario cola o conteudo do arquivo `.prn` capturado do Formula Certa.
+### Solucao
+Substituir a comparacao posicional por uma comparacao **por grupos de tipo**, onde headers sao comparados com headers, configs com configs, e linhas de texto sao pareadas pelo conteudo mais similar.
 
-2. **Parser de comandos PPLA** - Funcao que extrai e categoriza os comandos colados:
-   - Cabecalho (STX f, STX L, STX e)
-   - Configuracao (PA, D11, H14)
-   - Linhas de texto (coordenadas + dados)
-   - Finalizacao (Q, E)
+### Como vai funcionar
 
-3. **Comparacao lado a lado** - Dois paineis no modal:
-   - **Esquerda**: "Nosso Sistema" (saida do diagnostico PPLA existente)
-   - **Direita**: "Formula Certa" (comandos colados)
-   - Linhas com diferencas destacadas em vermelho/amarelo
-   - Linhas identicas em verde
+**1. Agrupar comandos por tipo**
+Apos o parse, separar cada lado em 4 grupos:
+- `header` (STX L, STX f, etc.)
+- `config` (PA, D11, H14, S4, q, C, c)
+- `text` (linhas com fonte/coordenadas/conteudo)
+- `end` (Q0001, E)
 
-4. **Analise automatica de diferencas** - Resumo indicando:
-   - Diferencas em coordenadas (X, Y)
-   - Diferencas em fonte/rotacao/multiplicadores
-   - Diferencas em comandos de calibracao (D, H, contraste)
-   - Comandos presentes em um lado mas ausentes no outro
+**2. Comparar cada grupo separadamente**
+
+- **Headers**: Comparar por comando base (ex: ambos tem `STX L`? identico)
+- **Config**: Comparar por prefixo (ex: `D11` vs `D11` = identico, `H08` vs `H14` = diferente)
+- **Texto**: Parear linhas de texto pelo conteudo mais similar (matching por conteudo textual, depois comparar coordenadas/fonte)
+- **End**: Comparar diretamente
+
+**3. Matching inteligente de linhas de texto**
+Para linhas de texto, usar um algoritmo que:
+- Primeiro tenta match exato pelo conteudo (`content`)
+- Depois tenta match parcial (conteudo parecido)
+- Linhas sem par ficam como "only-left" ou "only-right"
+
+**4. Exibicao agrupada no modal**
+A tabela lado a lado vai mostrar separadores visuais entre cada grupo:
+```text
+[HEADERS]
+  STX L          | STX L         -> verde
+[CONFIGURACAO]
+  D11            | D11           -> verde
+  H08            | H14           -> vermelho (diferenca real!)
+  PA             | PA            -> verde
+[TEXTO]
+  ...medicamento | ...medicamento -> amarelo (coord diferente)
+[FIM]
+  Q0001          | Q0001         -> verde
+  E              | E             -> verde
+```
 
 ### Detalhes Tecnicos
 
-**Arquivos modificados:**
-- `src/components/LabelSettings.tsx` - Adicionar botao "Comparar com FC" e o modal de comparacao com textarea + visualizacao lado a lado
-- Possivelmente extrair o comparador em um componente separado (`src/components/PPLAComparer.tsx`) para manter o codigo organizado
+**Arquivo modificado:** `src/components/PPLAComparer.tsx`
 
-**Estrutura do parser:**
-- Detectar blocos de etiqueta separados por `STX L` / `Q0001E`
-- Extrair apenas o primeiro bloco (uma etiqueta) para comparacao
-- Separar cada linha em: tipo (cabecalho/config/texto/fim), e para linhas de texto: font, rotation, hmult, vmult, x, y, conteudo
+**Mudancas especificas:**
 
-**UI do comparador:**
-- Dialog/modal com largura expandida (max-w-4xl)
-- ScrollArea com dois paineis lado a lado
-- Textarea na parte superior para colar os comandos
-- Botao "Analisar" que processa e exibe a comparacao
-- Badge colorido por linha: verde (identico), amarelo (similar), vermelho (diferente)
+1. **Nova funcao `groupByType(lines: PPLALine[])`** -- Separa o array parseado em `{ headers, configs, texts, ends, unknowns }`.
 
-**Fluxo do usuario:**
-1. Abrir Notepad++ com o arquivo `.prn`
-2. Copiar todo o conteudo (Ctrl+A, Ctrl+C)
-3. No sistema web, clicar "Diagnostico PPLA" e depois "Comparar com FC"
-4. Colar no textarea e clicar "Analisar"
-5. Visualizar diferencas destacadas lado a lado
+2. **Nova funcao `matchTextLines(left: PPLALine[], right: PPLALine[])`** -- Pareia linhas de texto pelo conteudo mais similar usando comparacao de string. Para cada linha da esquerda, encontra a melhor correspondencia na direita (pelo `content`). Linhas sem par ficam como sobras.
+
+3. **Nova funcao `compareConfigs(left: PPLALine[], right: PPLALine[])`** -- Agrupa configs pelo prefixo (D, H, S, PA, q, C, c) e compara valores.
+
+4. **Substituir `buildDiff()`** por **`buildGroupedDiff()`** -- Retorna um array de `DiffResult` com um campo adicional `section` (string) para indicar o grupo. Processa cada grupo separadamente e concatena os resultados com separadores.
+
+5. **Atualizar a renderizacao** -- Adicionar linhas separadoras visuais entre grupos (ex: uma barra cinza com o nome da secao: "HEADERS", "CONFIGURACAO", "TEXTO", "FIM").
+
+6. **Atualizar `summarizeDiffs()`** -- Manter a mesma logica de resumo, mas agora os dados estao corretamente pareados, entao os numeros refletem diferencas reais.
+
