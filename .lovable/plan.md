@@ -1,68 +1,52 @@
 
-
-## Atualizar Layout A_PAC_PEQ para Paridade com Formula Certa
+## Comparador PPLA: Campo de Colagem para Comandos do Formula Certa
 
 ### Objetivo
-Ajustar a configuracao do rotulo A.PAC.PEQ (45x25mm) para seguir exatamente o template de referencia do Formula Certa, com 3 linhas de conteudo e grade de 8 linhas disponiveis.
+Adicionar ao modal de diagnostico PPLA existente um campo de texto onde o usuario pode colar os comandos capturados do arquivo `.prn` do Formula Certa, com comparacao lado a lado e destaque visual nas diferencas.
 
-### Template de Referencia (Print 1)
+### O que sera feito
 
-```text
-L1: PPPPPPPPPPPPPPPPPPPPPPPPP REQ:RRRRRRR
-L2: DR(A)MMMMMMMMMMMMMMMM ÇÇÇÇÇÇÇÇÇÇÇÇÇÇÇ
-L3:                          REG:GGGGGGGG
-L4-L8: (vazias, disponiveis para edicao)
-```
+1. **Campo de texto para colagem** - Um textarea no modal de diagnostico onde o usuario cola o conteudo do arquivo `.prn` capturado do Formula Certa.
 
-Onde:
-- P (25 chars) = Nome do paciente (variavel do banco)
-- R (7 chars) = Numero da requisicao (variavel do banco)
-- M (16 chars) = Nome do prescritor (variavel do banco)
-- C (15 chars) = Registro do conselho do prescritor (variavel do banco)
-- G (8 chars) = Codigo de registro (variavel do banco)
+2. **Parser de comandos PPLA** - Funcao que extrai e categoriza os comandos colados:
+   - Cabecalho (STX f, STX L, STX e)
+   - Configuracao (PA, D11, H14)
+   - Linhas de texto (coordenadas + dados)
+   - Finalizacao (Q, E)
 
-### Alteracoes
+3. **Comparacao lado a lado** - Dois paineis no modal:
+   - **Esquerda**: "Nosso Sistema" (saida do diagnostico PPLA existente)
+   - **Direita**: "Formula Certa" (comandos colados)
+   - Linhas com diferencas destacadas em vermelho/amarelo
+   - Linhas identicas em verde
 
-#### 1. `src/config/layouts.ts` - Configuracao do layout A_PAC_PEQ
-
-- Alterar `linhasMax` de `3` para `8` (conforme barra de status do Formula Certa: "Lin: 4/8")
-- Manter `colunasMax` adequado ao template (a linha mais longa tem ~38 chars, manter `38`)
-- Manter `dimensoes` iguais (45x25mm)
-- Ajustar as linhas para incluir os campos corretos:
-  - Linha 1: `paciente` + `requisicao`
-  - Linha 2: `medico` + `registro` (conselho do prescritor -- sera o campo existente reutilizado)
-  - Linha 3: `registro` (REG: alinhado a direita)
-- Tornar visiveis apenas: `paciente`, `requisicao`, `medico`, `registro`
-- Os demais campos permanecem `visible: false`
-
-#### 2. `src/components/LabelTextEditor.tsx` - Gerador de texto `generateTextPacPeq`
-
-Atualizar a funcao para respeitar os limites de caracteres do template:
-
-- **Linha 1**: Nome do paciente truncado em 25 caracteres + espaco + `REQ:` + numero requisicao truncado em 7 caracteres, alinhados com `padLine`
-- **Linha 2**: `DR(A)` + nome do medico truncado em 16 caracteres + espaco + conselho truncado em 15 caracteres, alinhados com `padLine`
-- **Linha 3**: `REG:` + registro truncado em 8 caracteres, alinhado a direita
-- **Linhas 4-8**: Vazias (disponiveis para edicao manual pelo usuario)
-
-#### 3. Comportamento no editor
-
-- O editor ja suporta `truncateText` para A_PAC_PEQ -- isso permanece
-- A barra de status mostrara `Lin: X/8 Col: Y/38`
-- O usuario podera editar manualmente o conteudo das 8 linhas
+4. **Analise automatica de diferencas** - Resumo indicando:
+   - Diferencas em coordenadas (X, Y)
+   - Diferencas em fonte/rotacao/multiplicadores
+   - Diferencas em comandos de calibracao (D, H, contraste)
+   - Comandos presentes em um lado mas ausentes no outro
 
 ### Detalhes Tecnicos
 
 **Arquivos modificados:**
-- `src/config/layouts.ts` (linhas ~100-130): Atualizar bloco `A_PAC_PEQ` com `linhasMax: 8` e campos visiveis corretos
-- `src/components/LabelTextEditor.tsx` (linhas ~108-143): Reescrever `generateTextPacPeq` com truncamento por campo e 8 linhas de saida
+- `src/components/LabelSettings.tsx` - Adicionar botao "Comparar com FC" e o modal de comparacao com textarea + visualizacao lado a lado
+- Possivelmente extrair o comparador em um componente separado (`src/components/PPLAComparer.tsx`) para manter o codigo organizado
 
-**Campos e limites de caracteres:**
+**Estrutura do parser:**
+- Detectar blocos de etiqueta separados por `STX L` / `Q0001E`
+- Extrair apenas o primeiro bloco (uma etiqueta) para comparacao
+- Separar cada linha em: tipo (cabecalho/config/texto/fim), e para linhas de texto: font, rotation, hmult, vmult, x, y, conteudo
 
-| Campo | Variavel | Max Chars | Posicao |
-|-------|----------|-----------|---------|
-| Paciente | nomePaciente | 25 | L1, esquerda |
-| Requisicao | nrRequisicao-nrItem | 7 | L1, direita (REQ:) |
-| Prescritor | nomeMedico | 16 | L2, esquerda (DR(A)) |
-| Conselho | prefixoCRM+ufCRM+numeroCRM | 15 | L2, direita |
-| Registro | numeroRegistro | 8 | L3, direita (REG:) |
+**UI do comparador:**
+- Dialog/modal com largura expandida (max-w-4xl)
+- ScrollArea com dois paineis lado a lado
+- Textarea na parte superior para colar os comandos
+- Botao "Analisar" que processa e exibe a comparacao
+- Badge colorido por linha: verde (identico), amarelo (similar), vermelho (diferente)
 
+**Fluxo do usuario:**
+1. Abrir Notepad++ com o arquivo `.prn`
+2. Copiar todo o conteudo (Ctrl+A, Ctrl+C)
+3. No sistema web, clicar "Diagnostico PPLA" e depois "Comparar com FC"
+4. Colar no textarea e clicar "Analisar"
+5. Visualizar diferencas destacadas lado a lado
