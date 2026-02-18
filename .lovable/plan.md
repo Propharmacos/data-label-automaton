@@ -1,66 +1,80 @@
 
 
-## Melhorar Comparador PPLA: Alinhamento por Tipo
+## Comparador PPLA Inteligente: Diagnosticar + Corrigir Automaticamente
 
-### Problema Atual
-O comparador atual compara linha 1 com linha 1, linha 2 com linha 2, etc. Como o sistema e o Formula Certa geram comandos em ordens diferentes, quase tudo aparece como "diferente" mesmo quando os comandos sao equivalentes -- so estao em posicoes diferentes.
+### O Problema
+Hoje o comparador mostra as diferenças entre o nosso sistema e o Formula Certa, mas para na tela. O usuario tem que olhar os numeros, entender o que significa, e ir manualmente nos campos de calibracao para ajustar. Isso nao faz sentido -- se o sistema ja sabe a diferenca, ele deveria corrigir sozinho.
 
-### Solucao
-Substituir a comparacao posicional por uma comparacao **por grupos de tipo**, onde headers sao comparados com headers, configs com configs, e linhas de texto sao pareadas pelo conteudo mais similar.
+### A Solucao
+Transformar o comparador em um **diagnosticador com autocorrecao**. Apos a analise, o sistema vai:
 
-### Como vai funcionar
+1. **Identificar as diferencas corrigiveis** -- quais parametros do nosso sistema podem ser ajustados
+2. **Mostrar um resumo claro** -- "O FC usa contraste H14, nos usamos H08. Quer corrigir?"
+3. **Aplicar com um clique** -- botao "Aplicar Correcoes" que atualiza automaticamente os campos de calibracao
 
-**1. Agrupar comandos por tipo**
-Apos o parse, separar cada lado em 4 grupos:
-- `header` (STX L, STX f, etc.)
-- `config` (PA, D11, H14, S4, q, C, c)
-- `text` (linhas com fonte/coordenadas/conteudo)
-- `end` (Q0001, E)
+### O que pode ser corrigido automaticamente
 
-**2. Comparar cada grupo separadamente**
+O nosso sistema tem estes campos ajustaveis na calibracao:
 
-- **Headers**: Comparar por comando base (ex: ambos tem `STX L`? identico)
-- **Config**: Comparar por prefixo (ex: `D11` vs `D11` = identico, `H08` vs `H14` = diferente)
-- **Texto**: Parear linhas de texto pelo conteudo mais similar (matching por conteudo textual, depois comparar coordenadas/fonte)
-- **End**: Comparar diretamente
+| Campo | Comando PPLA | O que faz |
+|-------|-------------|-----------|
+| Contraste | Hxx | Intensidade de impressao |
+| Fonte PPLA | 0-9 | Tamanho da fonte |
+| Rotacao | 0-3 | Orientacao do texto |
+| Margem Esquerda | Cxxxx | Deslocamento horizontal |
+| Offset Vertical | Rxxxx | Deslocamento vertical |
 
-**3. Matching inteligente de linhas de texto**
-Para linhas de texto, usar um algoritmo que:
-- Primeiro tenta match exato pelo conteudo (`content`)
-- Depois tenta match parcial (conteudo parecido)
-- Linhas sem par ficam como "only-left" ou "only-right"
+Se o comparador detectar que o FC usa H14 e nos usamos H08, ele pode automaticamente mudar o contraste para 14. Se o FC usa fonte 2 e nos usamos fonte 5, ele pode ajustar.
 
-**4. Exibicao agrupada no modal**
-A tabela lado a lado vai mostrar separadores visuais entre cada grupo:
-```text
-[HEADERS]
-  STX L          | STX L         -> verde
-[CONFIGURACAO]
-  D11            | D11           -> verde
-  H08            | H14           -> vermelho (diferenca real!)
-  PA             | PA            -> verde
-[TEXTO]
-  ...medicamento | ...medicamento -> amarelo (coord diferente)
-[FIM]
-  Q0001          | Q0001         -> verde
-  E              | E             -> verde
-```
+### Como vai funcionar para o usuario
+
+1. Roda o Diagnostico PPLA (como ja faz)
+2. Clica "Comparar com FC" e cola os comandos do .prn
+3. Clica "Analisar" -- ve as diferencas agrupadas (como ja existe)
+4. **NOVO**: Aparece um painel "Correcoes Sugeridas" com cada diferenca corrigivel listada
+5. **NOVO**: Botao "Aplicar Todas as Correcoes" que atualiza os campos de calibracao do nosso sistema automaticamente
+6. Os campos de Contraste, Fonte, Rotacao, Margem e Offset sao atualizados instantaneamente
+7. O usuario pode rodar o diagnostico novamente para confirmar que agora esta igual
 
 ### Detalhes Tecnicos
 
-**Arquivo modificado:** `src/components/PPLAComparer.tsx`
+**Arquivos modificados:**
 
-**Mudancas especificas:**
+1. **`src/utils/pplaParser.ts`** -- Adicionar nova funcao `extractCalibrationFromDiff()`:
+   - Recebe o array de `DiffResult[]`
+   - Extrai os valores de calibracao do lado direito (Formula Certa): contraste (H), fonte, rotacao
+   - Extrai diferencas de coordenadas para calcular offsets de margem e deslocamento vertical
+   - Retorna um objeto `SuggestedFixes` com os valores sugeridos e a justificativa de cada um
 
-1. **Nova funcao `groupByType(lines: PPLALine[])`** -- Separa o array parseado em `{ headers, configs, texts, ends, unknowns }`.
+2. **`src/components/PPLAComparer.tsx`** -- Adicionar painel de correcoes:
+   - Nova secao "Correcoes Sugeridas" que aparece apos a analise
+   - Lista cada correcao com valor atual vs valor sugerido
+   - Checkbox para selecionar/deselecionar correcoes individuais
+   - Botao "Aplicar Correcoes Selecionadas"
+   - Recebe uma callback `onApplyFixes` do componente pai (LabelSettings) que atualiza o `agentConfig.calibracao`
 
-2. **Nova funcao `matchTextLines(left: PPLALine[], right: PPLALine[])`** -- Pareia linhas de texto pelo conteudo mais similar usando comparacao de string. Para cada linha da esquerda, encontra a melhor correspondencia na direita (pelo `content`). Linhas sem par ficam como sobras.
+3. **`src/components/LabelSettings.tsx`** -- Conectar a aplicacao das correcoes:
+   - Passar callback `onApplyFixes` para o PPLAComparer
+   - A callback recebe o objeto `SuggestedFixes` e atualiza `agentConfig.calibracao` com os novos valores
+   - Como ja existe auto-save via useEffect, os valores sao persistidos automaticamente no localStorage
+   - Exibir toast de confirmacao "Calibracao atualizada com base no Formula Certa"
 
-3. **Nova funcao `compareConfigs(left: PPLALine[], right: PPLALine[])`** -- Agrupa configs pelo prefixo (D, H, S, PA, q, C, c) e compara valores.
+**Estrutura do `SuggestedFixes`:**
+```text
+{
+  contraste: { atual: 8, sugerido: 14, motivo: "FC usa H14, sistema usa H08" },
+  fonte: { atual: 2, sugerido: 2, motivo: null },  // sem diferenca
+  rotacao: { atual: 1, sugerido: 1, motivo: null },
+  margem_c: { atual: 0, sugerido: 15, motivo: "Coords X do FC deslocadas ~15 unidades" },
+  offset_r: { atual: 0, sugerido: 0, motivo: null }
+}
+```
 
-4. **Substituir `buildDiff()`** por **`buildGroupedDiff()`** -- Retorna um array de `DiffResult` com um campo adicional `section` (string) para indicar o grupo. Processa cada grupo separadamente e concatena os resultados com separadores.
+**Logica de extracao dos valores do FC:**
+- Contraste: procurar linha de config com prefixo "H", extrair numero (ex: H14 -> 14)
+- Fonte: pegar a fonte mais frequente nas linhas de texto do FC
+- Rotacao: pegar a rotacao mais frequente nas linhas de texto do FC
+- Margem/Offset: calcular a media das diferencas de coordenadas X e Y entre linhas pareadas
 
-5. **Atualizar a renderizacao** -- Adicionar linhas separadoras visuais entre grupos (ex: uma barra cinza com o nome da secao: "HEADERS", "CONFIGURACAO", "TEXTO", "FIM").
-
-6. **Atualizar `summarizeDiffs()`** -- Manter a mesma logica de resumo, mas agora os dados estao corretamente pareados, entao os numeros refletem diferencas reais.
-
+### Resultado Final
+O comparador deixa de ser apenas informativo e passa a ser uma ferramenta de **autocalibracao**: compara, diagnostica e corrige com um clique.
