@@ -1,87 +1,75 @@
 
 
-## Corrigir Etiquetas em Branco: Modo Dots (Compativel com Formula Certa)
+## Solucao Garantida: Usar o ROTUTX do Formula Certa Direto
 
-### Causa Raiz
+### Por que nada funcionou ate agora
 
-O agente de impressao usa o comando `m` (modo milimetros) do PPLA. Se a impressora Argox nao reconhece esse comando (firmware antigo, modelo incompativel), ela ignora o `m` e interpreta TODAS as coordenadas como dots:
+Todas as tentativas anteriores tentaram **recriar** os comandos PPLA do zero -- ajustando coordenadas, modo dots vs mm, fontes, rotacao, etc. Isso e inerentemente fragil porque qualquer pequena diferenca nos comandos pode causar etiquetas em branco ou multiplas impressoes.
 
-- Y=220 em mm mode = 22.0mm do fundo (dentro da etiqueta)
-- Y=220 em dot mode = 220 dots = ~27.5mm (FORA de uma etiqueta de 25mm = 200 dots)
+### A solucao com 100% de certeza
 
-Resultado: todo o texto fica fora da area imprimivel. Etiqueta sai em branco.
+O Formula Certa ja gera os comandos PPLA perfeitos e **salva eles no banco de dados** (tabela FC12300, campo ROTUTX). O servidor central (servidor.py) ja tem um endpoint `/api/imprimir_fc` que:
 
-### Solucao
+1. Le o ROTUTX do banco (os bytes exatos que o Formula Certa gerou)
+2. Envia esses bytes RAW para o agente local
+3. O agente manda direto para a impressora
 
-Adicionar modo dots ao agente como opcao, e criar um teste que imprime em dots para confirmar a hipotese. Se funcionar, converter todos os geradores para dots.
+Ou seja: nao precisa gerar layout nenhum. E so pegar o que o Formula Certa ja fez e mandar pra impressora. **Se funciona no Formula Certa, vai funcionar aqui porque sao os mesmos bytes.**
 
-### Mudancas no Agente (agente_impressao.py)
+### O que muda no frontend
 
-**1. Novo endpoint `/teste-dots`**
+**Arquivo: `src/services/printAgentService.ts`**
 
-Imprime uma etiqueta de teste usando coordenadas em DOTS (sem comando `m`), exatamente como o Formula Certa faz:
-- Setup: `STX L`, `D11`, `H14`, `q360` (largura), `Q200,24` (altura+gap)
-- Texto: coordenadas em dots (ex: Y=160 dots = ~20mm do fundo)
-- Finaliza com `E`
+Adicionar uma nova funcao `imprimirViaRotutx()` que chama o endpoint `/api/imprimir_fc` do servidor central (nao do agente). Parametros: numero da requisicao, filial, serie, item e nome da impressora.
 
-Se essa etiqueta sair com texto, confirmamos que o problema e o modo milimetros.
+**Arquivo: `src/pages/Index.tsx`**
 
-**2. Novo modo `dots` nos geradores**
+Alterar o fluxo de impressao para:
+1. Primeiro tenta imprimir via ROTUTX (usando `/api/imprimir_fc`)
+2. Se o ROTUTX nao existir no banco (retorno 404), cai no modo atual (gerar PPLA via agente) como fallback
 
-Adicionar parametro `modo` na calibracao (valor: `'mm'` ou `'dots'`). Quando `modo='dots'`:
-- Nao envia comando `m`
-- Usa `ppla_setup_dots()` com `q` (largura em dots) e `Q` (altura em dots + gap)
-- Converte as coordenadas Y de 0.1mm para dots (multiplicando por 0.203 para 203 DPI)
-- Mantém a mesma logica de geracao, so muda as unidades
+Adicionar um botao ou toggle "Modo FC (direto)" para o usuario poder escolher:
+- **Modo FC**: usa os bytes do Formula Certa direto (garantido funcionar)
+- **Modo Agente**: gera PPLA pelo agente (modo atual, para quando nao houver ROTUTX)
 
-**3. Converter coordenadas**
+**Arquivo: `src/config/api.ts`**
 
-Para a impressora "AMP PEQUENO" (45x25mm a 203 DPI):
-- Largura: 45mm x 8 dots/mm = 360 dots
-- Altura: 25mm x 8 dots/mm = 200 dots
-- Gap: 3mm = 24 dots
+Adicionar configuracao `modoImpressao: 'rotutx' | 'agente'` com padrao `'rotutx'`.
 
-Coordenadas Y em dots (de baixo para cima, 200 dots total):
-- Linha 1 (topo): Y = 180 dots (~22mm)
-- Linha 2: Y = 150 dots (~18.5mm)
-- Linha 3: Y = 120 dots (~15mm)
-- Linha 4: Y = 90 dots (~11mm)
-- Linha 5: Y = 60 dots (~7.5mm)
-- Linha 6: Y = 30 dots (~3.7mm)
-- Linha 7: Y = 10 dots (~1.2mm)
+### Fluxo tecnico
 
-### Mudancas no Frontend
+```text
+Usuario clica "Imprimir"
+        |
+        v
+Frontend chama servidor: POST /api/imprimir_fc
+  { req: 6806, filial: 1, item: 1, impressora: "AMP PEQUENO" }
+        |
+        v
+Servidor le FC12300.ROTUTX (bytes do Formula Certa)
+        |
+        v
+Servidor envia bytes em base64 para agente: POST /raw
+        |
+        v
+Agente decodifica e manda RAW para impressora Argox
+        |
+        v
+Etiqueta sai IDENTICA ao Formula Certa
+```
 
-**1. `src/components/LabelSettings.tsx`**
+### Por que isso tem 100% de certeza
 
-- Adicionar botao "Teste Dots" ao lado do "Teste Progressivo"
-- Este botao chama o novo endpoint `/teste-dots` do agente
-- Se funcionar, exibe toast sugerindo ativar modo dots
+- Os bytes ROTUTX sao exatamente o que o Formula Certa envia para a impressora
+- O agente ja tem o endpoint `/raw` que recebe base64 e manda direto, sem modificar nada
+- O servidor ja tem o endpoint `/api/imprimir_fc` pronto e funcionando
+- Nao ha geracao de layout, coordenadas, fontes ou qualquer logica PPLA envolvida -- sao os mesmos bytes que ja funcionam
 
-**2. `src/types/requisicao.ts`**
+### Resumo das mudancas
 
-- Adicionar campo `modo?: 'mm' | 'dots'` no tipo `PrinterCalibrationConfig`
+1. **`src/services/printAgentService.ts`**: Nova funcao `imprimirViaRotutx(serverUrl, req, filial, serie, item, impressora)`
+2. **`src/pages/Index.tsx`**: Botao de impressao usa `imprimirViaRotutx` como metodo principal, com fallback para o agente
+3. **`src/config/api.ts`**: Novo campo `modoImpressao` na configuracao
 
-**3. `src/config/api.ts`**
-
-- Adicionar `modo: 'dots'` como padrao na calibracao (mais seguro que mm)
-
-**4. `src/services/printAgentService.ts`**
-
-- Adicionar funcao `testeDotsAgente(url, impressora)` que chama `/teste-dots`
-
-### Ordem de Implementacao
-
-1. Adicionar endpoint `/teste-dots` no agente (teste isolado em dots)
-2. Adicionar botao "Teste Dots" na UI
-3. Adicionar `ppla_setup_dots()` e `ppla_text_dots()` no agente
-4. Adicionar flag `modo` na calibracao
-5. Modificar geradores para usar dots quando `modo='dots'`
-6. Mudar padrao para `dots`
-
-### Resultado Esperado
-
-1. Clicar "Teste Dots" imprime etiqueta com texto visivel (confirma a causa)
-2. Ativar modo dots faz todas as etiquetas imprimirem corretamente
-3. Modo mm continua disponivel para impressoras que suportam
+Nenhuma mudanca no agente_impressao.py ou servidor.py -- tudo ja esta pronto no backend.
 
