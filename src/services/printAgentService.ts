@@ -272,10 +272,11 @@ export const imprimirViaRotutx = async (
   serie: string,
   item: string,
   impressora: string,
-  agentUrl: string
+  agentUrl: string,
+  calibracao?: PrinterCalibrationConfig
 ): Promise<ApiResponse<{ message: string }>> => {
   try {
-    const response = await fetch(`${serverUrl}/api/imprimir_fc`, {
+    const response = await fetch(`${serverUrl}/api/imprimir-fc-v2`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -288,6 +289,7 @@ export const imprimirViaRotutx = async (
         item: parseInt(item),
         impressora,
         agente_url: agentUrl,
+        calibracao: calibracao || {},
       }),
       signal: AbortSignal.timeout(30000),
     });
