@@ -1,84 +1,98 @@
 
 
-## Corrigir 38 Etiquetas em Branco e Layout Errado no FC Direto
+## Corrigir Parser ROTUTX: Apenas 1 Linha Sendo Extraida
 
-### Causa Raiz (2 bugs)
+### Problema
 
-**Bug 1: Servidor nao repassa calibracao ao agente**
+A funcao `parse_rotutx` no `servidor.py` (linha 4719) esta filtrando quase todas as linhas do ROTUTX. Ela exige:
+1. Linha com pelo menos 25 caracteres
+2. Pelo menos 6 partes separadas por espaco
+3. A primeira parte deve ser um numero (line_num)
+4. A terceira parte deve ser um numero (width)
+5. O texto util e assumido como estando na posicao parts[5]
 
-O `servidor.py` no endpoint `/api/imprimir-fc-v2` (linha 4788) monta o payload para o agente assim:
+Essas regras sao baseadas em uma suposicao do formato interno do Formula Certa: `NNNN PPPP WWWW XXXX YYYY texto`. Na pratica, a maioria das linhas do ROTUTX nao segue esse formato rigido, entao sao descartadas. Apenas a linha com "RESVERATROL 0,5%" por coincidencia tem partes suficientes para passar no filtro.
 
-```text
-payload = { impressora, linhas, req }  -- SEM calibracao!
-```
+### Solucao
 
-O frontend envia a calibracao (fonte, rotacao, contraste, modo), mas o servidor ignora e nao repassa. O agente usa defaults.
+Reescrever `parse_rotutx` para ser muito mais permissiva:
 
-**Bug 2: Setup dots sem comando de quantidade Q0001**
+1. Remover o filtro de 25 caracteres minimos - aceitar linhas com 3+ caracteres
+2. Primeiro tentar o parse estruturado (6 partes com numeros nas posicoes esperadas)
+3. Se falhar, extrair o texto inteiro da linha como conteudo util
+4. Filtrar apenas linhas que sao claramente nao-texto (linhas so com numeros, linhas vazias, caracteres de controle)
 
-A funcao `ppla_setup_dots` no `agente_impressao.py` (linha 182) envia apenas:
-- STX L (modo formatacao)
-- D11 (pixel size)
-- H14 (contraste)
+### Mudancas Tecnicas
 
-Sem o comando `Q0001`, a impressora usa o valor que estiver na memoria interna -- que pode ser 38, 50 ou qualquer numero. Isso causa as 38 etiquetas em branco.
+**1. `servidor.py` - Funcao `parse_rotutx` (linhas 4719-4746)**
 
-### Mudancas
+Reescrever para:
+- Aceitar linhas com 3+ caracteres (em vez de 25)
+- Tentar parse estruturado (formato NNNN PPPP WWWW XXXX YYYY texto)
+- Se nao bater no formato estruturado, usar a linha inteira como texto
+- Atribuir line_num sequencial para linhas sem numero explicito
+- Filtrar linhas que contenham apenas numeros/espacos (metadados puros)
+- Logar quantas linhas foram extraidas por cada metodo (estruturado vs texto puro) para debug
 
-**1. `servidor.py` - Repassar calibracao para o agente**
-
-No endpoint `/api/imprimir-fc-v2`, adicionar o campo `calibracao` ao payload enviado ao agente. O frontend ja envia esse dado no body.
-
-Antes:
 ```python
-payload_agente = {
-    "impressora": impressora,
-    "linhas": [l['text'] for l in linhas_parsed],
-    "req": str(nr_requisicao)
-}
+def parse_rotutx(data: bytes) -> list:
+    try:
+        text = data.decode('latin-1')
+    except Exception:
+        text = data.decode('cp1252', errors='replace')
+
+    results = []
+    raw_lines = text.replace('\r\n', '\n').replace('\r', '\n').split('\n')
+    seq = 0
+
+    for raw_line in raw_lines:
+        raw_line = raw_line.strip()
+        if len(raw_line) < 3:
+            continue
+
+        # Tentar parse estruturado: NNNN PPPP WWWW XXXX YYYY texto
+        parts = raw_line.split(None, 5)
+        if len(parts) >= 6:
+            try:
+                line_num = int(parts[0])
+                width = int(parts[2])
+                text_content = parts[5].strip()
+                if text_content:
+                    results.append({
+                        'line_num': line_num,
+                        'width': width,
+                        'text': text_content
+                    })
+                    continue
+            except (ValueError, IndexError):
+                pass
+
+        # Fallback: usar linha inteira como texto
+        # Ignorar linhas que sao so numeros/espacos
+        cleaned = raw_line.strip()
+        if cleaned and not cleaned.replace(' ', '').replace('.', '').isdigit():
+            seq += 1
+            results.append({
+                'line_num': seq * 100,
+                'width': len(cleaned),
+                'text': cleaned
+            })
+
+    results.sort(key=lambda x: x['line_num'])
+    return results
 ```
 
-Depois:
+**2. `servidor.py` - Endpoint `/api/imprimir-fc-v2` (linha 4784)**
+
+Adicionar log mais detalhado mostrando quantas linhas foram extraidas e quais sao, para facilitar debug futuro:
+
 ```python
-payload_agente = {
-    "impressora": impressora,
-    "linhas": [l['text'] for l in linhas_parsed],
-    "req": str(nr_requisicao),
-    "calibracao": data.get("calibracao", {})
-}
+print(f"[IMPRIMIR-FC-V2] REQ={nr_requisicao} -> {len(linhas_parsed)} linhas extraidas do ROTUTX ({len(rotutx_bytes)} bytes):")
 ```
-
-**2. `agente_impressao.py` - Adicionar Q0001 ao setup dots**
-
-Na funcao `ppla_setup_dots`, adicionar o comando `Q0001` para forcar 1 copia por label. Este era o comando que foi removido antes para tentar resolver outro problema, mas sem ele a impressora imprime quantidades aleatorias.
-
-Antes:
-```python
-partes = [
-    f"\x02L",
-    f"D11",
-    f"H{contraste:02d}",
-]
-```
-
-Depois:
-```python
-partes = [
-    f"\x02L",
-    f"D11",
-    f"H{contraste:02d}",
-    f"Q0001",
-]
-```
-
-**3. `agente_impressao.py` - Reduzir fonte padrao para menor**
-
-O usuario pediu fonte menor. Alterar o default de `font=2` para `font=0` (a menor disponivel, 6x10 dots) no endpoint `/imprimir-rotutx`, para que o texto caiba melhor na etiqueta pequena.
 
 ### Resultado Esperado
 
-- Apenas 1 etiqueta sai por impressao (Q0001 garante isso)
-- A calibracao do frontend (fonte, rotacao, contraste) chega ao agente
-- Fonte menor = texto cabe inteiro na etiqueta
-- Layout consistente com o que o Formula Certa gera
-
+- Todas as linhas de texto do ROTUTX serao extraidas (paciente, medico, formula, lote, validade, etc.)
+- Nao apenas "RESVERATROL 0,5%" mas todos os campos do rotulo
+- O agente recebera todas as linhas e gerara um PPLA completo com todas as informacoes
+- A etiqueta saira com todas as informacoes do rotulo, nao apenas o nome do produto
