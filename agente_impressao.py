@@ -720,7 +720,7 @@ def imprimir():
 
 @app.route('/imprimir-rotutx', methods=['POST'])
 def imprimir_rotutx():
-    """Recebe linhas de texto extraídas do ROTUTX (FC12300) e imprime via PPLA mm."""
+    """Recebe linhas de texto extraídas do ROTUTX (FC12300) e imprime via PPLA (modo dots ou mm)."""
     data = request.get_json()
     if not data:
         return jsonify({"success": False, "error": "Nenhum dado recebido"}), 400
@@ -729,13 +729,14 @@ def imprimir_rotutx():
     linhas = data.get('linhas', [])
     req_num = data.get('req', '?')
     calibracao = data.get('calibracao', {})
+    modo = calibracao.get('modo', 'dots')  # Default para dots (mais confiável)
 
     if not linhas:
         return jsonify({"success": False, "error": "Nenhuma linha de texto recebida"}), 400
 
     impressora = find_printer_match(impressora_req) or impressora_req
     dims = get_printer_dims(impressora)
-    logger.info(f"[ROTUTX] REQ={req_num} impressora='{impressora}' linhas={len(linhas)}")
+    logger.info(f"[ROTUTX] REQ={req_num} impressora='{impressora}' linhas={len(linhas)} modo={modo}")
 
     # Espaçamento Y dinâmico em 0.1mm
     altura_mm = dims.get('altura_mm', 25)
@@ -748,25 +749,30 @@ def imprimir_rotutx():
     else:
         espacamento = min(area_util // num_linhas, 50)  # máximo 5mm entre linhas
 
-    font = dims.get('font', 2)
+    font = calibracao.get('fonte', dims.get('font', 2))
+    rot = calibracao.get('rotacao', 1)
+    contraste = calibracao.get('contraste', 14)
+    
     ppla_lines = []
     for i, texto in enumerate(linhas):
-        # Y começa do topo (alto valor) e desce
+        # Y começa do topo (alto valor) e desce - coordenadas em 0.1mm
         y = (altura_mm * 10) - margem_01mm - (i * espacamento)
         texto_truncado = texto[:dims['cols_max']]
-        ppla_lines.append(ppla_text_mm(1, font, 1, 1, max(y, margem_01mm), 10, texto_truncado))
-        logger.info(f"  [{i:02d}] Y={y:04d} F={font}: {texto_truncado[:50]}")
+        ppla_lines.append(_ppla_text(rot, font, 1, 1, max(y, margem_01mm), 10, texto_truncado, modo))
+        logger.info(f"  [{i:02d}] Y={y:04d} F={font} modo={modo}: {texto_truncado[:50]}")
 
-    comandos = ppla_full_label(
-        ppla_lines,
-        altura_mm=altura_mm,
-        margem_c=calibracao.get('margem_c', 0),
-        offset_r=calibracao.get('offset_r', 0),
-    )
+    # Usar calibracao completa incluindo contraste
+    cal = {
+        'margem_c': calibracao.get('margem_c', 0),
+        'offset_r': calibracao.get('offset_r', 0),
+        'contraste': contraste,
+        'modo': modo,
+    }
+    comandos = _build_label(ppla_lines, dims, cal, modo)
 
     # Debug PPLA
     logger.info(f"\n{'='*60}")
-    logger.info(f"[ROTUTX PPLA-mm] Comandos ({len(comandos)} bytes):")
+    logger.info(f"[ROTUTX PPLA-{modo}] Comandos ({len(comandos)} bytes):")
     for i, line in enumerate(comandos.split('\r')):
         display = line.replace('\x02', '<STX>').replace('\n', '<LF>')
         logger.info(f"  [{i:02d}] {display}")
@@ -781,7 +787,7 @@ def imprimir_rotutx():
             "printer_used": impressora,
             "fonte": font,
             "req": req_num,
-            "protocolo": "PPLA-mm",
+            "protocolo": f"PPLA-{modo}",
         })
     else:
         return jsonify({"success": False, "error": resultado.get("error", "Falha")}), 500

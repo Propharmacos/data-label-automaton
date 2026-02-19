@@ -163,7 +163,8 @@ const Index = () => {
           "1", // série padrão
           rotulo.nrItem,
           impressora,
-          agentConfig.agentUrl
+          agentConfig.agentUrl,
+          agentConfig.calibracao
         );
         
         if (rotutxResult.success) {
