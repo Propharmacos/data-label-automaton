@@ -229,6 +229,7 @@ export const imprimirViaRotutxRaw = async (
   serie: string,
   impressora: string,
   agentUrl: string,
+  filial?: string,
 ): Promise<ApiResponse<{ message: string; tamanho_bytes?: number }>> => {
   try {
     // Passo 1: Buscar ROTUTX raw do banco via servidor
@@ -238,7 +239,7 @@ export const imprimirViaRotutxRaw = async (
         "Content-Type": "application/json",
         "ngrok-skip-browser-warning": "true",
       },
-      body: JSON.stringify({ req: parseInt(nrRequisicao), serie }),
+      body: JSON.stringify({ req: parseInt(nrRequisicao), serie, filial: filial ? parseInt(filial) : 1 }),
       signal: AbortSignal.timeout(15000),
     });
 

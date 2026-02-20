@@ -233,24 +233,36 @@ const Index = () => {
     const agentConfig = getPrintAgentConfig();
     const impressora = selectedPrinter || agentConfig.impressora;
 
-    const result = await imprimirViaRotutxRaw(
-      apiConfig.serverUrl,
-      searchedRequisition,
-      "1", // série padrão
-      impressora,
-      agentConfig.agentUrl
-    );
+    // Tenta enviar todos os itens da requisição
+    let sucessos = 0;
+    let erros: string[] = [];
+
+    for (const rotulo of rotulos) {
+      const result = await imprimirViaRotutxRaw(
+        apiConfig.serverUrl,
+        searchedRequisition,
+        rotulo.nrItem || "0",
+        impressora,
+        agentConfig.agentUrl,
+        apiConfig.codigoFilial
+      );
+      if (result.success) {
+        sucessos++;
+      } else {
+        erros.push(`Item ${rotulo.nrItem}: ${result.error}`);
+      }
+    }
 
     setIsPrinting(false);
-    if (result.success) {
+    if (sucessos > 0) {
       toast({
         title: "FC RAW enviado!",
-        description: result.data?.message || "Bytes do ROTUTX enviados direto para a impressora.",
+        description: `${sucessos}/${rotulos.length} rótulo(s) enviados direto para a impressora.`,
       });
     } else {
       toast({
         title: "Erro FC RAW",
-        description: result.error || "Falha ao enviar ROTUTX RAW.",
+        description: erros[0] || "Falha ao enviar ROTUTX RAW.",
         variant: "destructive",
       });
     }
