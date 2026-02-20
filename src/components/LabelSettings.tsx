@@ -15,17 +15,13 @@ import {
   setApiConfig,
   getPharmacyConfig,
   setPharmacyConfig,
-  getLabelConfig,
-  setLabelConfig,
-  getPrinterConfig,
-  setPrinterConfig,
   getPrintAgentConfig,
   setPrintAgentConfig,
 } from "@/config/api";
-import { verificarConexao, verificarImpressora, imprimirTeste } from "@/services/requisicaoService";
+import { verificarConexao } from "@/services/requisicaoService";
 import { verificarAgente, listarImpressoras, testeImpressaoAgente, diagnosticoPPLA, capturarPorta9100, testeProgressivoAgente, testeDotsAgente } from "@/services/printAgentService";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { ApiConfig, PharmacyConfig, LabelConfig, LayoutType, LayoutConfig, PrinterConfig, PrintAgentConfig, PrinterCalibrationConfig } from "@/types/requisicao";
+import { ApiConfig, PharmacyConfig, LayoutType, LayoutConfig, PrintAgentConfig, PrinterCalibrationConfig } from "@/types/requisicao";
 import { getLayouts, fieldLabels } from "@/config/layouts";
 import LayoutEditor from "@/components/LayoutEditor";
 import PPLAComparer from "@/components/PPLAComparer";
@@ -34,8 +30,6 @@ import PrinterDefinitions from "@/components/PrinterDefinitions";
 const LabelSettings = () => {
   const { toast } = useToast();
   const [isTestingConnection, setIsTestingConnection] = useState(false);
-  const [isTestingPrinter, setIsTestingPrinter] = useState(false);
-  const [isPrintingTest, setIsPrintingTest] = useState(false);
   const [editingLayout, setEditingLayout] = useState<LayoutType | null>(null);
   const [layouts, setLayouts] = useState<Record<LayoutType, LayoutConfig>>(getLayouts());
   
@@ -57,8 +51,6 @@ const LabelSettings = () => {
   
   const [apiConfig, setApiConfigState] = useState<ApiConfig>(getApiConfig());
   const [pharmacyConfig, setPharmacyConfigState] = useState<PharmacyConfig>(getPharmacyConfig());
-  const [labelConfig, setLabelConfigState] = useState<LabelConfig>(getLabelConfig());
-  const [printerConfig, setPrinterConfigState] = useState<PrinterConfig>(getPrinterConfig());
   const [agentConfig, setAgentConfigState] = useState<PrintAgentConfig>(getPrintAgentConfig());
 
   // Auto-salvar agentConfig sempre que mudar
@@ -117,14 +109,6 @@ const LabelSettings = () => {
     });
   };
 
-  const handleSaveLabel = () => {
-    setLabelConfig(labelConfig);
-    toast({
-      title: "Configurações salvas",
-      description: "Dimensões do rótulo atualizadas com sucesso.",
-    });
-  };
-
   const handleTestConnection = async () => {
     setIsTestingConnection(true);
     const isConnected = await verificarConexao();
@@ -144,53 +128,7 @@ const LabelSettings = () => {
     }
   };
 
-  const handleSavePrinter = () => {
-    setPrinterConfig(printerConfig);
-    toast({
-      title: "Configurações salvas",
-      description: "Configurações da impressora atualizadas com sucesso.",
-    });
-  };
-
-  const handleTestPrinter = async () => {
-    setIsTestingPrinter(true);
-    const caminho = `\\\\${printerConfig.nomePC}\\${printerConfig.nomeCompartilhamento}`;
-    const result = await verificarImpressora(caminho);
-    setIsTestingPrinter(false);
-    
-    if (result.success) {
-      toast({
-        title: "Impressora acessível!",
-        description: `Conexão com ${caminho} estabelecida.`,
-      });
-    } else {
-      toast({
-        title: "Falha na conexão",
-        description: result.error || "Não foi possível acessar a impressora.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const handlePrintTest = async () => {
-    setIsPrintingTest(true);
-    const caminho = `\\\\${printerConfig.nomePC}\\${printerConfig.nomeCompartilhamento}`;
-    const result = await imprimirTeste(caminho);
-    setIsPrintingTest(false);
-    
-    if (result.success) {
-      toast({
-        title: "Etiqueta enviada!",
-        description: "Etiqueta de teste enviada para a impressora.",
-      });
-    } else {
-      toast({
-        title: "Falha na impressão",
-        description: result.error || "Não foi possível imprimir a etiqueta de teste.",
-        variant: "destructive",
-      });
-    }
-  };
+  // handleSaveLabel, handleSavePrinter, handleTestPrinter, handlePrintTest removidos - abas legadas
 
   // Handlers do Agente HTTP
   const handleSaveAgent = () => {
@@ -318,13 +256,11 @@ const LabelSettings = () => {
   return (
     <div className="space-y-6">
       <Tabs defaultValue="definicoes" className="w-full">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="definicoes">Definições</TabsTrigger>
           <TabsTrigger value="servidor">Servidor</TabsTrigger>
           <TabsTrigger value="agente">Agente HTTP</TabsTrigger>
-          <TabsTrigger value="impressora">Impressora</TabsTrigger>
           <TabsTrigger value="farmacia">Farmácia</TabsTrigger>
-          <TabsTrigger value="rotulo">Rótulo</TabsTrigger>
           <TabsTrigger value="layouts">Layouts</TabsTrigger>
         </TabsList>
 
@@ -822,82 +758,7 @@ const LabelSettings = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="impressora">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Printer className="h-5 w-5" />
-                Configurações da Impressora (via Servidor)
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {agentConfig.enabled && (
-                <div className="p-3 bg-yellow-100 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800 rounded-md mb-4">
-                  <p className="text-sm text-yellow-800 dark:text-yellow-200">
-                    ⚠️ O Agente HTTP está ativado. Esta configuração só será usada se o agente for desativado.
-                  </p>
-                </div>
-              )}
-              
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="nomePC">Nome do PC</Label>
-                  <Input
-                    id="nomePC"
-                    placeholder="Campos2"
-                    value={printerConfig.nomePC}
-                    onChange={(e) => setPrinterConfigState({ ...printerConfig, nomePC: e.target.value })}
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Nome do computador onde a impressora está conectada
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="nomeCompartilhamento">Nome do Compartilhamento</Label>
-                  <Input
-                    id="nomeCompartilhamento"
-                    placeholder="Campos2"
-                    value={printerConfig.nomeCompartilhamento}
-                    onChange={(e) => setPrinterConfigState({ ...printerConfig, nomeCompartilhamento: e.target.value })}
-                  />
-                  <p className="text-sm text-muted-foreground">
-                    Nome do compartilhamento Windows da impressora
-                  </p>
-                </div>
-              </div>
-              
-              <div className="p-3 bg-muted rounded-md">
-                <p className="text-sm font-medium">Caminho completo:</p>
-                <code className="text-sm text-primary">
-                  \\{printerConfig.nomePC}\{printerConfig.nomeCompartilhamento}
-                </code>
-              </div>
-              
-              <div className="flex gap-2 flex-wrap">
-                <Button onClick={handleSavePrinter}>
-                  <Save className="h-4 w-4 mr-2" />
-                  Salvar
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={handleTestPrinter}
-                  disabled={isTestingPrinter}
-                >
-                  <RefreshCw className={`h-4 w-4 mr-2 ${isTestingPrinter ? 'animate-spin' : ''}`} />
-                  Testar Conexão
-                </Button>
-                <Button 
-                  variant="secondary" 
-                  onClick={handlePrintTest}
-                  disabled={isPrintingTest}
-                >
-                  <TestTube className={`h-4 w-4 mr-2 ${isPrintingTest ? 'animate-pulse' : ''}`} />
-                  Imprimir Teste
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+        {/* Aba Impressora removida - sistema usa apenas Agente HTTP */}
 
         <TabsContent value="farmacia">
           <Card>
@@ -964,44 +825,7 @@ const LabelSettings = () => {
           </Card>
         </TabsContent>
 
-        <TabsContent value="rotulo">
-          <Card>
-            <CardHeader>
-              <CardTitle>Dimensões do Rótulo</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="largura">Largura (mm)</Label>
-                  <Input
-                    id="largura"
-                    type="number"
-                    value={labelConfig.larguraMM}
-                    onChange={(e) => setLabelConfigState({ ...labelConfig, larguraMM: Number(e.target.value) })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="altura">Altura (mm)</Label>
-                  <Input
-                    id="altura"
-                    type="number"
-                    value={labelConfig.alturaMM}
-                    onChange={(e) => setLabelConfigState({ ...labelConfig, alturaMM: Number(e.target.value) })}
-                  />
-                </div>
-              </div>
-              
-              <p className="text-sm text-muted-foreground">
-                Defina as dimensões em milímetros para a impressora Argox
-              </p>
-              
-              <Button onClick={handleSaveLabel}>
-                <Save className="h-4 w-4 mr-2" />
-                Salvar
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
+        {/* Aba Rótulo removida - dimensões vêm dos layouts/definições */}
 
         <TabsContent value="layouts">
           <Card>
