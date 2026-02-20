@@ -16,6 +16,7 @@ import { buscarRequisicao, imprimirRotulos } from "@/services/requisicaoService"
 import { imprimirViaAgente, imprimirViaRotutx } from "@/services/printAgentService";
 import { RotuloItem, PharmacyConfig, LabelConfig, LayoutType, LayoutConfig } from "@/types/requisicao";
 import { listarImpressoras } from "@/services/printAgentService";
+import { getDefinition } from "@/types/printerDefinition";
 import logoProPharmacos from "@/assets/logo-propharmacos.png";
 import { Edit } from "lucide-react";
 
@@ -145,11 +146,21 @@ const Index = () => {
 
     const agentConfig = getPrintAgentConfig();
     const apiConfig = getApiConfig();
+    
+    // Mesclar fonte e rotação da Definição do layout ativo
+    const layoutDef = getDefinition(layoutType);
+    const calibracaoComDefinicao = {
+      ...(agentConfig.calibracao || { margem_c: 0, offset_r: 0, contraste: 14, fonte: 2, rotacao: 0 }),
+      fonte: layoutDef.fonte,
+      rotacao: layoutDef.rotacaoFonte,
+    };
+    const agentConfigComDef = { ...agentConfig, calibracao: calibracaoComDefinicao };
+    
     let result;
 
     // Modo ROTUTX: usar bytes do Fórmula Certa direto
-    if (modoImpressao === 'rotutx' && agentConfig.enabled) {
-      const impressora = selectedPrinter || agentConfig.impressora;
+    if (modoImpressao === 'rotutx' && agentConfigComDef.enabled) {
+      const impressora = selectedPrinter || agentConfigComDef.impressora;
       
       // Imprimir cada rótulo via ROTUTX
       let sucessos = 0;
@@ -163,19 +174,18 @@ const Index = () => {
           "1", // série padrão
           rotulo.nrItem,
           impressora,
-          agentConfig.agentUrl,
-          agentConfig.calibracao
+          agentConfigComDef.agentUrl,
+          calibracaoComDefinicao
         );
         
         if (rotutxResult.success) {
           sucessos++;
         } else if (rotutxResult.error === "ROTUTX_NOT_FOUND") {
-          // Fallback para agente se ROTUTX não existe
           toast({
             title: "ROTUTX não encontrado",
             description: `Item ${rotulo.nrItem}: usando modo agente como fallback.`,
           });
-          const configComImpressora = { ...agentConfig, impressora };
+          const configComImpressora = { ...agentConfigComDef, impressora };
           const fallback = await imprimirViaAgente(configComImpressora, [rotulo], layoutType, farmaciaData);
           if (fallback.success) sucessos++;
           else erros.push(`Item ${rotulo.nrItem}: ${fallback.error}`);
@@ -189,9 +199,9 @@ const Index = () => {
         error: erros.length > 0 ? erros.join("; ") : undefined,
         data: { impressos: sucessos },
       };
-    } else if (agentConfig.enabled) {
-      // Modo Agente (original)
-      const configComImpressora = { ...agentConfig, impressora: selectedPrinter || agentConfig.impressora };
+    } else if (agentConfigComDef.enabled) {
+      // Modo Agente (original) - usa calibração com definição mesclada
+      const configComImpressora = { ...agentConfigComDef, impressora: selectedPrinter || agentConfigComDef.impressora };
       result = await imprimirViaAgente(configComImpressora, rotulosSelecionados, layoutType, farmaciaData);
     } else {
       const printerConfig = getPrinterConfig();
@@ -285,6 +295,7 @@ const Index = () => {
             </div>
             {(() => {
               const ac = getPrintAgentConfig();
+              const ld = getDefinition(layoutType);
               if (ac.enabled && ac.calibracao) {
                 return (
                   <div className="flex items-center gap-3 text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-full">
@@ -293,6 +304,8 @@ const Index = () => {
                     </span>
                     <span className="text-border">|</span>
                     <span title="Contraste">H{ac.calibracao.contraste}</span>
+                    <span title="Fonte (Definição)">F{ld.fonte}</span>
+                    <span title="Rotação (Definição)">R{ld.rotacaoFonte}</span>
                     <span className="text-border">|</span>
                     <span title="Impressora">{selectedPrinter || ac.impressora}</span>
                   </div>
