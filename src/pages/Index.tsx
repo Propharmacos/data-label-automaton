@@ -10,11 +10,11 @@ import LayoutEditor from "@/components/LayoutEditor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { getPharmacyConfig, getLabelConfig, getPrinterConfig, getPrintAgentConfig, getApiConfig, getModoImpressao, setModoImpressao, ModoImpressao } from "@/config/api";
+import { getPharmacyConfig, getPrintAgentConfig, getApiConfig, getModoImpressao, setModoImpressao, ModoImpressao } from "@/config/api";
 import { getLayout, getSelectedLayout, setSelectedLayout, resetAllLayouts } from "@/config/layouts";
-import { buscarRequisicao, imprimirRotulos } from "@/services/requisicaoService";
+import { buscarRequisicao } from "@/services/requisicaoService";
 import { imprimirViaAgente, imprimirViaRotutx } from "@/services/printAgentService";
-import { RotuloItem, PharmacyConfig, LabelConfig, LayoutType, LayoutConfig } from "@/types/requisicao";
+import { RotuloItem, PharmacyConfig, LayoutType, LayoutConfig } from "@/types/requisicao";
 import { listarImpressoras } from "@/services/printAgentService";
 import { getDefinition } from "@/types/printerDefinition";
 import logoProPharmacos from "@/assets/logo-propharmacos.png";
@@ -27,7 +27,7 @@ const Index = () => {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [searchedRequisition, setSearchedRequisition] = useState("");
   const [pharmacyConfig, setPharmacyConfig] = useState<PharmacyConfig>(getPharmacyConfig());
-  const [labelConfig, setLabelConfig] = useState<LabelConfig>(getLabelConfig());
+  
   const [layoutType, setLayoutType] = useState<LayoutType>(getSelectedLayout());
   const [layoutConfig, setLayoutConfig] = useState<LayoutConfig>(getLayout(layoutType));
   const [editorOpen, setEditorOpen] = useState(false);
@@ -72,7 +72,6 @@ const Index = () => {
   useEffect(() => {
     const handleFocus = () => {
       setPharmacyConfig(getPharmacyConfig());
-      setLabelConfig(getLabelConfig());
       setLayoutConfig(getLayout(layoutType));
     };
     window.addEventListener("focus", handleFocus);
@@ -204,9 +203,8 @@ const Index = () => {
       const configComImpressora = { ...agentConfigComDef, impressora: selectedPrinter || agentConfigComDef.impressora };
       result = await imprimirViaAgente(configComImpressora, rotulosSelecionados, layoutType, farmaciaData);
     } else {
-      const printerConfig = getPrinterConfig();
-      const caminho = `\\\\${printerConfig.nomePC}\\${printerConfig.nomeCompartilhamento}`;
-      result = await imprimirRotulos(caminho, rotulosSelecionados, layoutType, farmaciaData);
+      // Agente desativado - não há mais fallback legado
+      result = { success: false, error: "Ative o Agente HTTP nas configurações para imprimir." };
     }
     
     setIsPrinting(false);
@@ -351,7 +349,6 @@ const Index = () => {
               onClose={() => setEditorOpen(false)}
               previewData={rotulos.length > 0 ? rotulos[0] : undefined}
               pharmacyConfig={pharmacyConfig}
-              labelConfig={labelConfig}
             />
           </DialogContent>
         </Dialog>
