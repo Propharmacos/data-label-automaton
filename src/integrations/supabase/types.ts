@@ -46,6 +46,7 @@ export type Database = {
           ativa: boolean
           created_at: string
           grupo: string
+          is_cost_center: boolean
           loja_id: number
           loja_nome: string | null
         }
@@ -53,6 +54,7 @@ export type Database = {
           ativa?: boolean
           created_at?: string
           grupo: string
+          is_cost_center?: boolean
           loja_id: number
           loja_nome?: string | null
         }
@@ -60,6 +62,7 @@ export type Database = {
           ativa?: boolean
           created_at?: string
           grupo?: string
+          is_cost_center?: boolean
           loja_id?: number
           loja_nome?: string | null
         }
