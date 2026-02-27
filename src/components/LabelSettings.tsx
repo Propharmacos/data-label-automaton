@@ -474,11 +474,55 @@ const LabelSettings = () => {
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4">
+                    {/* Gerador de bloco PPLA */}
+                    <div className="p-3 rounded border border-dashed border-amber-400 bg-amber-50/50 dark:bg-amber-950/20 space-y-2">
+                      <Label className="text-sm font-semibold">⚡ Gerador Rápido de Bloco PPLA</Label>
+                      <p className="text-xs text-muted-foreground">Digite até 8 linhas de texto. O bloco PPLA será gerado com coordenadas espaçadas para etiqueta 45x25mm (font 1, 203 DPI).</p>
+                      <textarea
+                        className="w-full h-24 p-2 font-mono text-xs border rounded-md bg-background resize-y"
+                        placeholder={"Linha 1: Nome paciente\nLinha 2: REQ:006809\nLinha 3: Dr(a) Fulano\nLinha 4: CRM-SP-12345\nLinha 5: Composição...\n(máx 8 linhas)"}
+                        id="ppla-gen-input"
+                      />
+                      <div className="flex gap-2 items-center">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="border-amber-500 text-amber-700 hover:bg-amber-100"
+                          onClick={() => {
+                            const input = (document.getElementById('ppla-gen-input') as HTMLTextAreaElement)?.value || '';
+                            const lines = input.split('\n').filter(l => l.trim());
+                            if (lines.length === 0) return;
+                            // Y coords em dots (origin bottom-left), espaçamento de 22 dots (~2.7mm) entre linhas
+                            // Para 8 linhas em 200 dots: 185, 163, 141, 119, 97, 75, 53, 31
+                            const yCoords = [185, 163, 141, 119, 97, 75, 53, 31];
+                            const xStart = 10;
+                            const pplaLines: string[] = [];
+                            pplaLines.push('f289');
+                            pplaLines.push('L');
+                            pplaLines.push('e');
+                            pplaLines.push('PA');
+                            pplaLines.push('D11');
+                            pplaLines.push('H14');
+                            for (let i = 0; i < Math.min(lines.length, 8); i++) {
+                              const y = String(yCoords[i]).padStart(4, '0');
+                              const x = String(xStart).padStart(4, '0');
+                              pplaLines.push(`1111${y}${x}${lines[i].trim()}`);
+                            }
+                            pplaLines.push('Q0001E');
+                            setPplaDiretoTexto(pplaLines.join('\n'));
+                          }}
+                        >
+                          Gerar Bloco PPLA ↓
+                        </Button>
+                        <span className="text-xs text-muted-foreground">Preenche o campo abaixo com comandos prontos</span>
+                      </div>
+                    </div>
+
                     <div>
-                      <Label>Comandos PPLA (cole aqui a captura)</Label>
+                      <Label>Comandos PPLA (cole aqui a captura ou use o gerador acima)</Label>
                       <textarea
                         className="w-full h-64 mt-2 p-3 font-mono text-xs border rounded-md bg-muted/50 resize-y"
-                        placeholder={`f289\nL\ne\nPA\nD11\nH14\n111100000780004TEXTO PACIENTE\n...\nQ0001E`}
+                        placeholder={`f289\nL\ne\nPA\nD11\nH14\n111101850010TEXTO PACIENTE\n...\nQ0001E`}
                         value={pplaDiretoTexto}
                         onChange={(e) => setPplaDiretoTexto(e.target.value)}
                       />
@@ -497,7 +541,7 @@ const LabelSettings = () => {
                       </Button>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      O agente converte automaticamente o formato capturado (f289, L, e...) para bytes PPLA com STX correto e envia direto para "{agentConfig.impressora}".
+                      O agente converte (f289, L, e...) para bytes PPLA com STX e envia direto para "{agentConfig.impressora}".
                     </p>
                   </div>
                 </DialogContent>
