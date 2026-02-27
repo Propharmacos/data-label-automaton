@@ -756,8 +756,8 @@ const LabelSettings = () => {
                       type="number"
                       min={0}
                       max={3}
-                      placeholder="1"
-                      value={agentConfig.calibracao?.rotacao ?? 1}
+                      placeholder="0"
+                      value={agentConfig.calibracao?.rotacao ?? 0}
                       onChange={(e) => setAgentConfigState({
                         ...agentConfig,
                         calibracao: {
