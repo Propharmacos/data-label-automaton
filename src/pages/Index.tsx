@@ -176,7 +176,7 @@ const Index = () => {
           rotulo.nrItem,
           impressora,
           agentConfigComDef.agentUrl,
-          calibracaoComDefinicao
+          calibracaoPadrao
         );
         
         if (rotutxResult.success) {
