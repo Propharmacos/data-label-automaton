@@ -40,7 +40,7 @@ except ImportError:
 app = Flask("agente_impressao_v3")
 CORS(app)
 
-IMPRESSORA_PADRAO = "AMP PEQUENO"
+IMPRESSORA_PADRAO = "PEQUENO"
 
 # ============================================
 # Configurações de dimensão por impressora (em mm e dots)
