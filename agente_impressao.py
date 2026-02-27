@@ -733,8 +733,8 @@ def imprimir_rotutx():
     else:
         espacamento = min(area_util // num_linhas, 50)  # máximo 5mm entre linhas
 
-    font = calibracao.get('fonte', dims.get('font', 0))  # Font 0 = menor (6x10 dots)
-    rot = calibracao.get('rotacao', 1)
+    font = calibracao.get('fonte', dims.get('font', 2))
+    rot = calibracao.get('rotacao', 0)
     contraste = calibracao.get('contraste', 14)
     
     ppla_lines = []
