@@ -477,7 +477,7 @@ const LabelSettings = () => {
                     {/* Gerador de bloco PPLA */}
                     <div className="p-3 rounded border border-dashed border-amber-400 bg-amber-50/50 dark:bg-amber-950/20 space-y-2">
                       <Label className="text-sm font-semibold">⚡ Gerador Rápido de Bloco PPLA</Label>
-                      <p className="text-xs text-muted-foreground">Digite até 8 linhas de texto. O bloco PPLA será gerado com coordenadas espaçadas para etiqueta 45x25mm (font 1, 203 DPI).</p>
+                      <p className="text-xs text-muted-foreground">Digite até 8 linhas de texto. O bloco PPLA será gerado com coordenadas espaçadas para etiqueta 45x25mm (fonte 2 padrão, rotação 0).</p>
                       <textarea
                         className="w-full h-24 p-2 font-mono text-xs border rounded-md bg-background resize-y"
                         placeholder={"Linha 1: Nome paciente\nLinha 2: REQ:006809\nLinha 3: Dr(a) Fulano\nLinha 4: CRM-SP-12345\nLinha 5: Composição...\n(máx 8 linhas)"}
