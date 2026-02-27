@@ -197,6 +197,28 @@ const LabelSettings = () => {
     }
   };
 
+  const handlePplaDireto = async () => {
+    if (!pplaDiretoTexto.trim()) {
+      toast({ title: "Cole os comandos PPLA capturados", variant: "destructive" });
+      return;
+    }
+    setIsPplaDiretoSending(true);
+    const result = await testePplaDireto(agentConfig.agentUrl, agentConfig.impressora, pplaDiretoTexto);
+    setIsPplaDiretoSending(false);
+    if (result.success) {
+      toast({
+        title: "PPLA direto enviado! ✓",
+        description: `${result.data?.blocos || 0} etiqueta(s), ${result.data?.bytes_enviados || 0} bytes`,
+      });
+    } else {
+      toast({
+        title: "Falha no envio PPLA direto",
+        description: result.error || "Erro desconhecido",
+        variant: "destructive",
+      });
+    }
+  };
+
 
   const handleProgressiveTest = async () => {
     setIsProgressiveTest(true);
