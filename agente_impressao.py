@@ -837,7 +837,7 @@ def diagnostico_ppla():
             "offset_r": calibracao.get('offset_r', 0),
             "contraste": calibracao.get('contraste', 12),
             "fonte": calibracao.get('fonte', 2),
-            "rotacao": calibracao.get('rotacao', 1),
+            "rotacao": calibracao.get('rotacao', 0),
         },
         "comandos_ppla": linhas_display,
         "comandos_raw": comandos,

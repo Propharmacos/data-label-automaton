@@ -522,7 +522,7 @@ const LabelSettings = () => {
                       <Label>Comandos PPLA (cole aqui a captura ou use o gerador acima)</Label>
                       <textarea
                         className="w-full h-64 mt-2 p-3 font-mono text-xs border rounded-md bg-muted/50 resize-y"
-                        placeholder={`f289\nL\ne\nPA\nD11\nH14\n111101850010TEXTO PACIENTE\n...\nQ0001E`}
+                        placeholder={`f289\nL\ne\nPA\nD11\nH14\n1021101850010TEXTO PACIENTE\n...\nQ0001E`}
                         value={pplaDiretoTexto}
                         onChange={(e) => setPplaDiretoTexto(e.target.value)}
                       />

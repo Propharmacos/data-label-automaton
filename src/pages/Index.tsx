@@ -354,7 +354,6 @@ const Index = () => {
             </div>
             {(() => {
               const ac = getPrintAgentConfig();
-              const ld = getDefinition(layoutType);
               if (ac.enabled && ac.calibracao) {
                 return (
                   <div className="flex items-center gap-3 text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-full">
@@ -363,8 +362,8 @@ const Index = () => {
                     </span>
                     <span className="text-border">|</span>
                     <span title="Contraste">H{ac.calibracao.contraste}</span>
-                    <span title="Fonte (Definição)">F{ld.fonte}</span>
-                    <span title="Rotação (Definição)">R{ld.rotacaoFonte}</span>
+                    <span title="Fonte (Calibração)">F{ac.calibracao.fonte}</span>
+                    <span title="Rotação (Calibração)">R{ac.calibracao.rotacao}</span>
                     <span className="text-border">|</span>
                     <span title="Impressora">{selectedPrinter || ac.impressora}</span>
                   </div>
