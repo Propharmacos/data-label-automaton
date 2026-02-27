@@ -283,7 +283,7 @@ def gerar_ppla_ampcx(rotulo, farmacia, dims=None, calibracao=None):
     modo = cal.get('modo', 'mm')
     cols = dims['cols_max']
     font = cal.get('fonte', dims.get('font', 2))
-    rot = cal.get('rotacao', 1)
+    rot = cal.get('rotacao', 0)
     
     paciente = (rotulo.get('nomePaciente', '') or '')[:cols].upper()
     nr_req = rotulo.get('nrRequisicao', '')
@@ -321,7 +321,7 @@ def gerar_ppla_amp10(rotulo, farmacia, dims=None, calibracao=None):
     modo = cal.get('modo', 'mm')
     cols = dims['cols_max']
     font = cal.get('fonte', dims.get('font', 2))
-    rot = cal.get('rotacao', 1)
+    rot = cal.get('rotacao', 0)
     
     paciente = (rotulo.get('nomePaciente', '') or '')[:cols].upper()
     nr_req = rotulo.get('nrRequisicao', '')
@@ -359,7 +359,7 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
     modo = cal.get('modo', 'mm')
     cols = dims['cols_max']
     font = cal.get('fonte', dims.get('font', 2))
-    rot = cal.get('rotacao', 1)
+    rot = cal.get('rotacao', 0)
     
     texto_livre = rotulo.get('textoLivre', '')
     if texto_livre:
@@ -410,7 +410,7 @@ def gerar_ppla_a_pac_gran(rotulo, farmacia, dims=None, calibracao=None):
     modo = cal.get('modo', 'mm')
     cols = dims['cols_max']
     font = cal.get('fonte', dims.get('font', 2))
-    rot = cal.get('rotacao', 1)
+    rot = cal.get('rotacao', 0)
     
     paciente = (rotulo.get('nomePaciente', '') or '')[:cols].upper()
     nr_req = rotulo.get('nrRequisicao', '')
@@ -435,7 +435,7 @@ def gerar_ppla_tirz(rotulo, farmacia, dims=None, calibracao=None):
     modo = cal.get('modo', 'mm')
     cols = dims['cols_max']
     font = cal.get('fonte', dims.get('font', 2))
-    rot = cal.get('rotacao', 1)
+    rot = cal.get('rotacao', 0)
     
     paciente = (rotulo.get('nomePaciente', '') or '')[:cols].upper()
     nr_req = rotulo.get('nrRequisicao', '')
@@ -654,7 +654,7 @@ def imprimir():
 
     impressora = find_printer_match(impressora_req) or impressora_req
     logger.info(f"Impressora solicitada: '{impressora_req}' -> resolvida: '{impressora}'")
-    logger.info(f"Calibração: C={calibracao.get('margem_c', 0)} R={calibracao.get('offset_r', 0)} Font={calibracao.get('fonte', 2)} Rot={calibracao.get('rotacao', 1)} Modo={calibracao.get('modo', 'mm')}")
+    logger.info(f"Calibração: C={calibracao.get('margem_c', 0)} R={calibracao.get('offset_r', 0)} Font={calibracao.get('fonte', 2)} Rot={calibracao.get('rotacao', 0)} Modo={calibracao.get('modo', 'mm')}")
 
     gerador = GERADORES_PPLA.get(layout_tipo, gerar_ppla_ampcx)
     dims = get_printer_dims(impressora)
@@ -733,8 +733,8 @@ def imprimir_rotutx():
     else:
         espacamento = min(area_util // num_linhas, 50)  # máximo 5mm entre linhas
 
-    font = calibracao.get('fonte', dims.get('font', 0))  # Font 0 = menor (6x10 dots)
-    rot = calibracao.get('rotacao', 1)
+    font = calibracao.get('fonte', dims.get('font', 2))
+    rot = calibracao.get('rotacao', 0)
     contraste = calibracao.get('contraste', 14)
     
     ppla_lines = []
@@ -837,7 +837,7 @@ def diagnostico_ppla():
             "offset_r": calibracao.get('offset_r', 0),
             "contraste": calibracao.get('contraste', 12),
             "fonte": calibracao.get('fonte', 2),
-            "rotacao": calibracao.get('rotacao', 1),
+            "rotacao": calibracao.get('rotacao', 0),
         },
         "comandos_ppla": linhas_display,
         "comandos_raw": comandos,

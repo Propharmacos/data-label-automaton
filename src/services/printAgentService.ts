@@ -377,7 +377,7 @@ export const imprimirViaAgente = async (
       offset_r: 0,
       contraste: 12,
       fonte: 2,
-      rotacao: 1,
+      rotacao: 0,
     };
 
     const payload = {

@@ -182,7 +182,7 @@ const LabelSettings = () => {
   const handleDiagnosticPPLA = async () => {
     setIsDiagnosticLoading(true);
     setDiagnosticResult(null);
-    const cal = agentConfig.calibracao || { margem_c: 0, offset_r: 0, contraste: 12, fonte: 2, rotacao: 1 };
+    const cal = agentConfig.calibracao || { margem_c: 0, offset_r: 0, contraste: 12, fonte: 2, rotacao: 0 };
     const result = await diagnosticoPPLA(agentConfig.agentUrl, agentConfig.impressora, 'AMP_CX', cal);
     setIsDiagnosticLoading(false);
     if (result.success) {
@@ -477,7 +477,7 @@ const LabelSettings = () => {
                     {/* Gerador de bloco PPLA */}
                     <div className="p-3 rounded border border-dashed border-amber-400 bg-amber-50/50 dark:bg-amber-950/20 space-y-2">
                       <Label className="text-sm font-semibold">⚡ Gerador Rápido de Bloco PPLA</Label>
-                      <p className="text-xs text-muted-foreground">Digite até 8 linhas de texto. O bloco PPLA será gerado com coordenadas espaçadas para etiqueta 45x25mm (font 1, 203 DPI).</p>
+                      <p className="text-xs text-muted-foreground">Digite até 8 linhas de texto. O bloco PPLA será gerado com coordenadas espaçadas para etiqueta 45x25mm (fonte 2 padrão, rotação 0).</p>
                       <textarea
                         className="w-full h-24 p-2 font-mono text-xs border rounded-md bg-background resize-y"
                         placeholder={"Linha 1: Nome paciente\nLinha 2: REQ:006809\nLinha 3: Dr(a) Fulano\nLinha 4: CRM-SP-12345\nLinha 5: Composição...\n(máx 8 linhas)"}
@@ -506,7 +506,7 @@ const LabelSettings = () => {
                             for (let i = 0; i < Math.min(lines.length, 8); i++) {
                               const y = String(yCoords[i]).padStart(4, '0');
                               const x = String(xStart).padStart(4, '0');
-                              pplaLines.push(`11111${y}${x}${lines[i].trim()}`);
+                              pplaLines.push(`10211${y}${x}${lines[i].trim()}`);
                             }
                             pplaLines.push('Q0001E');
                             setPplaDiretoTexto(pplaLines.join('\n'));
@@ -522,7 +522,7 @@ const LabelSettings = () => {
                       <Label>Comandos PPLA (cole aqui a captura ou use o gerador acima)</Label>
                       <textarea
                         className="w-full h-64 mt-2 p-3 font-mono text-xs border rounded-md bg-muted/50 resize-y"
-                        placeholder={`f289\nL\ne\nPA\nD11\nH14\n111101850010TEXTO PACIENTE\n...\nQ0001E`}
+                        placeholder={`f289\nL\ne\nPA\nD11\nH14\n1021101850010TEXTO PACIENTE\n...\nQ0001E`}
                         value={pplaDiretoTexto}
                         onChange={(e) => setPplaDiretoTexto(e.target.value)}
                       />
@@ -627,9 +627,9 @@ const LabelSettings = () => {
                 systemRaw={diagnosticResult?.comandos_raw}
                 capturedCommands={undefined}
                 capturedRaw={undefined}
-                currentCalibration={agentConfig.calibracao || { margem_c: 0, offset_r: 0, contraste: 12, fonte: 2, rotacao: 1 }}
+                currentCalibration={agentConfig.calibracao || { margem_c: 0, offset_r: 0, contraste: 12, fonte: 2, rotacao: 0 }}
                 onApplyFixes={(fixes: SuggestedFixes, selected: Record<string, boolean>) => {
-                  const cal = agentConfig.calibracao || { margem_c: 0, offset_r: 0, contraste: 12, fonte: 2, rotacao: 1 };
+                  const cal = agentConfig.calibracao || { margem_c: 0, offset_r: 0, contraste: 12, fonte: 2, rotacao: 0 };
                   const updated = { ...cal };
                   if (selected.contraste) updated.contraste = fixes.contraste.sugerido;
                   if (selected.fonte) updated.fonte = fixes.fonte.sugerido;
@@ -677,7 +677,7 @@ const LabelSettings = () => {
                       onChange={(e) => setAgentConfigState({
                         ...agentConfig,
                         calibracao: {
-                          ...agentConfig.calibracao || { margem_c: 0, offset_r: 0, contraste: 12, fonte: 2, rotacao: 1 },
+                          ...agentConfig.calibracao || { margem_c: 0, offset_r: 0, contraste: 12, fonte: 2, rotacao: 0 },
                           margem_c: Number(e.target.value),
                         },
                       })}
@@ -698,7 +698,7 @@ const LabelSettings = () => {
                       onChange={(e) => setAgentConfigState({
                         ...agentConfig,
                         calibracao: {
-                          ...agentConfig.calibracao || { margem_c: 0, offset_r: 0, contraste: 12, fonte: 2, rotacao: 1 },
+                          ...agentConfig.calibracao || { margem_c: 0, offset_r: 0, contraste: 12, fonte: 2, rotacao: 0 },
                           offset_r: Number(e.target.value),
                         },
                       })}
@@ -719,7 +719,7 @@ const LabelSettings = () => {
                       onChange={(e) => setAgentConfigState({
                         ...agentConfig,
                         calibracao: {
-                          ...agentConfig.calibracao || { margem_c: 0, offset_r: 0, contraste: 12, fonte: 2, rotacao: 1 },
+                          ...agentConfig.calibracao || { margem_c: 0, offset_r: 0, contraste: 12, fonte: 2, rotacao: 0 },
                           contraste: Number(e.target.value),
                         },
                       })}
@@ -740,7 +740,7 @@ const LabelSettings = () => {
                       onChange={(e) => setAgentConfigState({
                         ...agentConfig,
                         calibracao: {
-                          ...agentConfig.calibracao || { margem_c: 0, offset_r: 0, contraste: 12, fonte: 2, rotacao: 1 },
+                          ...agentConfig.calibracao || { margem_c: 0, offset_r: 0, contraste: 12, fonte: 2, rotacao: 0 },
                           fonte: Number(e.target.value),
                         },
                       })}
@@ -756,12 +756,12 @@ const LabelSettings = () => {
                       type="number"
                       min={0}
                       max={3}
-                      placeholder="1"
-                      value={agentConfig.calibracao?.rotacao ?? 1}
+                      placeholder="0"
+                      value={agentConfig.calibracao?.rotacao ?? 0}
                       onChange={(e) => setAgentConfigState({
                         ...agentConfig,
                         calibracao: {
-                          ...agentConfig.calibracao || { margem_c: 0, offset_r: 0, contraste: 12, fonte: 2, rotacao: 1 },
+                          ...agentConfig.calibracao || { margem_c: 0, offset_r: 0, contraste: 12, fonte: 2, rotacao: 0 },
                           rotacao: Number(e.target.value),
                         },
                       })}

@@ -16,7 +16,7 @@ import { buscarRequisicao } from "@/services/requisicaoService";
 import { imprimirViaAgente, imprimirViaRotutx, imprimirViaRotutxRaw } from "@/services/printAgentService";
 import { RotuloItem, PharmacyConfig, LayoutType, LayoutConfig } from "@/types/requisicao";
 import { listarImpressoras } from "@/services/printAgentService";
-import { getDefinition } from "@/types/printerDefinition";
+
 import logoProPharmacos from "@/assets/logo-propharmacos.png";
 import { Edit } from "lucide-react";
 
@@ -146,14 +146,16 @@ const Index = () => {
     const agentConfig = getPrintAgentConfig();
     const apiConfig = getApiConfig();
     
-    // Mesclar fonte e rotação da Definição do layout ativo
-    const layoutDef = getDefinition(layoutType);
-    const calibracaoComDefinicao = {
-      ...(agentConfig.calibracao || { margem_c: 0, offset_r: 0, contraste: 14, fonte: 2, rotacao: 0 }),
-      fonte: layoutDef.fonte,
-      rotacao: layoutDef.rotacaoFonte,
+    // Usar calibração do agente sem sobrescrever fonte/rotação por definição de layout
+    const calibracaoPadrao = agentConfig.calibracao || {
+      margem_c: 0,
+      offset_r: 0,
+      contraste: 14,
+      fonte: 2,
+      rotacao: 0,
+      modo: 'dots',
     };
-    const agentConfigComDef = { ...agentConfig, calibracao: calibracaoComDefinicao };
+    const agentConfigComDef = { ...agentConfig, calibracao: calibracaoPadrao };
     
     let result;
 
@@ -174,7 +176,7 @@ const Index = () => {
           rotulo.nrItem,
           impressora,
           agentConfigComDef.agentUrl,
-          calibracaoComDefinicao
+          calibracaoPadrao
         );
         
         if (rotutxResult.success) {
@@ -352,7 +354,6 @@ const Index = () => {
             </div>
             {(() => {
               const ac = getPrintAgentConfig();
-              const ld = getDefinition(layoutType);
               if (ac.enabled && ac.calibracao) {
                 return (
                   <div className="flex items-center gap-3 text-xs text-muted-foreground bg-muted px-3 py-1.5 rounded-full">
@@ -361,8 +362,8 @@ const Index = () => {
                     </span>
                     <span className="text-border">|</span>
                     <span title="Contraste">H{ac.calibracao.contraste}</span>
-                    <span title="Fonte (Definição)">F{ld.fonte}</span>
-                    <span title="Rotação (Definição)">R{ld.rotacaoFonte}</span>
+                    <span title="Fonte (Calibração)">F{ac.calibracao.fonte}</span>
+                    <span title="Rotação (Calibração)">R{ac.calibracao.rotacao}</span>
                     <span className="text-border">|</span>
                     <span title="Impressora">{selectedPrinter || ac.impressora}</span>
                   </div>
