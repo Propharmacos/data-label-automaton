@@ -335,6 +335,36 @@ export const imprimirViaRotutx = async (
   }
 };
 
+// Teste PPLA Direto - envia comandos PPLA capturados do Fórmula Certa direto para a impressora
+export const testePplaDireto = async (
+  url: string,
+  impressora: string,
+  pplaTexto: string
+): Promise<ApiResponse<{ message: string; blocos: number; bytes_enviados: number }>> => {
+  try {
+    const response = await fetch(`${url}/teste-ppla-direto`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "ngrok-skip-browser-warning": "true",
+      },
+      body: JSON.stringify({ impressora, ppla: pplaTexto }),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      return { success: false, error: errorData.error || "Falha no teste PPLA direto" };
+    }
+
+    const data = await response.json();
+    return { success: data.success, data };
+  } catch (error) {
+    console.error("[PrintAgent] Erro no teste PPLA direto:", error);
+    return { success: false, error: "Não foi possível enviar PPLA direto para o agente" };
+  }
+};
+
 export const imprimirViaAgente = async (
   config: PrintAgentConfig,
   rotulos: RotuloItem[],
