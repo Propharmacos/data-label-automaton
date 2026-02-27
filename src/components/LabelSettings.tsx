@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, Save, RefreshCw, Layout, Edit2, Printer, TestTube, Wifi, WifiOff, FileCode, Copy, ArrowLeftRight } from "lucide-react";
+import { Settings, Save, RefreshCw, Layout, Edit2, Printer, TestTube, Wifi, WifiOff, FileCode, Copy, ArrowLeftRight, Send } from "lucide-react";
 import { type SuggestedFixes, type CalibrationFix } from "@/utils/pplaParser";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
