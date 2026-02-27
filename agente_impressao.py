@@ -923,17 +923,106 @@ def raw_print():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# ============================================
+# ENDPOINT /teste-ppla-direto - Recebe texto PPLA capturado e envia direto
+# ============================================
+@app.route('/teste-ppla-direto', methods=['POST'])
+def teste_ppla_direto():
+    """Recebe comandos PPLA em texto puro (capturados do Fórmula Certa) e envia direto para a impressora.
+    Aceita o formato exato capturado: f289\\nL\\ne\\nPA\\nD11\\nH14\\n...\\nQ0001E
+    Converte \\n para \\r\\n e adiciona STX (\\x02) antes de 'L' se necessário."""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"success": False, "error": "Nenhum dado recebido"}), 400
+
+        impressora_req = data.get('impressora', '') or IMPRESSORA_PADRAO
+        ppla_texto = data.get('ppla', '')
+
+        if not ppla_texto:
+            return jsonify({"success": False, "error": "Nenhum comando PPLA recebido"}), 400
+
+        impressora = find_printer_match(impressora_req) or impressora_req
+
+        # Separar em blocos de etiqueta (cada bloco começa com f289 ou similar)
+        # Normalizar line endings
+        ppla_texto = ppla_texto.replace('\r\n', '\n').replace('\r', '\n')
+
+        # Separar blocos por padrão "f" seguido de números (ex: f289)
+        import re as re_local
+        blocos_raw = re_local.split(r'(?=^f\d)', ppla_texto, flags=re_local.MULTILINE)
+        blocos = [b.strip() for b in blocos_raw if b.strip()]
+
+        logger.info(f"[PPLA-DIRETO] Impressora: {impressora}")
+        logger.info(f"[PPLA-DIRETO] {len(blocos)} bloco(s) de etiqueta detectado(s)")
+
+        # Converter cada bloco para formato binário correto
+        comandos_finais = b""
+        for i, bloco in enumerate(blocos):
+            linhas = bloco.split('\n')
+            # Reconstruir com \r como separador (PPLA usa CR)
+            # Substituir início: "f289\nL" -> STX + "L"  (f289 = form feed, ignoramos)
+            ppla_bin = b""
+            for linha in linhas:
+                linha = linha.strip()
+                if not linha:
+                    continue
+                # "L" sozinho no início = entrar modo formatação (precisa de STX)
+                if linha == 'L':
+                    ppla_bin += b"\x02L\r"
+                elif linha.startswith('f') and linha[1:].isdigit():
+                    # f289 = form feed command, ignorar (já tratado pelo STX L)
+                    continue
+                elif linha == 'e':
+                    # Gap sensor ON
+                    ppla_bin += b"\x02e\r"
+                elif linha.startswith('Q') and linha.endswith('E'):
+                    # Q0001E = quantidade + fim - separar
+                    q_part = linha[:-1]  # Q0001
+                    ppla_bin += q_part.encode('cp1252', errors='replace') + b"\r"
+                    ppla_bin += b"E\r"
+                else:
+                    ppla_bin += linha.encode('cp1252', errors='replace') + b"\r"
+
+            comandos_finais += ppla_bin
+            logger.info(f"  Bloco {i+1}: {len(ppla_bin)} bytes")
+
+        logger.info(f"[PPLA-DIRETO] Total: {len(comandos_finais)} bytes")
+        logger.info(f"[PPLA-DIRETO] Preview: {comandos_finais[:200]}")
+
+        # Enviar como texto latin-1 (decodificar bytes para string)
+        resultado = enviar_para_impressora(impressora, comandos_finais.decode('latin-1', errors='replace'))
+
+        if resultado.get("success"):
+            return jsonify({
+                "success": True,
+                "message": f"{len(blocos)} etiqueta(s) enviada(s) via PPLA direto",
+                "blocos": len(blocos),
+                "bytes_enviados": len(comandos_finais),
+                "impressora": impressora,
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "error": resultado.get("error", "Falha ao enviar"),
+            }), 500
+
+    except Exception as e:
+        logger.error(f"[PPLA-DIRETO] Erro: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5002))
     logger.info("=" * 50)
-    logger.info("Agente de Impressao PPLA - ProPharmacos V3.1")
+    logger.info("Agente de Impressao PPLA - ProPharmacos V3.2")
     logger.info(f"Hostname: {socket.gethostname()}")
     logger.info(f"Porta: {port}")
     logger.info(f"Impressora padrao: {IMPRESSORA_PADRAO}")
     logger.info(f"pywin32 disponivel: {PYWIN32_OK}")
     logger.info(f"Impressoras: {get_available_printers()}")
     logger.info(f"Layouts: {list(GERADORES_PPLA.keys())}")
-    logger.info(f"Endpoints: /health /impressoras /imprimir /imprimir-rotutx /raw /teste /teste-dots /diagnostico-ppla")
+    logger.info(f"Endpoints: /health /impressoras /imprimir /imprimir-rotutx /raw /teste /teste-dots /teste-ppla-direto /diagnostico-ppla")
     for k, v in PRINTER_CONFIGS.items():
         logger.info(f"  {k}: {v['largura_mm']}x{v['altura_mm']}mm ({v['cols_max']} cols)")
     logger.info(f"Health: http://localhost:{port}/health")

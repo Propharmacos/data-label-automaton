@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Settings, Save, RefreshCw, Layout, Edit2, Printer, TestTube, Wifi, WifiOff, FileCode, Copy, ArrowLeftRight } from "lucide-react";
+import { Settings, Save, RefreshCw, Layout, Edit2, Printer, TestTube, Wifi, WifiOff, FileCode, Copy, ArrowLeftRight, Send } from "lucide-react";
 import { type SuggestedFixes, type CalibrationFix } from "@/utils/pplaParser";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,7 +19,7 @@ import {
   setPrintAgentConfig,
 } from "@/config/api";
 import { verificarConexao } from "@/services/requisicaoService";
-import { verificarAgente, listarImpressoras, testeImpressaoAgente, diagnosticoPPLA, testeProgressivoAgente, testeDotsAgente } from "@/services/printAgentService";
+import { verificarAgente, listarImpressoras, testeImpressaoAgente, diagnosticoPPLA, testeProgressivoAgente, testeDotsAgente, testePplaDireto } from "@/services/printAgentService";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ApiConfig, PharmacyConfig, LayoutType, LayoutConfig, PrintAgentConfig, PrinterCalibrationConfig } from "@/types/requisicao";
 import { getLayouts, fieldLabels } from "@/config/layouts";
@@ -45,6 +45,9 @@ const LabelSettings = () => {
   const [isDiagnosticLoading, setIsDiagnosticLoading] = useState(false);
   const [diagnosticResult, setDiagnosticResult] = useState<any>(null);
   const [isCompareOpen, setIsCompareOpen] = useState(false);
+  const [isPplaDiretoOpen, setIsPplaDiretoOpen] = useState(false);
+  const [isPplaDiretoSending, setIsPplaDiretoSending] = useState(false);
+  const [pplaDiretoTexto, setPplaDiretoTexto] = useState("");
   
   const [apiConfig, setApiConfigState] = useState<ApiConfig>(getApiConfig());
   const [pharmacyConfig, setPharmacyConfigState] = useState<PharmacyConfig>(getPharmacyConfig());
@@ -189,6 +192,28 @@ const LabelSettings = () => {
       toast({
         title: "Erro no diagnóstico",
         description: result.error || "Não foi possível gerar diagnóstico.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handlePplaDireto = async () => {
+    if (!pplaDiretoTexto.trim()) {
+      toast({ title: "Cole os comandos PPLA capturados", variant: "destructive" });
+      return;
+    }
+    setIsPplaDiretoSending(true);
+    const result = await testePplaDireto(agentConfig.agentUrl, agentConfig.impressora, pplaDiretoTexto);
+    setIsPplaDiretoSending(false);
+    if (result.success) {
+      toast({
+        title: "PPLA direto enviado! ✓",
+        description: `${result.data?.blocos || 0} etiqueta(s), ${result.data?.bytes_enviados || 0} bytes`,
+      });
+    } else {
+      toast({
+        title: "Falha no envio PPLA direto",
+        description: result.error || "Erro desconhecido",
         variant: "destructive",
       });
     }
@@ -416,6 +441,15 @@ const LabelSettings = () => {
                   <TestTube className={`h-4 w-4 mr-2 ${isDotsTest ? 'animate-pulse' : ''}`} />
                   {isDotsTest ? 'Testando dots...' : '🔧 Teste Dots (FC)'}
                 </Button>
+                <Button 
+                  variant="default" 
+                  onClick={() => setIsPplaDiretoOpen(true)}
+                  disabled={!isAgentOnline}
+                  className="bg-amber-600 hover:bg-amber-700 text-white"
+                >
+                  <Send className="h-4 w-4 mr-2" />
+                  📋 PPLA Direto
+                </Button>
               {diagnosticResult && (
                   <Button 
                     variant="outline" 
@@ -426,6 +460,49 @@ const LabelSettings = () => {
                   </Button>
                 )}
               </div>
+
+              {/* Dialog PPLA Direto */}
+              <Dialog open={isPplaDiretoOpen} onOpenChange={setIsPplaDiretoOpen}>
+                <DialogContent className="max-w-2xl max-h-[80vh]">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <Send className="h-5 w-5 text-amber-600" />
+                      Teste PPLA Direto
+                    </DialogTitle>
+                    <DialogDescription>
+                      Cole os comandos PPLA capturados do Fórmula Certa (ex: f289, L, e, PA, D11, H14...) e envie direto para a impressora.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <Label>Comandos PPLA (cole aqui a captura)</Label>
+                      <textarea
+                        className="w-full h-64 mt-2 p-3 font-mono text-xs border rounded-md bg-muted/50 resize-y"
+                        placeholder={`f289\nL\ne\nPA\nD11\nH14\n111100000780004TEXTO PACIENTE\n...\nQ0001E`}
+                        value={pplaDiretoTexto}
+                        onChange={(e) => setPplaDiretoTexto(e.target.value)}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        onClick={handlePplaDireto}
+                        disabled={isPplaDiretoSending || !pplaDiretoTexto.trim()}
+                        className="bg-amber-600 hover:bg-amber-700 text-white"
+                      >
+                        <Send className={`h-4 w-4 mr-2 ${isPplaDiretoSending ? 'animate-pulse' : ''}`} />
+                        {isPplaDiretoSending ? 'Enviando...' : 'Enviar para impressora'}
+                      </Button>
+                      <Button variant="outline" onClick={() => setPplaDiretoTexto("")}>
+                        Limpar
+                      </Button>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      O agente converte automaticamente o formato capturado (f289, L, e...) para bytes PPLA com STX correto e envia direto para "{agentConfig.impressora}".
+                    </p>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
 
               {/* Dialog de Diagnóstico PPLA */}
               <Dialog open={isDiagnosticOpen} onOpenChange={setIsDiagnosticOpen}>
