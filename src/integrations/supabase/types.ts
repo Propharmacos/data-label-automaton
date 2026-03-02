@@ -14,6 +14,309 @@ export type Database = {
   }
   public: {
     Tables: {
+      cache_change_log: {
+        Row: {
+          acknowledged: boolean
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          changed_at: string
+          id: number
+          new_checksum: string | null
+          old_checksum: string | null
+          period: string
+          store_id: number | null
+          table_name: string
+        }
+        Insert: {
+          acknowledged?: boolean
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          changed_at?: string
+          id?: never
+          new_checksum?: string | null
+          old_checksum?: string | null
+          period: string
+          store_id?: number | null
+          table_name: string
+        }
+        Update: {
+          acknowledged?: boolean
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          changed_at?: string
+          id?: never
+          new_checksum?: string | null
+          old_checksum?: string | null
+          period?: string
+          store_id?: number | null
+          table_name?: string
+        }
+        Relationships: []
+      }
+      cache_cmv_manipulados: {
+        Row: {
+          checksum: string | null
+          data: Json
+          id: number
+          period: string
+          store_id: number
+          synced_at: string
+        }
+        Insert: {
+          checksum?: string | null
+          data?: Json
+          id?: never
+          period: string
+          store_id?: number
+          synced_at?: string
+        }
+        Update: {
+          checksum?: string | null
+          data?: Json
+          id?: never
+          period?: string
+          store_id?: number
+          synced_at?: string
+        }
+        Relationships: []
+      }
+      cache_despesas: {
+        Row: {
+          checksum: string | null
+          data: Json
+          id: number
+          period: string
+          store_id: number
+          synced_at: string
+        }
+        Insert: {
+          checksum?: string | null
+          data?: Json
+          id?: never
+          period: string
+          store_id?: number
+          synced_at?: string
+        }
+        Update: {
+          checksum?: string | null
+          data?: Json
+          id?: never
+          period?: string
+          store_id?: number
+          synced_at?: string
+        }
+        Relationships: []
+      }
+      cache_dfc: {
+        Row: {
+          checksum: string | null
+          data: Json
+          id: number
+          mode: string
+          period: string
+          store_id: number
+          synced_at: string
+        }
+        Insert: {
+          checksum?: string | null
+          data?: Json
+          id?: never
+          mode?: string
+          period: string
+          store_id?: number
+          synced_at?: string
+        }
+        Update: {
+          checksum?: string | null
+          data?: Json
+          id?: never
+          mode?: string
+          period?: string
+          store_id?: number
+          synced_at?: string
+        }
+        Relationships: []
+      }
+      cache_dfc_macro: {
+        Row: {
+          checksum: string | null
+          data: Json
+          id: number
+          period: string
+          synced_at: string
+        }
+        Insert: {
+          checksum?: string | null
+          data?: Json
+          id?: never
+          period: string
+          synced_at?: string
+        }
+        Update: {
+          checksum?: string | null
+          data?: Json
+          id?: never
+          period?: string
+          synced_at?: string
+        }
+        Relationships: []
+      }
+      cache_dre: {
+        Row: {
+          checksum: string | null
+          data: Json
+          id: number
+          period: string
+          store_id: number
+          synced_at: string
+        }
+        Insert: {
+          checksum?: string | null
+          data?: Json
+          id?: never
+          period: string
+          store_id?: number
+          synced_at?: string
+        }
+        Update: {
+          checksum?: string | null
+          data?: Json
+          id?: never
+          period?: string
+          store_id?: number
+          synced_at?: string
+        }
+        Relationships: []
+      }
+      cache_remuneracao_variavel: {
+        Row: {
+          checksum: string | null
+          data: Json
+          id: number
+          period: string
+          store_id: number
+          synced_at: string
+        }
+        Insert: {
+          checksum?: string | null
+          data?: Json
+          id?: never
+          period: string
+          store_id?: number
+          synced_at?: string
+        }
+        Update: {
+          checksum?: string | null
+          data?: Json
+          id?: never
+          period?: string
+          store_id?: number
+          synced_at?: string
+        }
+        Relationships: []
+      }
+      cache_rv_completo: {
+        Row: {
+          checksum: string | null
+          data: Json
+          id: number
+          period: string
+          store_id: number
+          synced_at: string
+        }
+        Insert: {
+          checksum?: string | null
+          data?: Json
+          id?: never
+          period: string
+          store_id?: number
+          synced_at?: string
+        }
+        Update: {
+          checksum?: string | null
+          data?: Json
+          id?: never
+          period?: string
+          store_id?: number
+          synced_at?: string
+        }
+        Relationships: []
+      }
+      cache_sync_log: {
+        Row: {
+          endpoints: string[] | null
+          error_details: Json | null
+          errors: number | null
+          finished_at: string | null
+          frequency: string | null
+          id: number
+          mode: string
+          periods: string[] | null
+          records_unchanged: number | null
+          records_updated: number | null
+          started_at: string
+          status: string
+          stores_synced: number | null
+        }
+        Insert: {
+          endpoints?: string[] | null
+          error_details?: Json | null
+          errors?: number | null
+          finished_at?: string | null
+          frequency?: string | null
+          id?: never
+          mode: string
+          periods?: string[] | null
+          records_unchanged?: number | null
+          records_updated?: number | null
+          started_at?: string
+          status?: string
+          stores_synced?: number | null
+        }
+        Update: {
+          endpoints?: string[] | null
+          error_details?: Json | null
+          errors?: number | null
+          finished_at?: string | null
+          frequency?: string | null
+          id?: never
+          mode?: string
+          periods?: string[] | null
+          records_unchanged?: number | null
+          records_updated?: number | null
+          started_at?: string
+          status?: string
+          stores_synced?: number | null
+        }
+        Relationships: []
+      }
+      cache_vendas_colaborador: {
+        Row: {
+          checksum: string | null
+          data: Json
+          id: number
+          period: string
+          store_id: number
+          synced_at: string
+        }
+        Insert: {
+          checksum?: string | null
+          data?: Json
+          id?: never
+          period: string
+          store_id?: number
+          synced_at?: string
+        }
+        Update: {
+          checksum?: string | null
+          data?: Json
+          id?: never
+          period?: string
+          store_id?: number
+          synced_at?: string
+        }
+        Relationships: []
+      }
       dim_laboratorio: {
         Row: {
           ativo: boolean
