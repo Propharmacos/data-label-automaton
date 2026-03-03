@@ -399,7 +399,7 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
     # Se textoLivre foi editado na UI, usar diretamente
     texto_livre = rotulo.get('textoLivre', '')
     if texto_livre:
-        y_pos = [220, 180, 140, 100, 70, 40, 20]
+        y_pos = [231, 191, 151, 111, 81, 51, 31]
         return _gerar_from_texto_livre(texto_livre, y_pos, 10, rot, font, cols, dims, cal, modo)
     
     paciente = (rotulo.get('nomePaciente', '') or '')[:25].upper()
@@ -419,11 +419,11 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
     
     linhas = []
     if line1.strip():
-        linhas.append(_ppla_text(rot, font, 1, 1, 220, 10, line1[:w], modo))
+        linhas.append(_ppla_text(rot, font, 1, 1, 231, 10, line1[:w], modo))
     if line2.strip():
-        linhas.append(_ppla_text(rot, font, 1, 1, 170, 10, line2[:w], modo))
+        linhas.append(_ppla_text(rot, font, 1, 1, 181, 10, line2[:w], modo))
     if line3.strip():
-        linhas.append(_ppla_text(rot, font, 1, 1, 120, 10, line3[:w], modo))
+        linhas.append(_ppla_text(rot, font, 1, 1, 131, 10, line3[:w], modo))
     
     return _build_label(linhas, dims, cal, modo)
 
