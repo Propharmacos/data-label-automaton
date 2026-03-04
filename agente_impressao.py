@@ -15,6 +15,7 @@ import platform
 import re
 import logging
 import socket
+import time
 from typing import Any, Dict, List, Optional, Tuple
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -590,6 +591,16 @@ GERADORES_PPLA = {
 # ============================================
 # ENVIO PARA IMPRESSORA
 # ============================================
+def _printer_key(nome_impressora: str) -> str:
+    return re.sub(r'\s+', '', (nome_impressora or '').upper())
+
+
+PRINTER_DATATYPE_CACHE: Dict[str, str] = {}
+PRINTER_LAST_ACTIVITY: Dict[str, float] = {}
+STARTUP_GUARD_IDLE_SECONDS = 4 * 60 * 60  # 4h sem uso => reaplica preâmbulo
+STARTUP_GUARD_PREAMBLE = "\x02L\r\x02e\r\x02PA\r\x02D11\r\x02H20\r"
+
+
 def _detectar_raw_type(nome_impressora):
     """Detecta se o driver requer XPS_PASS (v4) ou RAW (v3)."""
     if not PYWIN32_OK:
@@ -607,51 +618,92 @@ def _detectar_raw_type(nome_impressora):
     return "RAW"
 
 
-def enviar_para_impressora(nome_impressora, comandos):
-    """Envia comandos PPLA para a impressora com fallback de RAW/XPS_PASS.
-    Usa encoding cp1252 conforme documentação Argox."""
+def _candidatos_datatype(nome_impressora: str) -> List[str]:
+    """Ordem de tentativa priorizando estabilidade (RAW primeiro, com cache de sucesso)."""
+    key = _printer_key(nome_impressora)
+    cached = PRINTER_DATATYPE_CACHE.get(key)
+    detected = _detectar_raw_type(nome_impressora)
+
+    ordem: List[str] = []
+    if cached in ("RAW", "XPS_PASS"):
+        ordem.append(cached)
+
+    # Para Argox, RAW é mais estável no boot; tentamos sempre cedo.
+    if "RAW" not in ordem:
+        ordem.append("RAW")
+
+    if detected in ("RAW", "XPS_PASS") and detected not in ordem:
+        ordem.append(detected)
+
+    if "XPS_PASS" not in ordem:
+        ordem.append("XPS_PASS")
+
+    return ordem
+
+
+def _precisa_startup_guard(nome_impressora: str) -> bool:
+    """Aplica preâmbulo de estabilização no primeiro envio ou após longo período ocioso."""
+    key = _printer_key(nome_impressora)
+    last_ts = PRINTER_LAST_ACTIVITY.get(key)
+    if last_ts is None:
+        return True
+    return (time.time() - last_ts) > STARTUP_GUARD_IDLE_SECONDS
+
+
+def _registrar_atividade(nome_impressora: str) -> None:
+    PRINTER_LAST_ACTIVITY[_printer_key(nome_impressora)] = time.time()
+
+
+def _enviar_com_datatype(nome_impressora: str, dados: bytes, datatype: str) -> None:
+    hPrinter = win32print.OpenPrinter(nome_impressora)
+    try:
+        win32print.StartDocPrinter(hPrinter, 1, ("Etiqueta PPLA", None, datatype))
+        try:
+            win32print.StartPagePrinter(hPrinter)
+            win32print.WritePrinter(hPrinter, dados)
+            win32print.EndPagePrinter(hPrinter)
+        finally:
+            win32print.EndDocPrinter(hPrinter)
+    finally:
+        win32print.ClosePrinter(hPrinter)
+
+
+def enviar_para_impressora(nome_impressora, comandos, aplicar_startup_guard=True):
+    """Envia comandos para a impressora com estratégia robusta de datatype + guard de startup."""
     if not PYWIN32_OK:
-        logger.info(f"[SIMULAÇÃO] Enviando para {nome_impressora}:\n{comandos[:500]}")
+        preview = comandos[:500] if isinstance(comandos, str) else str(comandos[:120])
+        logger.info(f"[SIMULAÇÃO] Enviando para {nome_impressora}:\n{preview}")
         return {"success": True, "message": "Simulação OK"}
 
-    raw_type = _detectar_raw_type(nome_impressora)
-    logger.info(f"Usando datatype '{raw_type}' para '{nome_impressora}'")
+    key = _printer_key(nome_impressora)
 
-    # Encoding cp1252 conforme recomendação da documentação
-    dados = comandos.encode('cp1252', errors='replace')
+    payload = comandos
+    if aplicar_startup_guard and _precisa_startup_guard(nome_impressora):
+        logger.info(f"[PRINT-GUARD] Aplicando preâmbulo de estabilização em '{nome_impressora}'")
+        if isinstance(payload, bytes):
+            payload = STARTUP_GUARD_PREAMBLE.encode('cp1252', errors='replace') + payload
+        else:
+            payload = STARTUP_GUARD_PREAMBLE + payload
 
-    try:
-        hPrinter = win32print.OpenPrinter(nome_impressora)
+    # String -> cp1252 (PPLA). Bytes -> passthrough (RAW exato).
+    dados = payload if isinstance(payload, bytes) else payload.encode('cp1252', errors='replace')
+
+    candidatos = _candidatos_datatype(nome_impressora)
+    logger.info(f"Datatypes candidatos para '{nome_impressora}': {candidatos}")
+
+    erros: List[str] = []
+    for datatype in candidatos:
         try:
-            hJob = win32print.StartDocPrinter(hPrinter, 1, ("Etiqueta PPLA", None, raw_type))
-            try:
-                win32print.StartPagePrinter(hPrinter)
-                win32print.WritePrinter(hPrinter, dados)
-                win32print.EndPagePrinter(hPrinter)
-            finally:
-                win32print.EndDocPrinter(hPrinter)
-        finally:
-            win32print.ClosePrinter(hPrinter)
-        return {"success": True}
-    except Exception as e:
-        # Fallback
-        fallback_type = "RAW" if raw_type == "XPS_PASS" else "XPS_PASS"
-        logger.warning(f"Falha com '{raw_type}', tentando fallback '{fallback_type}': {e}")
-        try:
-            hPrinter = win32print.OpenPrinter(nome_impressora)
-            try:
-                hJob = win32print.StartDocPrinter(hPrinter, 1, ("Etiqueta PPLA", None, fallback_type))
-                try:
-                    win32print.StartPagePrinter(hPrinter)
-                    win32print.WritePrinter(hPrinter, dados)
-                    win32print.EndPagePrinter(hPrinter)
-                finally:
-                    win32print.EndDocPrinter(hPrinter)
-            finally:
-                win32print.ClosePrinter(hPrinter)
-            return {"success": True}
-        except Exception as e2:
-            return {"success": False, "error": f"RAW falhou: {e} | XPS_PASS falhou: {e2}"}
+            _enviar_com_datatype(nome_impressora, dados, datatype)
+            PRINTER_DATATYPE_CACHE[key] = datatype
+            _registrar_atividade(nome_impressora)
+            logger.info(f"Envio concluído com datatype '{datatype}' para '{nome_impressora}'")
+            return {"success": True, "datatype": datatype}
+        except Exception as e:
+            logger.warning(f"Falha com datatype '{datatype}' em '{nome_impressora}': {e}")
+            erros.append(f"{datatype}: {e}")
+
+    return {"success": False, "error": " | ".join(erros)}
 
 
 # ============================================
@@ -1012,7 +1064,7 @@ def raw_print():
 
         logger.info(f"{'='*60}")
 
-        resultado = enviar_para_impressora(impressora, raw_bytes.decode('latin-1', errors='replace'))
+        resultado = enviar_para_impressora(impressora, raw_bytes, aplicar_startup_guard=False)
 
         if resultado.get("success"):
             return jsonify({
