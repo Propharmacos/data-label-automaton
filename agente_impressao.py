@@ -388,21 +388,31 @@ def gerar_ppla_amp10(rotulo, farmacia, dims=None, calibracao=None):
 
 
 def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
-    """Layout A.PAC.PEQ (45x25mm)."""
+    """Layout A.PAC.PEQ (45x25mm) - Coordenadas DIRETAS em dots (validado FC)."""
     if not dims:
         dims = PRINTER_CONFIGS['PEQUEN']
     cal = calibracao or {}
-    # Paridade FC para A.PAC.PEQ: forçar dots + Font=1 + Rot=1 (evita etiquetas em branco/deslocadas)
     modo = 'dots'
     cols = dims['cols_max']
     font = 1
     rot = 1
     
+    # Coordenadas Y JÁ EM DOTS (validadas com FC)
+    y_pos = [231, 191, 151, 111, 81, 51, 31]
+    x_start = 10  # dots
+    
     # Se textoLivre foi editado na UI, usar diretamente
     texto_livre = rotulo.get('textoLivre', '')
     if texto_livre:
-        y_pos = [231, 191, 151, 111, 81, 51, 31]
-        return _gerar_from_texto_livre(texto_livre, y_pos, 10, rot, font, cols, dims, cal, modo)
+        linhas_texto = texto_livre.split('\n')
+        pplb_lines = []
+        for i, y in enumerate(y_pos):
+            line_text = linhas_texto[i] if i < len(linhas_texto) else ''
+            if line_text.strip():
+                pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_start, line_text[:cols]))
+        if not pplb_lines:
+            pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y_pos[0], x_start, 'SEM DADOS'))
+        return _build_label(pplb_lines, dims, cal, modo)
     
     paciente = (rotulo.get('nomePaciente', '') or '')[:25].upper()
     nr_req = rotulo.get('nrRequisicao', '')
@@ -421,14 +431,13 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
     
     linhas = []
     if line1.strip():
-        linhas.append(_ppla_text(rot, font, 1, 1, 231, 10, line1[:w], modo))
+        linhas.append(ppla_text_dots(rot, font, 1, 1, y_pos[0], x_start, line1[:w]))
     if line2.strip():
-        linhas.append(_ppla_text(rot, font, 1, 1, 181, 10, line2[:w], modo))
+        linhas.append(ppla_text_dots(rot, font, 1, 1, y_pos[1], x_start, line2[:w]))
     if line3.strip():
-        linhas.append(_ppla_text(rot, font, 1, 1, 131, 10, line3[:w], modo))
+        linhas.append(ppla_text_dots(rot, font, 1, 1, y_pos[2], x_start, line3[:w]))
     
     return _build_label(linhas, dims, cal, modo)
-
 
 def gerar_ppla_a_pac_gran(rotulo, farmacia, dims=None, calibracao=None):
     """Layout A.PAC.GRAN (76x25mm) - Coordenadas exatas do Fórmula Certa.
