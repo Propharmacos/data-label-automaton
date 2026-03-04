@@ -819,7 +819,9 @@ def imprimir():
 
     impressora = find_printer_match(impressora_req) or impressora_req
     logger.info(f"Impressora solicitada: '{impressora_req}' -> resolvida: '{impressora}'")
-    logger.info(f"Calibração: C={calibracao.get('margem_c', 0)} R={calibracao.get('offset_r', 0)} Font={calibracao.get('fonte', 2)} Rot={calibracao.get('rotacao', 0)} Modo={calibracao.get('modo', 'dots')}")
+    logger.info(f"Calibração: C={calibracao.get('margem_c', 0)} R={calibracao.get('offset_r', 0)} Font={calibracao.get('fonte', 2)} Rot={calibracao.get('rotacao', 0)} ModoForcado={calibracao.get('modo', 'dots')} ModoRecebido={calibracao_in.get('modo', 'dots')}")
+    if calibracao_in.get('modo') not in (None, 'dots'):
+        logger.warning(f"[PRINT] Modo recebido '{calibracao_in.get('modo')}' foi forçado para 'dots' para manter paridade FC")
 
     gerador = GERADORES_PPLA.get(layout_tipo, gerar_ppla_ampcx)
     dims = get_printer_dims(impressora)
