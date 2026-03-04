@@ -10,7 +10,7 @@ import LayoutEditor from "@/components/LayoutEditor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { getPharmacyConfig, getPrintAgentConfig, getApiConfig, getModoImpressao, setModoImpressao, ModoImpressao } from "@/config/api";
+import { getPharmacyConfig, getPrintAgentConfig, getApiConfig, getModoImpressao, setModoImpressao, ModoImpressao, getLayoutPrinter, setLayoutPrinter } from "@/config/api";
 import { getLayout, getSelectedLayout, setSelectedLayout, resetAllLayouts } from "@/config/layouts";
 import { buscarRequisicao } from "@/services/requisicaoService";
 import { imprimirViaAgente, imprimirViaRotutx, imprimirViaRotutxRaw } from "@/services/printAgentService";
@@ -82,6 +82,11 @@ const Index = () => {
     setLayoutType(newType);
     setSelectedLayout(newType);
     setLayoutConfig(getLayout(newType));
+    // Auto-selecionar impressora associada ao layout
+    const mappedPrinter = getLayoutPrinter(newType);
+    if (mappedPrinter && availablePrinters.includes(mappedPrinter)) {
+      setSelectedPrinter(mappedPrinter);
+    }
   };
 
   const handleLayoutEditorSave = (newLayout: LayoutConfig) => {
@@ -391,7 +396,11 @@ const Index = () => {
             isPrinting={isPrinting}
             availablePrinters={availablePrinters}
             selectedPrinter={selectedPrinter}
-            onPrinterChange={setSelectedPrinter}
+            onPrinterChange={(printer) => {
+              setSelectedPrinter(printer);
+              // Salvar associação layout↔impressora
+              setLayoutPrinter(layoutType, printer);
+            }}
           />
         )}
 
