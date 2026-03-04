@@ -175,12 +175,29 @@ function generateTextPacGran(rotulo: RotuloItem, layoutConfig: LayoutConfig): st
   return lines.slice(0, maxLines).join('\n');
 }
 
-function generateText(rotulo: RotuloItem, layoutConfig: LayoutConfig): string {
+function resolveLayoutTipo(layoutConfig: LayoutConfig, layoutType?: LayoutType): LayoutType {
+  if (layoutType) return layoutType;
+
+  const rawTipo = (layoutConfig.tipo || "").toString().trim().toUpperCase().replace(/\./g, "_");
+  if (rawTipo === 'A_PAC_PEQ' || rawTipo === 'A_PAC_GRAN' || rawTipo === 'AMP_CX' || rawTipo === 'AMP10' || rawTipo === 'TIRZ') {
+    return rawTipo as LayoutType;
+  }
+
+  // Fallback por limites físicos do layout (evita quebrar quando tipo vem legado)
+  if (layoutConfig.colunasMax === 38 && layoutConfig.linhasMax === 8) return 'A_PAC_PEQ';
+  if (layoutConfig.colunasMax === 57 && layoutConfig.linhasMax === 8) return 'A_PAC_GRAN';
+
+  return layoutConfig.tipo;
+}
+
+function generateText(rotulo: RotuloItem, layoutConfig: LayoutConfig, layoutType?: LayoutType): string {
+  const resolvedLayoutTipo = resolveLayoutTipo(layoutConfig, layoutType);
+
   // Route to specific generators for fixed-grid layouts
-  if (layoutConfig.tipo === 'A_PAC_PEQ') {
+  if (resolvedLayoutTipo === 'A_PAC_PEQ') {
     return generateTextPacPeq(rotulo, layoutConfig);
   }
-  if (layoutConfig.tipo === 'A_PAC_GRAN') {
+  if (resolvedLayoutTipo === 'A_PAC_GRAN') {
     return generateTextPacGran(rotulo, layoutConfig);
   }
 
