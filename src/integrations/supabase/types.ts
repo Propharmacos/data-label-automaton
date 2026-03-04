@@ -1709,6 +1709,7 @@ export type Database = {
         | "deducao_glosa"
         | "deducao_inventario"
         | "bonus_nao_faltou_remove"
+        | "zerado_admin"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1853,6 +1854,7 @@ export const Constants = {
         "deducao_glosa",
         "deducao_inventario",
         "bonus_nao_faltou_remove",
+        "zerado_admin",
       ],
     },
   },
