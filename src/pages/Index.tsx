@@ -396,7 +396,11 @@ const Index = () => {
             isPrinting={isPrinting}
             availablePrinters={availablePrinters}
             selectedPrinter={selectedPrinter}
-            onPrinterChange={setSelectedPrinter}
+            onPrinterChange={(printer) => {
+              setSelectedPrinter(printer);
+              // Salvar associação layout↔impressora
+              setLayoutPrinter(layoutType, printer);
+            }}
           />
         )}
 
