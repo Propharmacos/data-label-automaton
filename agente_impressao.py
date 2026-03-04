@@ -400,11 +400,25 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
     Y=45 X=10  (texto livre 3)
     Y=34 X=10  (texto livre 4)
     Y=23 X=105 REG:XXXXX
-...
-        x_default = 10
-...
-        pplb_lines.append(ppla_text_dots(rot, font, 1, 1, 89, x_default, 'SEM DADOS'))
-...
+    """
+    if not dims:
+        dims = PRINTER_CONFIGS.get('A_PAC_PEQ', PRINTER_CONFIGS['PEQ'])
+    cal = calibracao or {}
+    modo = 'dots'
+    rot = 1
+    font = 1
+    
+    paciente = (rotulo.get('nomePaciente', '') or '')[:25].upper()
+    nr_req = rotulo.get('nrRequisicao', '') or ''
+    nr_item = rotulo.get('nrItem', '') or ''
+    nome_medico = (rotulo.get('nomeMedico', '') or '')[:16].upper()
+    crm_prefixo = rotulo.get('prefixoCRM', '') or ''
+    crm_numero = rotulo.get('numeroCRM', '') or ''
+    crm_uf = rotulo.get('ufCRM', '') or ''
+    crm = f"{crm_prefixo}{crm_uf}{crm_numero}" if crm_numero else ''
+    registro = str(rotulo.get('numeroRegistro', '') or '')
+    
+    linhas = []
     # Linha 1: Paciente (Y=89, X=10) + REQ (Y=89, X=105)
     if paciente:
         linhas.append(ppla_text_dots(rot, font, 1, 1, 89, 10, paciente))
