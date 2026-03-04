@@ -390,7 +390,17 @@ def gerar_ppla_amp10(rotulo, farmacia, dims=None, calibracao=None):
 
 
 def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
-    """Layout A.PAC.PEQ (45x25mm) - Coordenadas DIRETAS em dots (validado FC)."""
+    """Layout A.PAC.PEQ (45x25mm) - Estrutura PPLA idêntica ao Fórmula Certa.
+    
+    Coordenadas FC de referência (0.1mm passadas diretamente):
+    Y=78 X=21  Paciente       | Y=78 X=116 REQ:XXXXXX-N
+    Y=67 X=21  DR(A)Nome      | Y=67 X=133 CONSELHO-UF-NUM
+    Y=56 X=21  (texto livre 1 ou vazio)
+    Y=45 X=21  (texto livre 2)
+    Y=34 X=21  (texto livre 3)
+    Y=23 X=21  (texto livre 4)
+    Y=12 X=116 REG:XXXXX
+    """
     if not dims:
         dims = PRINTER_CONFIGS['PEQUEN']
     cal = calibracao or {}
@@ -399,45 +409,51 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
     font = 1
     rot = 1
     
-    # Coordenadas Y DIRETAS em dots (restauradas para o layout PPLA de referência - 8 linhas)
-    y_pos = [220, 190, 160, 130, 100, 70, 40, 20]
-    x_start = 10  # dots
+    # Coordenadas Y/X EXATAS do Fórmula Certa (passadas direto ao ppla_text_dots)
+    # 7 níveis Y: 78, 67, 56, 45, 34, 23, 12
     
-    # Se textoLivre foi editado na UI, usar diretamente
+    # Se textoLivre foi editado na UI, usar diretamente (WYSIWYG)
     texto_livre = rotulo.get('textoLivre', '')
     if texto_livre:
+        y_positions = [78, 67, 56, 45, 34, 23, 12]
+        x_default = 21
         linhas_texto = texto_livre.split('\n')
         pplb_lines = []
-        for i, y in enumerate(y_pos):
+        for i, y in enumerate(y_positions):
             line_text = linhas_texto[i] if i < len(linhas_texto) else ''
             if line_text.strip():
-                pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_start, line_text[:cols]))
+                pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_default, line_text[:cols]))
         if not pplb_lines:
-            pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y_pos[0], x_start, 'SEM DADOS'))
+            pplb_lines.append(ppla_text_dots(rot, font, 1, 1, 78, x_default, 'SEM DADOS'))
         return _build_label(pplb_lines, dims, cal, modo)
     
+    # Modo estruturado: gera campos separados como o FC faz (X distintos por campo)
     paciente = (rotulo.get('nomePaciente', '') or '')[:25].upper()
     nr_req = rotulo.get('nrRequisicao', '')
     nr_item = rotulo.get('nrItem', '1')
-    nome_medico = (rotulo.get('nomeMedico', '') or '').upper()[:16]
+    nome_medico = (rotulo.get('nomeMedico', '') or '').upper()[:20]
     crm = _crm_completo(rotulo)[:15]
     registro = str(rotulo.get('numeroRegistro', '') or '')[:8]
     
-    w = cols
-    req_str = f"REQ:{nr_req}-{nr_item}"[:11]
-    line1 = (paciente + ' ' * w)[:w - len(req_str)] + req_str
-    dr_str = f"DR(A){nome_medico}"
-    line2 = (dr_str + ' ' * w)[:w - len(crm)] + crm
-    reg_str = f"REG:{registro}" if registro else ""
-    line3 = (' ' * (w - len(reg_str))) + reg_str if reg_str else ""
-    
     linhas = []
-    if line1.strip():
-        linhas.append(ppla_text_dots(rot, font, 1, 1, y_pos[0], x_start, line1[:w]))
-    if line2.strip():
-        linhas.append(ppla_text_dots(rot, font, 1, 1, y_pos[1], x_start, line2[:w]))
-    if line3.strip():
-        linhas.append(ppla_text_dots(rot, font, 1, 1, y_pos[2], x_start, line3[:w]))
+    # Linha 1: Paciente (Y=78, X=21) + REQ (Y=78, X=116)
+    if paciente:
+        linhas.append(ppla_text_dots(rot, font, 1, 1, 78, 21, paciente))
+    req_str = f"REQ:{nr_req}-{nr_item}"
+    linhas.append(ppla_text_dots(rot, font, 1, 1, 78, 116, req_str))
+    
+    # Linha 2: DR(A) (Y=67, X=21) + Conselho (Y=67, X=133)
+    if nome_medico:
+        linhas.append(ppla_text_dots(rot, font, 1, 1, 67, 21, f"DR(A){nome_medico}"))
+    if crm:
+        linhas.append(ppla_text_dots(rot, font, 1, 1, 67, 133, crm))
+    
+    # Linha REG no fundo (Y=12, X=116) - igual FC
+    if registro:
+        linhas.append(ppla_text_dots(rot, font, 1, 1, 12, 116, f"REG:{registro}"))
+    
+    if not linhas:
+        linhas.append(ppla_text_dots(rot, font, 1, 1, 78, 21, 'SEM DADOS'))
     
     return _build_label(linhas, dims, cal, modo)
 
