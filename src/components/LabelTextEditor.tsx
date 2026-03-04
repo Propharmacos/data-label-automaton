@@ -325,7 +325,7 @@ const LabelTextEditor = ({
   const maxCols = layoutConfig.colunasMax;
   const maxLines = layoutConfig.linhasMax;
 
-  const text = rotulo?.textoLivre ?? generateText(rotulo, layoutConfig);
+  const text = rotulo?.textoLivre ?? generateText(rotulo, layoutConfig, layoutType);
 
   // Initialize textoLivre on load or layout change
   useEffect(() => {
