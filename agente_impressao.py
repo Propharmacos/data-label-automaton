@@ -392,10 +392,11 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
     if not dims:
         dims = PRINTER_CONFIGS['PEQUEN']
     cal = calibracao or {}
-    modo = cal.get('modo', 'dots')
+    # Paridade FC para A.PAC.PEQ: forçar dots + Font=1 + Rot=1 (evita etiquetas em branco/deslocadas)
+    modo = 'dots'
     cols = dims['cols_max']
-    font = cal.get('fonte', dims.get('font', 2))
-    rot = cal.get('rotacao', 0)
+    font = 1
+    rot = 1
     
     # Se textoLivre foi editado na UI, usar diretamente
     texto_livre = rotulo.get('textoLivre', '')
@@ -441,7 +442,8 @@ def gerar_ppla_a_pac_gran(rotulo, farmacia, dims=None, calibracao=None):
     if not dims:
         dims = PRINTER_CONFIGS.get('A_PAC_GRAN', PRINTER_CONFIGS['GRAND'])
     cal = calibracao or {}
-    modo = cal.get('modo', 'dots')
+    # Paridade FC para A.PAC.GRAN: manter sempre em dots (independe da calibração de modo)
+    modo = 'dots'
     cols = dims['cols_max']
     
     # FORÇAR Font=1 e Rot=1 do FC (ignorar calibração global)
@@ -808,15 +810,18 @@ def imprimir():
     farmacia = data.get('farmacia', {})
     rotulos = data.get('rotulos', [])
     
-    # Calibração: margem C e offset R (enviados pelo frontend)
-    calibracao = data.get('calibracao', {})
+    # Calibração: em produção sempre usamos PPLA em DOTS para manter paridade FC.
+    calibracao_in = data.get('calibracao', {}) or {}
+    calibracao = {**calibracao_in, 'modo': 'dots'}
 
     if not rotulos:
         return jsonify({"success": False, "error": "Nenhum rótulo para imprimir"}), 400
 
     impressora = find_printer_match(impressora_req) or impressora_req
     logger.info(f"Impressora solicitada: '{impressora_req}' -> resolvida: '{impressora}'")
-    logger.info(f"Calibração: C={calibracao.get('margem_c', 0)} R={calibracao.get('offset_r', 0)} Font={calibracao.get('fonte', 2)} Rot={calibracao.get('rotacao', 0)} Modo={calibracao.get('modo', 'dots')}")
+    logger.info(f"Calibração: C={calibracao.get('margem_c', 0)} R={calibracao.get('offset_r', 0)} Font={calibracao.get('fonte', 2)} Rot={calibracao.get('rotacao', 0)} ModoForcado={calibracao.get('modo', 'dots')} ModoRecebido={calibracao_in.get('modo', 'dots')}")
+    if calibracao_in.get('modo') not in (None, 'dots'):
+        logger.warning(f"[PRINT] Modo recebido '{calibracao_in.get('modo')}' foi forçado para 'dots' para manter paridade FC")
 
     gerador = GERADORES_PPLA.get(layout_tipo, gerar_ppla_ampcx)
     dims = get_printer_dims(impressora)
@@ -874,8 +879,9 @@ def imprimir_rotutx():
     impressora_req = data.get('impressora', '') or IMPRESSORA_PADRAO
     linhas = data.get('linhas', [])
     req_num = data.get('req', '?')
-    calibracao = data.get('calibracao', {})
-    modo = calibracao.get('modo', 'dots')  # Default para dots (mais confiável)
+    calibracao = data.get('calibracao', {}) or {}
+    # Forçar DOTS no fluxo ROTUTX para reproduzir padrão Fórmula Certa
+    modo = 'dots'
 
     if not linhas:
         return jsonify({"success": False, "error": "Nenhuma linha de texto recebida"}), 400
