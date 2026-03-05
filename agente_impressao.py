@@ -91,6 +91,8 @@ def get_printer_dims(nome_impressora):
     nome = (nome_impressora or '').upper()
     if 'AMP10' in nome or 'AMPOLA 10' in nome:
         return PRINTER_CONFIGS['AMP10']
+    if 'AMP_CX' in nome or 'AMPCX' in nome or 'AMP CX' in nome or 'AMP.CX' in nome:
+        return PRINTER_CONFIGS['AMP_CX']
     for chave, dims in PRINTER_CONFIGS.items():
         if chave in nome:
             return dims
