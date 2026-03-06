@@ -110,6 +110,8 @@ def is_embalagem_ou_obs(linha: str) -> bool:
         'MENOR 3CM', 'MENOR 4CM', 'MENOR 5CM',
         # Registro (não é ativo)
         'REG:',
+        # Dados tributários/fiscais (IBPT)
+        'IBPT', 'EMPRESOMETRO', 'NCM:', 'CFOP:', 'CST:',
     ]
     
     for keyword in EMBALAGEM_KEYWORDS:
