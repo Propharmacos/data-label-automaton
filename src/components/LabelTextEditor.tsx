@@ -321,12 +321,15 @@ function resolveLayoutTipo(layoutConfig: LayoutConfig, layoutType?: LayoutType):
 function generateText(rotulo: RotuloItem, layoutConfig: LayoutConfig, layoutType?: LayoutType): string {
   const resolvedLayoutTipo = resolveLayoutTipo(layoutConfig, layoutType);
 
-  // Route to specific generators for fixed-grid layouts
+  // Route to specific generators for each layout
   if (resolvedLayoutTipo === 'A_PAC_PEQ') {
     return generateTextPacPeq(rotulo, layoutConfig);
   }
   if (resolvedLayoutTipo === 'A_PAC_GRAN') {
     return generateTextPacGran(rotulo, layoutConfig);
+  }
+  if (resolvedLayoutTipo === 'AMP_CX') {
+    return generateTextAmpCx(rotulo, layoutConfig);
   }
 
   const vis = (field: string) => layoutConfig.campoConfig[field as keyof typeof layoutConfig.campoConfig]?.visible !== false;
