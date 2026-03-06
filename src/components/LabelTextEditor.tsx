@@ -176,23 +176,12 @@ function generateTextAmpCx(rotulo: RotuloItem, layoutConfig: LayoutConfig): stri
   const maxCols = layoutConfig.colunasMax || 73;
   const maxLines = layoutConfig.linhasMax || 8;
 
-  // Colunas visuais aproximadas do layout de referência (mais próximas, sem jogar tudo no extremo direito)
-  const reqCol = 44;
-  const conselhoCol = 42;
-  const aplicacaoCol = 34;
-  const regCol = 46;
-
-  const placeAtColumn = (left: string, right: string, rightCol: number): string => {
-    const safeLeft = (left || "").substring(0, maxCols);
-    const safeRight = (right || "").substring(0, maxCols);
-
-    if (!safeRight) return safeLeft.substring(0, maxCols);
-
-    const leftMax = Math.max(0, rightCol - 1);
-    const trimmedLeft = safeLeft.substring(0, leftMax);
-    const spaces = Math.max(1, rightCol - trimmedLeft.length);
-
-    return (trimmedLeft + " ".repeat(spaces) + safeRight).substring(0, maxCols);
+  // Junta blocos com espaçamento compacto (1 espaço), conforme referência visual
+  const compactLine = (left: string, right: string): string => {
+    const safeLeft = (left || "").trim();
+    const safeRight = (right || "").trim();
+    if (safeLeft && safeRight) return `${safeLeft} ${safeRight}`.substring(0, maxCols);
+    return (safeLeft || safeRight).substring(0, maxCols);
   };
 
   const conselhoStr = formatConselhoFC(rotulo.prefixoCRM, rotulo.ufCRM, rotulo.numeroCRM);
@@ -205,13 +194,13 @@ function generateTextAmpCx(rotulo: RotuloItem, layoutConfig: LayoutConfig): stri
   if (isKit && rotulo.componentes) {
     const lines: string[] = [];
 
-    // Line 1: PACIENTE + REQ (mais próximo, como referência)
-    lines.push(placeAtColumn(cleanName, reqStr, reqCol));
+    // Line 1: PACIENTE + REQ (compacto)
+    lines.push(compactLine(cleanName, reqStr));
 
-    // Line 2: DR(A)MEDICO + CONSELHO
+    // Line 2: DR(A)MEDICO + CONSELHO (compacto)
     const medico = rotulo.nomeMedico ? rotulo.nomeMedico.toUpperCase().substring(0, maxCols - 10) : "";
     const drName = medico ? `DR(A)${medico}` : "";
-    lines.push(placeAtColumn(drName, conselhoStr, conselhoCol));
+    lines.push(compactLine(drName, conselhoStr));
 
     // Component lines with metadata
     rotulo.componentes.forEach((comp) => {
@@ -225,7 +214,7 @@ function generateTextAmpCx(rotulo: RotuloItem, layoutConfig: LayoutConfig): stri
       if (comp.lote) meta.push(`L:${comp.lote}`);
       if (comp.fabricacao) meta.push(`F:${formatarDataCurta(comp.fabricacao)}`);
       if (comp.validade) meta.push(`V:${formatarDataCurta(comp.validade)}`);
-      if (meta.length > 0) lines.push(meta.join("    ").substring(0, maxCols));
+      if (meta.length > 0) lines.push(meta.join(" ").substring(0, maxCols));
     });
 
     // Usage + Application
@@ -234,13 +223,13 @@ function generateTextAmpCx(rotulo: RotuloItem, layoutConfig: LayoutConfig): stri
     const aplicacao = rotulo.aplicacao?.trim().toUpperCase() || "";
     if (tipoUsoValido || aplicacao) {
       const right = aplicacao ? `APLICAÇÃO:${aplicacao}` : "";
-      lines.push(placeAtColumn(tipoUsoValido, right, aplicacaoCol));
+      lines.push(compactLine(tipoUsoValido, right));
     }
 
     // Contains + REG (CONTEM sempre visível para preenchimento manual)
-    const contemStr = rotulo.contem?.trim() ? `CONTEM: ${rotulo.contem}` : "CONTEM: ";
+    const contemStr = rotulo.contem?.trim() ? `CONTEM: ${rotulo.contem}` : "CONTEM:";
     const regStr = rotulo.numeroRegistro ? `REG:${rotulo.numeroRegistro}` : "";
-    lines.push(placeAtColumn(contemStr, regStr, regCol));
+    lines.push(compactLine(contemStr, regStr));
 
     while (lines.length < maxLines) lines.push("");
     return lines.slice(0, maxLines).join('\n');
@@ -249,13 +238,13 @@ function generateTextAmpCx(rotulo: RotuloItem, layoutConfig: LayoutConfig): stri
   // NON-KIT mode (Mescla or Item Único)
   const lines: string[] = [];
 
-  // Line 1: PACIENTE + REQ
-  lines.push(placeAtColumn(cleanName, reqStr, reqCol));
+  // Line 1: PACIENTE + REQ (compacto)
+  lines.push(compactLine(cleanName, reqStr));
 
-  // Line 2: DR(A)MEDICO + CONSELHO
+  // Line 2: DR(A)MEDICO + CONSELHO (compacto)
   const medico = rotulo.nomeMedico ? rotulo.nomeMedico.toUpperCase().substring(0, maxCols - 10) : "";
   const drName = medico ? `DR(A)${medico}` : "";
-  lines.push(placeAtColumn(drName, conselhoStr, conselhoCol));
+  lines.push(compactLine(drName, conselhoStr));
 
   // Line 3: Composição/Fórmula
   const mescla = isValidComposicao(rotulo.composicao || "");
@@ -268,7 +257,7 @@ function generateTextAmpCx(rotulo: RotuloItem, layoutConfig: LayoutConfig): stri
     if (f) lines.push(f.substring(0, maxCols));
   }
 
-  // Line: pH + Lote + Fabricação + Validade
+  // Line: pH + Lote + Fabricação + Validade (compacto)
   const metaParts: string[] = [];
   if (rotulo.ph) {
     const phVal = String(rotulo.ph).replace('.', ',');
@@ -285,21 +274,21 @@ function generateTextAmpCx(rotulo: RotuloItem, layoutConfig: LayoutConfig): stri
   }
   if (rotulo.dataFabricacao) metaParts.push(`F:${formatarDataCurta(rotulo.dataFabricacao)}`);
   if (rotulo.dataValidade) metaParts.push(`V:${formatarDataCurta(rotulo.dataValidade)}`);
-  if (metaParts.length > 0) lines.push(metaParts.join("    ").substring(0, maxCols));
+  if (metaParts.length > 0) lines.push(metaParts.join(" ").substring(0, maxCols));
 
-  // Line: Tipo Uso + Aplicação
+  // Line: Tipo Uso + Aplicação (compacto)
   const tipoUso = rotulo.tipoUso?.toUpperCase() || "";
   const tipoUsoValido = /^\d+$/.test(tipoUso) ? "" : tipoUso;
   const aplicacao = rotulo.aplicacao?.trim().toUpperCase() || "";
   if (tipoUsoValido || aplicacao) {
     const right = aplicacao ? `APLICAÇÃO:${aplicacao}` : "";
-    lines.push(placeAtColumn(tipoUsoValido, right, aplicacaoCol));
+    lines.push(compactLine(tipoUsoValido, right));
   }
 
   // Line: Contém + REG (CONTEM sempre visível para preenchimento manual)
-  const contemStr = rotulo.contem?.trim() ? `CONTEM: ${rotulo.contem}` : "CONTEM: ";
+  const contemStr = rotulo.contem?.trim() ? `CONTEM: ${rotulo.contem}` : "CONTEM:";
   const regStr = rotulo.numeroRegistro ? `REG:${rotulo.numeroRegistro}` : "";
-  lines.push(placeAtColumn(contemStr, regStr, regCol));
+  lines.push(compactLine(contemStr, regStr));
 
   while (lines.length < maxLines) lines.push("");
   return lines.slice(0, maxLines).join('\n');
