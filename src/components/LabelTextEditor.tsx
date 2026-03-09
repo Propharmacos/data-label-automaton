@@ -501,6 +501,12 @@ function generateText(rotulo: RotuloItem, layoutConfig: LayoutConfig, layoutType
   if (resolvedLayoutTipo === 'AMP_CX') {
     return generateTextAmpCx(rotulo, layoutConfig);
   }
+  if (resolvedLayoutTipo === 'AMP10') {
+    return generateTextAmp10(rotulo, layoutConfig);
+  }
+  if (resolvedLayoutTipo === 'TIRZ') {
+    return generateTextTirz(rotulo, layoutConfig);
+  }
 
   const vis = (field: string) => layoutConfig.campoConfig[field as keyof typeof layoutConfig.campoConfig]?.visible !== false;
 
