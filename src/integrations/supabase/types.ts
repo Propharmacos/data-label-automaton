@@ -317,6 +317,33 @@ export type Database = {
         }
         Relationships: []
       }
+      calendario_feriados: {
+        Row: {
+          created_at: string
+          data: string
+          id: number
+          nome: string
+          tipo: string
+          uf: string | null
+        }
+        Insert: {
+          created_at?: string
+          data: string
+          id?: never
+          nome: string
+          tipo?: string
+          uf?: string | null
+        }
+        Update: {
+          created_at?: string
+          data?: string
+          id?: never
+          nome?: string
+          tipo?: string
+          uf?: string | null
+        }
+        Relationships: []
+      }
       dim_laboratorio: {
         Row: {
           ativo: boolean
@@ -860,6 +887,42 @@ export type Database = {
         }
         Relationships: []
       }
+      metas_vendas_individuais: {
+        Row: {
+          ano: number
+          colaborador_id: number
+          created_by: string | null
+          id: number
+          loja_id: number
+          mes: number
+          meta_valor: number
+          tipo: string
+          updated_at: string
+        }
+        Insert: {
+          ano: number
+          colaborador_id: number
+          created_by?: string | null
+          id?: never
+          loja_id: number
+          mes: number
+          meta_valor?: number
+          tipo: string
+          updated_at?: string
+        }
+        Update: {
+          ano?: number
+          colaborador_id?: number
+          created_by?: string | null
+          id?: never
+          loja_id?: number
+          mes?: number
+          meta_valor?: number
+          tipo?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       orcamento_rateio_loja: {
         Row: {
           ano: number
@@ -968,6 +1031,33 @@ export type Database = {
           o_nomeclassificacaoprimeironivel?: string | null
           o_nomeclassificacaosegundonivel?: string | null
           o_nomeclassificacaoterceironivel?: string | null
+        }
+        Relationships: []
+      }
+      perfil_vendas_diario: {
+        Row: {
+          ano_referencia: number
+          dia_semana: number
+          loja_id: number
+          peso: number
+          semana_mes: number
+          updated_at: string
+        }
+        Insert: {
+          ano_referencia: number
+          dia_semana: number
+          loja_id: number
+          peso?: number
+          semana_mes: number
+          updated_at?: string
+        }
+        Update: {
+          ano_referencia?: number
+          dia_semana?: number
+          loja_id?: number
+          peso?: number
+          semana_mes?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -1801,7 +1891,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "operador"
+      app_role: "admin" | "operador" | "lider"
       rv_colaborador_tipo:
         | "vendas"
         | "laboratorio"
@@ -1949,7 +2039,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "operador"],
+      app_role: ["admin", "operador", "lider"],
       rv_colaborador_tipo: [
         "vendas",
         "laboratorio",
