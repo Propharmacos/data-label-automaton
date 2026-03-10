@@ -492,23 +492,6 @@ const LabelSettings = () => {
                   Diagnóstico PPLA
                 </Button>
                 <Button 
-                  variant="secondary" 
-                  onClick={handleProgressiveTest}
-                  disabled={isProgressiveTest || !isAgentOnline}
-                >
-                  <TestTube className={`h-4 w-4 mr-2 ${isProgressiveTest ? 'animate-pulse' : ''}`} />
-                  {isProgressiveTest ? 'Imprimindo 3 testes...' : 'Teste Progressivo'}
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={handleDotsTest}
-                  disabled={isDotsTest || !isAgentOnline}
-                  className="border-primary/50 text-primary hover:bg-accent"
-                >
-                  <TestTube className={`h-4 w-4 mr-2 ${isDotsTest ? 'animate-pulse' : ''}`} />
-                  {isDotsTest ? 'Testando dots...' : '🔧 Teste Dots (FC)'}
-                </Button>
-                <Button 
                   variant="default" 
                   onClick={() => setIsPplaDiretoOpen(true)}
                   disabled={!isAgentOnline}
