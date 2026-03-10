@@ -441,6 +441,7 @@ const Index = () => {
       <footer className="border-t border-border mt-auto">
         <div className="container mx-auto px-4 py-4 text-center text-sm text-muted-foreground">
           © 2026 {pharmacyConfig.nome} • Sistema de Rótulos Automáticos
+          <span className="ml-2 text-xs text-muted-foreground/60">V1</span>
         </div>
       </footer>
     </div>

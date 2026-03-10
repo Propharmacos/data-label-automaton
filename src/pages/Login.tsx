@@ -66,6 +66,7 @@ const Login = () => {
             <CardDescription className="mt-2">
               Faça login para acessar o sistema
             </CardDescription>
+            <span className="text-xs text-muted-foreground/60">V1</span>
           </div>
         </CardHeader>
         <CardContent>
