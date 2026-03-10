@@ -24,7 +24,7 @@ import {
   type PrintStation,
 } from "@/config/api";
 import { verificarConexao } from "@/services/requisicaoService";
-import { verificarAgente, listarImpressoras, testeImpressaoAgente, diagnosticoPPLA, testeProgressivoAgente, testeDotsAgente, testePplaDireto } from "@/services/printAgentService";
+import { verificarAgente, listarImpressoras, testeImpressaoAgente, diagnosticoPPLA, testePplaDireto } from "@/services/printAgentService";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ApiConfig, PharmacyConfig, LayoutType, LayoutConfig, PrintAgentConfig, PrinterCalibrationConfig } from "@/types/requisicao";
 import { getLayouts, fieldLabels } from "@/config/layouts";
@@ -44,8 +44,8 @@ const LabelSettings = () => {
   const [isPrintingAgentTest, setIsPrintingAgentTest] = useState(false);
   const [agentPrinters, setAgentPrinters] = useState<string[]>([]);
   const [isLoadingPrinters, setIsLoadingPrinters] = useState(false);
-  const [isProgressiveTest, setIsProgressiveTest] = useState(false);
-  const [isDotsTest, setIsDotsTest] = useState(false);
+
+
   const [isDiagnosticOpen, setIsDiagnosticOpen] = useState(false);
   const [isDiagnosticLoading, setIsDiagnosticLoading] = useState(false);
   const [diagnosticResult, setDiagnosticResult] = useState<any>(null);
@@ -229,39 +229,8 @@ const LabelSettings = () => {
   };
 
 
-  const handleProgressiveTest = async () => {
-    setIsProgressiveTest(true);
-    const result = await testeProgressivoAgente(agentConfig.agentUrl, agentConfig.impressora);
-    setIsProgressiveTest(false);
-    if (result.success && result.data) {
-      const sucesso = result.data.resultados.filter(r => r.sucesso).length;
-      const total = result.data.resultados.length;
-      toast({
-        title: `Teste Progressivo: ${sucesso}/${total} enviadas`,
-        description: result.data.resultados.map(r => `${r.config}: ${r.sucesso ? '✓' : '✗ ' + r.erro}`).join(' | '),
-      });
-    } else {
-      toast({ title: "Erro no teste progressivo", variant: "destructive" });
-    }
-  };
 
-  const handleDotsTest = async () => {
-    setIsDotsTest(true);
-    const result = await testeDotsAgente(agentConfig.agentUrl, agentConfig.impressora);
-    setIsDotsTest(false);
-    if (result.success) {
-      toast({
-        title: "Teste Dots enviado! ✓",
-        description: "Se esta etiqueta sair com texto, ative o modo 'dots' na calibração. Se sair em branco, o problema é outro.",
-      });
-    } else {
-      toast({
-        title: "Falha no teste dots",
-        description: result.error || "Não foi possível enviar teste dots.",
-        variant: "destructive",
-      });
-    }
-  };
+
 
   return (
     <div className="space-y-6">
@@ -490,23 +459,6 @@ const LabelSettings = () => {
                 >
                   <FileCode className={`h-4 w-4 mr-2 ${isDiagnosticLoading ? 'animate-pulse' : ''}`} />
                   Diagnóstico PPLA
-                </Button>
-                <Button 
-                  variant="secondary" 
-                  onClick={handleProgressiveTest}
-                  disabled={isProgressiveTest || !isAgentOnline}
-                >
-                  <TestTube className={`h-4 w-4 mr-2 ${isProgressiveTest ? 'animate-pulse' : ''}`} />
-                  {isProgressiveTest ? 'Imprimindo 3 testes...' : 'Teste Progressivo'}
-                </Button>
-                <Button 
-                  variant="outline" 
-                  onClick={handleDotsTest}
-                  disabled={isDotsTest || !isAgentOnline}
-                  className="border-primary/50 text-primary hover:bg-accent"
-                >
-                  <TestTube className={`h-4 w-4 mr-2 ${isDotsTest ? 'animate-pulse' : ''}`} />
-                  {isDotsTest ? 'Testando dots...' : '🔧 Teste Dots (FC)'}
                 </Button>
                 <Button 
                   variant="default" 
