@@ -5,7 +5,7 @@ echo   Iniciando Agente de Impressao (Daniel)
 echo ============================================
 echo.
 
-cd /d C:\ServidorRotulos
+cd /d C:\servidor_rotulos
 
 :: Inicia o agente Python em background
 start "Agente Impressao" python agente_impressao.py
