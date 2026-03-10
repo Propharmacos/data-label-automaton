@@ -229,39 +229,8 @@ const LabelSettings = () => {
   };
 
 
-  const handleProgressiveTest = async () => {
-    setIsProgressiveTest(true);
-    const result = await testeProgressivoAgente(agentConfig.agentUrl, agentConfig.impressora);
-    setIsProgressiveTest(false);
-    if (result.success && result.data) {
-      const sucesso = result.data.resultados.filter(r => r.sucesso).length;
-      const total = result.data.resultados.length;
-      toast({
-        title: `Teste Progressivo: ${sucesso}/${total} enviadas`,
-        description: result.data.resultados.map(r => `${r.config}: ${r.sucesso ? '✓' : '✗ ' + r.erro}`).join(' | '),
-      });
-    } else {
-      toast({ title: "Erro no teste progressivo", variant: "destructive" });
-    }
-  };
 
-  const handleDotsTest = async () => {
-    setIsDotsTest(true);
-    const result = await testeDotsAgente(agentConfig.agentUrl, agentConfig.impressora);
-    setIsDotsTest(false);
-    if (result.success) {
-      toast({
-        title: "Teste Dots enviado! ✓",
-        description: "Se esta etiqueta sair com texto, ative o modo 'dots' na calibração. Se sair em branco, o problema é outro.",
-      });
-    } else {
-      toast({
-        title: "Falha no teste dots",
-        description: result.error || "Não foi possível enviar teste dots.",
-        variant: "destructive",
-      });
-    }
-  };
+
 
   return (
     <div className="space-y-6">
