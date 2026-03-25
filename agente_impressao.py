@@ -15,7 +15,10 @@ import platform
 import re
 import logging
 import socket
+import sys
 import time
+import threading
+import urllib.request
 from typing import Any, Dict, List, Optional, Tuple
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -1411,6 +1414,85 @@ def teste_ppla_direto():
         return jsonify({"success": False, "error": str(e)}), 500
 
 
+# ============================================
+# AUTO-UPDATE via GitHub
+# ============================================
+GITHUB_RAW_URL = "https://raw.githubusercontent.com/marketingpropharmacos/data-label-automaton/main/agente_impressao.py"
+AGENT_FILE = os.path.abspath(__file__)
+
+
+def _fetch_latest_version() -> Optional[str]:
+    """Baixa a versão mais recente do agente do GitHub."""
+    try:
+        req = urllib.request.Request(GITHUB_RAW_URL, headers={"Cache-Control": "no-cache"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            return resp.read().decode("utf-8")
+    except Exception as e:
+        logger.error(f"[UPDATE] Erro ao buscar versão do GitHub: {e}")
+        return None
+
+
+def _restart_agent():
+    """Reinicia o processo do agente após breve delay."""
+    def _do_restart():
+        time.sleep(2)
+        logger.info("[UPDATE] Reiniciando agente...")
+        os.execv(sys.executable, [sys.executable] + sys.argv)
+    threading.Thread(target=_do_restart, daemon=True).start()
+
+
+@app.route('/update', methods=['POST'])
+def update_agent():
+    """Baixa a versão mais recente do agente do GitHub e reinicia.
+    Chamada pelo servidor central ou manualmente para atualizar sem mexer nos PCs."""
+    logger.info("[UPDATE] Atualização solicitada...")
+    novo_codigo = _fetch_latest_version()
+    if not novo_codigo:
+        return jsonify({"success": False, "error": "Não foi possível baixar a nova versão do GitHub"}), 500
+
+    # Verificar se há diferença
+    try:
+        with open(AGENT_FILE, "r", encoding="utf-8") as f:
+            codigo_atual = f.read()
+        if codigo_atual == novo_codigo:
+            logger.info("[UPDATE] Agente já está na versão mais recente.")
+            return jsonify({"success": True, "message": "Já está atualizado", "updated": False})
+    except Exception:
+        pass
+
+    # Salvar backup e sobrescrever
+    try:
+        backup_path = AGENT_FILE + ".bak"
+        with open(backup_path, "w", encoding="utf-8") as f:
+            f.write(codigo_atual if 'codigo_atual' in dir() else "")
+        with open(AGENT_FILE, "w", encoding="utf-8") as f:
+            f.write(novo_codigo)
+        logger.info(f"[UPDATE] Arquivo atualizado. Backup salvo em {backup_path}")
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Erro ao salvar arquivo: {e}"}), 500
+
+    _restart_agent()
+    return jsonify({"success": True, "message": "Atualizado! Agente reiniciando em 2 segundos...", "updated": True})
+
+
+@app.route('/version', methods=['GET'])
+def version_info():
+    """Retorna hash da versão atual para comparação."""
+    import hashlib
+    try:
+        with open(AGENT_FILE, "r", encoding="utf-8") as f:
+            conteudo = f.read()
+        hash_atual = hashlib.md5(conteudo.encode()).hexdigest()[:8]
+    except Exception:
+        hash_atual = "unknown"
+    return jsonify({
+        "version": "3.2",
+        "hash": hash_atual,
+        "hostname": socket.gethostname(),
+        "file": AGENT_FILE,
+    })
+
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5002))
     logger.info("=" * 50)
@@ -1421,7 +1503,7 @@ if __name__ == '__main__':
     logger.info(f"pywin32 disponivel: {PYWIN32_OK}")
     logger.info(f"Impressoras: {get_available_printers()}")
     logger.info(f"Layouts: {list(GERADORES_PPLA.keys())}")
-    logger.info(f"Endpoints: /health /impressoras /imprimir /imprimir-rotutx /raw /teste /teste-dots /teste-ppla-direto /diagnostico-ppla")
+    logger.info(f"Endpoints: /health /impressoras /imprimir /imprimir-rotutx /raw /teste /teste-dots /teste-ppla-direto /diagnostico-ppla /update /version")
     for k, v in PRINTER_CONFIGS.items():
         logger.info(f"  {k}: {v['largura_mm']}x{v['altura_mm']}mm ({v['cols_max']} cols)")
     logger.info(f"Health: http://localhost:{port}/health")
