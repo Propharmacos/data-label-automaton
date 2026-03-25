@@ -637,10 +637,10 @@ const LabelTextEditor = ({
       const isFixedGrid = resolvedLayoutTipo === 'A_PAC_PEQ' || resolvedLayoutTipo === 'A_PAC_GRAN' || resolvedLayoutTipo === 'AMP_CX';
 
       let generated = generateText(rotulo, layoutConfig, layoutType);
-      if (maxCols && maxLines) {
+      if (maxCols) {
         generated = isFixedGrid
-          ? truncateText(generated, maxCols, maxLines)
-          : wrapText(generated, maxCols, maxLines);
+          ? generated.split('\n').map(line => line.substring(0, maxCols)).join('\n')
+          : wrapText(generated, maxCols, Number.MAX_SAFE_INTEGER);
       }
       onTextChange(rotulo.id, generated);
     }
