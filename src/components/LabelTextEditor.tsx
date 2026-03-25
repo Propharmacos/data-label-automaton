@@ -236,8 +236,8 @@ function generateTextAmpCx(rotulo: RotuloItem, layoutConfig: LayoutConfig): stri
     const regStr = rotulo.numeroRegistro ? `REG:${rotulo.numeroRegistro}` : "";
     lines.push(compactLine(contemStr, regStr));
 
-    while (lines.length < maxLines) lines.push("");
-    return lines.slice(0, maxLines).join('\n');
+    // Não cortar linhas — Uso/Aplicação e Contem/REG devem sempre aparecer
+    return lines.join('\n');
   }
 
   // NON-KIT mode (Mescla or Item Único)
