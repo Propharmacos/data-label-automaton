@@ -1,64 +1,73 @@
 @echo off
 title ProPharmacos - Agente de Impressao
 color 0A
+cd /d "C:\servidor_rotulos"
 
 :INICIO
 echo.
 echo ============================================
 echo  ProPharmacos - Agente de Impressao PPLA
+echo  Pasta: C:\servidor_rotulos
 echo ============================================
 echo.
 
-REM Ir para a pasta do script
-cd /d "%~dp0"
+REM Tentar encontrar o Python
+set PYTHON=
+for %%p in (python python3 py) do (
+    if not defined PYTHON (
+        %%p --version >nul 2>&1 && set PYTHON=%%p
+    )
+)
 
-REM Verificar se Python esta disponivel
-python --version >nul 2>&1
-if errorlevel 1 (
-    echo [ERRO] Python nao encontrado. Instale o Python e tente novamente.
+if not defined PYTHON (
+    echo [ERRO] Python nao encontrado no sistema.
+    echo Instale o Python em python.org e marque "Add to PATH"
+    echo.
     pause
     exit /b 1
 )
 
-REM Verificar conexao com internet para update automatico
-echo Verificando atualizacoes no GitHub...
-python -c "import urllib.request; urllib.request.urlopen('https://github.com', timeout=5)" >nul 2>&1
-if not errorlevel 1 (
-    echo Baixando versao mais recente do agente...
-    python -c "
-import urllib.request, os, sys
+echo Python encontrado: %PYTHON%
+echo.
+
+REM Verificar update no GitHub
+echo Verificando atualizacoes...
+%PYTHON% -c "
+import urllib.request, os, hashlib
+
 url = 'https://raw.githubusercontent.com/marketingpropharmacos/data-label-automaton/main/agente_impressao.py'
+caminho = r'C:\servidor_rotulos\agente_impressao.py'
+
 try:
     req = urllib.request.Request(url, headers={'Cache-Control': 'no-cache'})
     with urllib.request.urlopen(req, timeout=15) as r:
         novo = r.read().decode('utf-8')
-    with open('agente_impressao.py', 'r', encoding='utf-8') as f:
-        atual = f.read()
-    if novo != atual:
-        with open('agente_impressao.py.bak', 'w', encoding='utf-8') as f:
+
+    atual = ''
+    if os.path.exists(caminho):
+        with open(caminho, 'r', encoding='utf-8') as f:
+            atual = f.read()
+
+    h = lambda x: hashlib.md5(x.encode()).hexdigest()
+    if h(novo) != h(atual):
+        with open(caminho + '.bak', 'w', encoding='utf-8') as f:
             f.write(atual)
-        with open('agente_impressao.py', 'w', encoding='utf-8') as f:
+        with open(caminho, 'w', encoding='utf-8') as f:
             f.write(novo)
-        print('ATUALIZADO - nova versao baixada do GitHub')
+        print('ATUALIZADO - nova versao baixada do GitHub!')
     else:
-        print('Ja esta na versao mais recente')
+        print('Ja esta na versao mais recente.')
 except Exception as e:
-    print(f'Nao foi possivel atualizar: {e}')
+    print(f'Sem update (offline ou erro): {e}')
 "
-) else (
-    echo Sem conexao com internet - usando versao local
-)
 
 echo.
-echo Iniciando agente de impressao...
-echo Para parar: feche esta janela ou pressione Ctrl+C
+echo Iniciando agente... (nao feche esta janela)
 echo.
 
-REM Iniciar o agente
-python agente_impressao.py
+%PYTHON% "C:\servidor_rotulos\agente_impressao.py"
 
-REM Se o agente parar, aguarda 3 segundos e reinicia
 echo.
-echo Agente encerrado. Reiniciando em 3 segundos...
-timeout /t 3 /nobreak >nul
+echo [AVISO] Agente encerrado. Reiniciando em 5 segundos...
+timeout /t 5 /nobreak >nul
 goto INICIO
