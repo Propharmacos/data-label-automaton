@@ -234,9 +234,9 @@ def ppla_setup_dots(largura_dots=360, altura_dots=200, gap_dots=24, contraste=14
     Sem STX, sem m, sem M, sem C, sem R - apenas o essencial do FC.
     """
     partes = [
-        f"\x02f{form_length}",             # Form length com STX (paridade FC real)
-        "\x02L",                           # Entrar modo formatação com STX
-        "\x02e",                           # Gap sensor com STX
+        f"f{form_length}",                 # Form length (sem STX - paridade FC real)
+        "L",                               # Entrar modo formatação (sem STX - paridade FC)
+        "e",                               # Gap sensor (sem STX - paridade FC)
         "PA",                              # Position Absolute
         "D11",                             # Pixel size
         f"H{contraste:02d}",               # Contraste
@@ -343,9 +343,9 @@ def _build_label_ampcx(linhas, dims, cal):
     """Build AMP_CX label with FC-exact setup: f250, PB, H14."""
     contraste = cal.get('contraste', 14)
     setup_parts = [
-        "\x02f250",
-        "\x02L",
-        "\x02e",
+        "f289",   # form length sem STX - paridade FC
+        "L",
+        "e",
         "PB",
         "D11",
         f"H{contraste:02d}",
@@ -368,13 +368,13 @@ def gerar_ppla_ampcx(rotulo, farmacia, dims=None, calibracao=None):
     cal = calibracao or {}
     modo = 'dots'
     cols = dims['cols_max']
-    font = 9
+    font = 1
     rot = 1
 
-    # Coordenadas Y DIRETAS do FC capturado
-    y_dots = [10082, 10073, 10064, 10055, 10046, 10037, 10028]
-    # Coordenadas X DIRETAS do FC capturado
-    x_dots_map = {'left': 24, 'req': 142, 'aplicacao': 171, 'reg': 176}
+    # Coordenadas Y em dots (203 DPI) para etiqueta 109x25mm
+    y_dots = [82, 73, 64, 55, 46, 37, 28]
+    # Coordenadas X em dots
+    x_dots_map = {'left': 21, 'req': 120, 'aplicacao': 150, 'reg': 155}
 
     # Se textoLivre foi editado na UI, usar diretamente (WYSIWYG)
     texto_livre = rotulo.get('textoLivre', '')
@@ -445,9 +445,9 @@ def _build_label_amp10(linhas, dims, cal):
     """Build AMP10 label with FC-exact setup: f289, PA, D11, H14."""
     contraste = cal.get('contraste', 14)
     setup_parts = [
-        "\x02f289",
-        "\x02L",
-        "\x02e",
+        "f289",   # sem STX - paridade FC
+        "L",
+        "e",
         "PA",
         "D11",
         f"H{contraste:02d}",
@@ -638,15 +638,15 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
     
     # Coordenadas FC (novo ajuste: deslocamento mais forte para a esquerda)
     # Linha 1 (Paciente+REQ): Y=78, Linha 2 (Médico+Conselho): Y=67, Linha 3 (REG): Y=12
-    # X: esquerda=8, REQ/REG=100, Conselho=116
-    x_left = 8
-    x_req_reg = 100
-    x_conselho = 116
+    # X: paridade FC - esquerda=21, REQ/REG=110, Conselho=130
+    x_left = 21
+    x_req_reg = 110
+    x_conselho = 130
 
     # Se textoLivre foi editado na UI, usar diretamente (WYSIWYG)
     texto_livre = rotulo.get('textoLivre', '')
     if texto_livre:
-        y_positions = [89, 78, 67, 56, 45, 34, 23]
+        y_positions = [78, 67, 56, 45, 34, 23, 12]
         linhas_texto = texto_livre.split('\n')
         pplb_lines = []
         for i, y in enumerate(y_positions):
@@ -654,7 +654,7 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
             if line_text.strip():
                 pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_left, line_text[:cols]))
         if not pplb_lines:
-            pplb_lines.append(ppla_text_dots(rot, font, 1, 1, 78, x_left, 'SEM DADOS'))
+            pplb_lines.append(ppla_text_dots(rot, font, 1, 1, 67, x_left, 'SEM DADOS'))
         return _build_label(pplb_lines, dims, cal, modo)
 
     # Modo estruturado: gera campos separados como o FC faz (X distintos por campo)
@@ -666,21 +666,21 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
     registro = str(rotulo.get('numeroRegistro', '') or '')[:8]
 
     linhas = []
-    # Linha 1: Paciente (Y=89) + REQ (Y=89)
+    # Linha 1: Paciente (Y=78) + REQ (Y=78)
     if paciente:
-        linhas.append(ppla_text_dots(rot, font, 1, 1, 89, x_left, paciente))
+        linhas.append(ppla_text_dots(rot, font, 1, 1, 78, x_left, paciente))
     req_str = f"REQ:{nr_req}-{nr_item}"
-    linhas.append(ppla_text_dots(rot, font, 1, 1, 89, x_req_reg, req_str))
+    linhas.append(ppla_text_dots(rot, font, 1, 1, 78, x_req_reg, req_str))
 
-    # Linha 2: DR(A) (Y=78) + Conselho (Y=78)
+    # Linha 2: DR(A) (Y=67) + Conselho (Y=67)
     if nome_medico:
-        linhas.append(ppla_text_dots(rot, font, 1, 1, 78, x_left, f"DR(A){nome_medico}"))
+        linhas.append(ppla_text_dots(rot, font, 1, 1, 67, x_left, f"DR(A){nome_medico}"))
     if crm:
-        linhas.append(ppla_text_dots(rot, font, 1, 1, 78, x_conselho, crm))
-    
-    # Linha REG (Y=23)
+        linhas.append(ppla_text_dots(rot, font, 1, 1, 67, x_conselho, crm))
+
+    # Linha REG (Y=12)
     if registro:
-        linhas.append(ppla_text_dots(rot, font, 1, 1, 23, x_req_reg, f"REG:{registro}"))
+        linhas.append(ppla_text_dots(rot, font, 1, 1, 12, x_req_reg, f"REG:{registro}"))
 
     if not linhas:
         linhas.append(ppla_text_dots(rot, font, 1, 1, 78, x_left, 'SEM DADOS'))
@@ -703,7 +703,7 @@ def gerar_ppla_a_pac_gran(rotulo, farmacia, dims=None, calibracao=None):
     rot = 1
 
     # Coordenadas Y DIRETAS em dots (referência FC capturada) - abaixado +0,5mm para evitar corte no topo
-    y_dots = [90, 79, 68, 57, 46, 35, 24, 13]
+    y_dots = [78, 67, 56, 45, 34, 23, 12, 1]
     # Coordenadas X DIRETAS em dots
     x_dots_map = {'left': 4, 'field': 21, 'col2': 55, 'col3': 98, 'col4': 137, 'req': 141, 'right': 159}
 
