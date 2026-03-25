@@ -486,6 +486,22 @@ def gerar_ppla_ampcx(rotulo, farmacia, dims=None, calibracao=None):
     return _build_label_ampcx(linhas, dims, cal)
 
 
+def _build_label_ppla(linhas, cal, velocidade='PA'):
+    """Função base PPLA: setup FC-padrão + campos + Q0001E."""
+    contraste = cal.get('contraste', 14)
+    setup_parts = [
+        "\x02f289",
+        "\x02L",
+        "\x02e",
+        velocidade,
+        "D11",
+        f"H{contraste:02d}",
+    ]
+    setup = "\r".join(setup_parts) + "\r"
+    content = "\r".join(linhas)
+    return setup + content + "\r" + "Q0001E\r"
+
+
 def _build_label_amp10(linhas, dims, cal):
     """Build AMP10 label with FC-exact setup: f289, PA, D11, H14."""
     contraste = cal.get('contraste', 14)
@@ -713,8 +729,8 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
 
     if not linhas:
         linhas.append(ppla_text_dots(rot, font, 1, 1, 78, x_left, 'SEM DADOS'))
-    
-    return _build_label(linhas, dims, cal, modo)
+
+    return _build_label_ppla(linhas, cal)
 
 def gerar_ppla_a_pac_gran(rotulo, farmacia, dims=None, calibracao=None):
     """Layout A.PAC.GRAN (76x25mm) - Coordenadas em 0.1mm, convertidas para dots via ppla_text_dots.
@@ -806,7 +822,7 @@ def gerar_ppla_a_pac_gran(rotulo, farmacia, dims=None, calibracao=None):
     if not linhas:
         linhas.append(ppla_text_dots(rot, font, 1, 1, y_dots[0], x_dots_map['left'], 'SEM DADOS'))
 
-    return _build_label(linhas, dims, cal, modo)
+    return _build_label_ppla(linhas, cal)
 
 def gerar_ppla_tirz(rotulo, farmacia, dims=None, calibracao=None):
     """Layout TIRZ/Tirzepatida (109x25mm) - 8 linhas."""
