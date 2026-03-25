@@ -10,7 +10,7 @@ import LayoutEditor from "@/components/LayoutEditor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { getPharmacyConfig, getPrintAgentConfig, getApiConfig, getModoImpressao, setModoImpressao, ModoImpressao, getLayoutPrinter, setLayoutPrinter } from "@/config/api";
+import { getPharmacyConfig, getPrintAgentConfig, getApiConfig, getModoImpressao, setModoImpressao, ModoImpressao, getLayoutPrinter, setLayoutPrinter, getLayoutStation, setActiveStationId, getActiveStation } from "@/config/api";
 import { getLayout, getSelectedLayout, setSelectedLayout, resetAllLayouts } from "@/config/layouts";
 import { buscarRequisicao } from "@/services/requisicaoService";
 import { imprimirViaAgente, imprimirViaRotutx, imprimirViaRotutxRaw } from "@/services/printAgentService";
@@ -84,8 +84,22 @@ const Index = () => {
     setLayoutConfig(getLayout(newType));
     // Auto-selecionar impressora associada ao layout
     const mappedPrinter = getLayoutPrinter(newType);
-    if (mappedPrinter && availablePrinters.includes(mappedPrinter)) {
+    if (mappedPrinter) {
       setSelectedPrinter(mappedPrinter);
+    }
+    // Auto-switch de estação (PC) associada ao layout
+    const mappedStation = getLayoutStation(newType);
+    if (mappedStation) {
+      setActiveStationId(mappedStation);
+      // Recarregar impressoras do novo agente
+      const station = getActiveStation();
+      if (station?.agentUrl) {
+        listarImpressoras(station.agentUrl).then(result => {
+          if (result.success && result.data) {
+            setAvailablePrinters(result.data.impressoras);
+          }
+        });
+      }
     }
   };
 
