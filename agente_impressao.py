@@ -1462,10 +1462,17 @@ def _aplicar_update(novo_codigo: str) -> bool:
 
 
 def _reiniciar():
+    """Reinicia o processo. Usa subprocess no Windows (os.execv não funciona)."""
     def _do():
         time.sleep(2)
         logger.info("[UPDATE] Reiniciando agente...")
-        os.execv(sys.executable, [sys.executable] + sys.argv)
+        try:
+            import subprocess
+            subprocess.Popen([sys.executable] + sys.argv, close_fds=True)
+        except Exception as e:
+            logger.error(f"[UPDATE] Erro ao reiniciar: {e}")
+        finally:
+            os._exit(0)  # força saída do processo atual
     threading.Thread(target=_do, daemon=True).start()
 
 
