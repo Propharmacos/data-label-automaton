@@ -234,9 +234,9 @@ def ppla_setup_dots(largura_dots=360, altura_dots=200, gap_dots=24, contraste=14
     Sem STX, sem m, sem M, sem C, sem R - apenas o essencial do FC.
     """
     partes = [
-        f"f{form_length}",                 # Form length (sem STX - paridade FC real)
-        "L",                               # Entrar modo formatação (sem STX - paridade FC)
-        "e",                               # Gap sensor (sem STX - paridade FC)
+        f"\x02f{form_length}",             # Form length com STX
+        "\x02L",                           # Entrar modo formatação com STX
+        "\x02e",                           # Gap sensor com STX
         "PA",                              # Position Absolute
         "D11",                             # Pixel size
         f"H{contraste:02d}",               # Contraste
@@ -343,9 +343,9 @@ def _build_label_ampcx(linhas, dims, cal):
     """Build AMP_CX label with FC-exact setup: f250, PB, H14."""
     contraste = cal.get('contraste', 14)
     setup_parts = [
-        "f289",   # form length sem STX - paridade FC
-        "L",
-        "e",
+        "\x02f289",
+        "\x02L",
+        "\x02e",
         "PB",
         "D11",
         f"H{contraste:02d}",
@@ -445,9 +445,9 @@ def _build_label_amp10(linhas, dims, cal):
     """Build AMP10 label with FC-exact setup: f289, PA, D11, H14."""
     contraste = cal.get('contraste', 14)
     setup_parts = [
-        "f289",   # sem STX - paridade FC
-        "L",
-        "e",
+        "\x02f289",
+        "\x02L",
+        "\x02e",
         "PA",
         "D11",
         f"H{contraste:02d}",
