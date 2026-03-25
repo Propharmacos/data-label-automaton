@@ -84,8 +84,22 @@ const Index = () => {
     setLayoutConfig(getLayout(newType));
     // Auto-selecionar impressora associada ao layout
     const mappedPrinter = getLayoutPrinter(newType);
-    if (mappedPrinter && availablePrinters.includes(mappedPrinter)) {
+    if (mappedPrinter) {
       setSelectedPrinter(mappedPrinter);
+    }
+    // Auto-switch de estação (PC) associada ao layout
+    const mappedStation = getLayoutStation(newType);
+    if (mappedStation) {
+      setActiveStationId(mappedStation);
+      // Recarregar impressoras do novo agente
+      const station = getActiveStation();
+      if (station?.agentUrl) {
+        listarImpressoras(station.agentUrl).then(result => {
+          if (result.success && result.data) {
+            setAvailablePrinters(result.data.impressoras);
+          }
+        });
+      }
     }
   };
 
