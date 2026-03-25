@@ -1,23 +1,40 @@
 
 
-## Plano: Remover seletor único de impressora da aba Agente HTTP
+## Plano: Mapeamento automático Layout → Impressora + Estação
 
-### Problema
-A aba "Agente HTTP" tem um campo "Impressora" que permite selecionar apenas UMA impressora por estação. Na prática, cada PC tem DUAS impressoras (Edi: PEQUENO + GRANDE; Daniel: AMP_CX + AMP10), e a impressora correta já é determinada pelo layout selecionado via o mapeamento layout-impressora existente.
+### Contexto
+O mecanismo de auto-seleção já existe (`getLayoutPrinter` / `setLayoutPrinter`), mas começa vazio — o operador precisa selecionar manualmente a impressora para cada layout na primeira vez. Precisamos de **defaults hardcoded** que reflitam a realidade física.
 
-### O que será feito
+### Mapeamento físico real
 
-1. **Remover o campo "Impressora"** (Select) da aba Agente HTTP em `LabelSettings.tsx` (linhas 394-425)
-2. **Remover o campo `impressora` da interface `PrintStation`** em `api.ts` — cada estação passa a ter apenas `id`, `nome`, `agentUrl` e `calibracao`
-3. **Manter o mapeamento layout → impressora** que já existe via `getLayoutPrinter()` / `setLayoutPrinter()` — esse é o mecanismo correto para rotear cada layout para sua impressora física
-4. **Limpar referências** ao campo `impressora` da estação nos handlers de save/switch de estação
+```text
+Layout       → Impressora    → Estação
+─────────────────────────────────────────
+A_PAC_PEQ    → (pequena Edi) → PC da Edi
+A_PAC_GRAN   → (grande Edi)  → PC da Edi
+AMP_CX       → (caixa Dan)   → PC do Daniel
+AMP10        → (amp10 Dan)   → PC do Daniel
+TIRZ         → (caixa Dan?)  → PC do Daniel
+```
+
+**Preciso confirmar com você**: quais são os **nomes exatos** das impressoras que aparecem quando o agente lista? (ex: "AMP GRANDE", "PEQUENO", "argox01", etc.). Sem esses nomes exatos, não consigo pré-configurar o mapeamento corretamente.
+
+### O que será feito (após confirmação dos nomes)
+
+1. **Defaults no `api.ts`** — Definir um `DEFAULT_LAYOUT_PRINTER_MAP` com os nomes corretos para que `getLayoutPrinterMap()` retorne os defaults quando o localStorage está vazio
+
+2. **Auto-switch de estação** — Quando o operador selecionar um layout no dashboard, além de trocar a impressora, trocar automaticamente a **estação ativa** (ex: selecionar A_PAC_PEQ → ativar "PC da Edi"; selecionar AMP_CX → ativar "PC do Daniel")
+
+3. **Mapeamento layout → estação** no `api.ts`:
+   - Nova constante `DEFAULT_LAYOUT_STATION_MAP` com layout→station_id
+   - Nova função `getLayoutStation(layout)` que retorna o station_id correto
+
+4. **Atualizar `handleLayoutChange` em `Index.tsx`** — Após trocar layout, também chamar `setActiveStationId()` para a estação correta, atualizando a URL do agente automaticamente
 
 ### Arquivos alterados
-- `src/components/LabelSettings.tsx` — remover bloco do Select de impressora e referências a `station.impressora`
-- `src/config/api.ts` — remover campo `impressora` de `PrintStation` e dos defaults
+- `src/config/api.ts` — defaults de mapeamento layout→impressora e layout→estação
+- `src/pages/Index.tsx` — auto-switch de estação no `handleLayoutChange`
 
-### O que NÃO muda
-- O mapeamento layout → impressora (`LayoutPrinterMap`) continua funcionando normalmente
-- A URL do agente por estação continua configurável
-- O fluxo de impressão PPLA direto não é afetado
+### Pergunta antes de implementar
+Me diga os nomes exatos das 4 impressoras como aparecem no agente (pode checar rodando `http://URL_AGENTE/impressoras` no navegador de cada PC).
 
