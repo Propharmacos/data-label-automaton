@@ -322,7 +322,7 @@ function generateTextPacGran(rotulo: RotuloItem, layoutConfig: LayoutConfig): st
 }
 
 // ---- AMP10 specific generator (89x38mm, 65 cols x 10 lines) ----
-function generateTextAmp10(rotulo: RotuloItem, layoutConfig: LayoutConfig): string {
+function generateTextAmp10(rotulo: RotuloItem, layoutConfig: LayoutConfig, options?: { metaInline?: boolean }): string {
   const maxCols = layoutConfig.colunasMax || 65;
   const maxLines = layoutConfig.linhasMax || 10;
 
@@ -370,9 +370,14 @@ function generateTextAmp10(rotulo: RotuloItem, layoutConfig: LayoutConfig): stri
       if (comp.fabricacao) meta.push(`F:${formatarDataCurta(comp.fabricacao)}`);
       if (comp.validade) meta.push(`V:${formatarDataCurta(comp.validade)}`);
       const metaStr = meta.join("  ");
-      // metaInline parameter will be passed via options
-      lines.push(nomeExibicao.substring(0, maxCols));
-      if (metaStr) lines.push(metaStr.substring(0, maxCols));
+      if (options?.metaInline && metaStr) {
+        // Tudo na mesma linha: NOME  pH:X  L:X  F:X  V:X
+        const maxNome = maxCols - metaStr.length - 2;
+        lines.push(`${nomeExibicao.substring(0, maxNome)}  ${metaStr}`.substring(0, maxCols));
+      } else {
+        lines.push(nomeExibicao.substring(0, maxCols));
+        if (metaStr) lines.push(metaStr.substring(0, maxCols));
+      }
     });
   } else {
     const mescla = isValidComposicao(rotulo.composicao || "");
