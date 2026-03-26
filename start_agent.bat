@@ -26,21 +26,21 @@ echo [%date% %time%] ============================================
 echo  ProPharmacos - Agente de Impressao PPLA
 echo ============================================
 
-REM Iniciar ngrok em background se existir e nao estiver rodando
+REM Iniciar ngrok em janela propria se nao estiver rodando
 tasklist /FI "IMAGENAME eq ngrok.exe" 2>nul | find /I "ngrok.exe" >nul
 if errorlevel 1 (
     if exist "C:\servidor_rotulos\ngrok.exe" (
         echo Iniciando ngrok...
-        start "" /B "C:\servidor_rotulos\ngrok.exe" http 5002
-        timeout /t 3 /nobreak >nul
+        start "ngrok - ProPharmacos" "C:\servidor_rotulos\ngrok.exe" http 5002
+        timeout /t 5 /nobreak >nul
     ) else if exist "C:\ngrok\ngrok.exe" (
         echo Iniciando ngrok...
-        start "" /B "C:\ngrok\ngrok.exe" http 5002
-        timeout /t 3 /nobreak >nul
+        start "ngrok - ProPharmacos" "C:\ngrok\ngrok.exe" http 5002
+        timeout /t 5 /nobreak >nul
     ) else if exist "C:\Users\%USERNAME%\ngrok.exe" (
         echo Iniciando ngrok...
-        start "" /B "C:\Users\%USERNAME%\ngrok.exe" http 5002
-        timeout /t 3 /nobreak >nul
+        start "ngrok - ProPharmacos" "C:\Users\%USERNAME%\ngrok.exe" http 5002
+        timeout /t 5 /nobreak >nul
     ) else (
         echo ngrok nao encontrado - pulando.
     )
