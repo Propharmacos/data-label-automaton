@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      agentes_status: {
+        Row: {
+          id: string
+          nome: string
+          url: string
+          hostname: string
+          versao: string
+          status: string
+          ultimo_ping: string | null
+          atualizado_em: string | null
+        }
+        Insert: {
+          id: string
+          nome: string
+          url?: string
+          hostname?: string
+          versao?: string
+          status?: string
+          ultimo_ping?: string | null
+          atualizado_em?: string | null
+        }
+        Update: {
+          id?: string
+          nome?: string
+          url?: string
+          hostname?: string
+          versao?: string
+          status?: string
+          ultimo_ping?: string | null
+          atualizado_em?: string | null
+        }
+        Relationships: []
+      }
       cache_change_log: {
         Row: {
           acknowledged: boolean

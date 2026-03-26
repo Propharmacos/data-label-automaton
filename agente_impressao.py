@@ -18,7 +18,9 @@ import socket
 import sys
 import time
 import threading
+import json
 import urllib.request
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
 from flask import Flask, jsonify, request
 from flask_cors import CORS
@@ -1562,6 +1564,98 @@ def version_info():
     })
 
 
+# ============================================
+# SUPABASE HEARTBEAT — registro de status/URL
+# ============================================
+SUPABASE_URL_API = "https://uxcxmegxplthzrmwbeps.supabase.co"
+SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV4Y3htZWd4cGx0aHpybXdiZXBzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njk3ODI1NTksImV4cCI6MjA4NTM1ODU1OX0.md7HPEL1xeNHgz7Fxf30pNZzb4WPQoPjF9r1Hd9DpPc"
+HEARTBEAT_INTERVAL = 60  # segundos
+
+_agente_id_cache = ""
+
+
+def _get_agente_id() -> str:
+    global _agente_id_cache
+    if _agente_id_cache:
+        return _agente_id_cache
+    # 1) variável de ambiente
+    val = os.environ.get("AGENTE_ID", "").strip()
+    if val:
+        _agente_id_cache = val
+        return val
+    # 2) arquivo agente_id.txt na pasta do agente
+    id_file = os.path.join(os.path.dirname(AGENT_FILE), "agente_id.txt")
+    if os.path.exists(id_file):
+        try:
+            with open(id_file, "r", encoding="utf-8") as f:
+                val = f.read().strip()
+            if val:
+                _agente_id_cache = val
+                return val
+        except Exception:
+            pass
+    return ""
+
+
+def _get_ngrok_url() -> str:
+    """Detecta a URL pública do ngrok via API local (porta 4040)."""
+    try:
+        req = urllib.request.Request("http://localhost:4040/api/tunnels")
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            for tunnel in data.get("tunnels", []):
+                if tunnel.get("proto") == "https":
+                    return tunnel.get("public_url", "")
+            tunnels = data.get("tunnels", [])
+            if tunnels:
+                return tunnels[0].get("public_url", "")
+    except Exception:
+        pass
+    return ""
+
+
+def _registrar_supabase(url: str, status: str = "online"):
+    """Envia heartbeat ao Supabase atualizando status, URL e ultimo_ping."""
+    agente_id = _get_agente_id()
+    if not agente_id:
+        return
+    now_iso = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    payload = json.dumps({
+        "url": url,
+        "hostname": socket.gethostname(),
+        "versao": "3.2",
+        "status": status,
+        "ultimo_ping": now_iso,
+        "atualizado_em": now_iso,
+    }).encode("utf-8")
+    endpoint = f"{SUPABASE_URL_API}/rest/v1/agentes_status?id=eq.{agente_id}"
+    req = urllib.request.Request(
+        endpoint,
+        data=payload,
+        method="PATCH",
+        headers={
+            "Content-Type": "application/json",
+            "apikey": SUPABASE_ANON_KEY,
+            "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+            "Prefer": "return=minimal",
+        },
+    )
+    urllib.request.urlopen(req, timeout=5)
+
+
+def _loop_heartbeat():
+    """Thread de heartbeat: registra URL e status no Supabase a cada 60s."""
+    logger.info(f"[HEARTBEAT] Iniciado — intervalo {HEARTBEAT_INTERVAL}s")
+    while True:
+        try:
+            url = _get_ngrok_url()
+            _registrar_supabase(url, "online")
+            logger.debug(f"[HEARTBEAT] OK — url={url or '(sem ngrok)'}")
+        except Exception as e:
+            logger.debug(f"[HEARTBEAT] Erro: {e}")
+        time.sleep(HEARTBEAT_INTERVAL)
+
+
 if __name__ == '__main__':
     port = int(os.environ.get("PORT", 5002))
     logger.info("=" * 50)
@@ -1577,10 +1671,27 @@ if __name__ == '__main__':
         logger.info(f"  {k}: {v['largura_mm']}x{v['altura_mm']}mm ({v['cols_max']} cols)")
     logger.info(f"Health: http://localhost:{port}/health")
     logger.info(f"Auto-update: verificando GitHub a cada {UPDATE_INTERVAL_SECONDS}s")
+    agente_id = _get_agente_id()
+    logger.info(f"Agente ID: {agente_id or '(não configurado — crie agente_id.txt)'}")
     logger.info("=" * 50)
 
     # Iniciar thread de auto-update em background
     t = threading.Thread(target=_loop_auto_update, daemon=True)
     t.start()
+
+    # Iniciar thread de heartbeat Supabase
+    th = threading.Thread(target=_loop_heartbeat, daemon=True)
+    th.start()
+
+    # Registrar imediatamente ao iniciar (não esperar 60s)
+    def _registro_inicial():
+        time.sleep(5)  # aguarda ngrok subir
+        try:
+            url = _get_ngrok_url()
+            _registrar_supabase(url, "online")
+            logger.info(f"[HEARTBEAT] Registro inicial OK — url={url or '(sem ngrok)'}")
+        except Exception as e:
+            logger.debug(f"[HEARTBEAT] Registro inicial falhou: {e}")
+    threading.Thread(target=_registro_inicial, daemon=True).start()
 
     app.run(host='0.0.0.0', port=port, debug=False, threaded=True)

@@ -9,6 +9,17 @@ if not exist "C:\servidor_rotulos" (
     exit /b 1
 )
 
+REM Definir ID do agente (edi ou daniel) — lido do arquivo agente_id.txt se existir
+REM Para configurar: crie C:\servidor_rotulos\agente_id.txt contendo apenas: edi  (ou daniel)
+if not defined AGENTE_ID (
+    if exist "C:\servidor_rotulos\agente_id.txt" (
+        set /p AGENTE_ID=<"C:\servidor_rotulos\agente_id.txt"
+    )
+)
+if defined AGENTE_ID (
+    echo Agente ID: %AGENTE_ID%
+)
+
 :LOOP
 echo.
 echo [%date% %time%] ============================================

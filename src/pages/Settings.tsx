@@ -1,7 +1,9 @@
 import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import LabelSettings from "@/components/LabelSettings";
+import AgentesControl from "@/components/AgentesControl";
 import logoProPharmacos from "@/assets/logo-propharmacos.png";
 
 const Settings = () => {
@@ -30,7 +32,9 @@ const Settings = () => {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8 max-w-4xl">
+      <main className="container mx-auto px-4 py-8 max-w-4xl space-y-8">
+        <AgentesControl />
+        <Separator />
         <LabelSettings />
       </main>
     </div>
