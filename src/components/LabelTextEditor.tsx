@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Printer, Minus, Plus, Type, Zap } from "lucide-react";
+import { ChevronLeft, ChevronRight, Printer, Minus, Plus, Type, Zap, AlignVerticalSpaceAround, Rows3 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RotuloItem, PharmacyConfig, LayoutConfig, LayoutType } from "@/types/requisicao";
@@ -321,7 +322,7 @@ function generateTextPacGran(rotulo: RotuloItem, layoutConfig: LayoutConfig): st
 }
 
 // ---- AMP10 specific generator (89x38mm, 65 cols x 10 lines) ----
-function generateTextAmp10(rotulo: RotuloItem, layoutConfig: LayoutConfig): string {
+function generateTextAmp10(rotulo: RotuloItem, layoutConfig: LayoutConfig, options?: { metaInline?: boolean }): string {
   const maxCols = layoutConfig.colunasMax || 65;
   const maxLines = layoutConfig.linhasMax || 10;
 
@@ -352,17 +353,31 @@ function generateTextAmp10(rotulo: RotuloItem, layoutConfig: LayoutConfig): stri
   lines.push(compactLine(drName, conselhoStr));
 
   if (isKit && rotulo.componentes) {
-    rotulo.componentes.forEach((comp) => {
+    // Filtrar componentes tipo BLISTER (embalagem, não conteúdo do rótulo)
+    const componentesVisiveis = rotulo.componentes.filter(
+      (comp) => {
+        const nomeLimpo = formatarNomeComponente(comp.nome);
+        return !nomeLimpo.startsWith('BLISTER');
+      }
+    );
+    componentesVisiveis.forEach((comp) => {
       const nomeExibicao = rotulo.eSinonimo
         ? (comp.composicao || formatarNomeComponente(comp.nome))
         : formatarNomeComponente(comp.nome);
-      lines.push(nomeExibicao.substring(0, maxCols));
       const meta: string[] = [];
       if (comp.ph) meta.push(`pH:${String(comp.ph).replace('.', ',')}`);
       if (comp.lote) meta.push(`L:${comp.lote}`);
       if (comp.fabricacao) meta.push(`F:${formatarDataCurta(comp.fabricacao)}`);
       if (comp.validade) meta.push(`V:${formatarDataCurta(comp.validade)}`);
-      if (meta.length > 0) lines.push(meta.join("  ").substring(0, maxCols));
+      const metaStr = meta.join("  ");
+      if (options?.metaInline && metaStr) {
+        // Tudo na mesma linha: NOME  pH:X  L:X  F:X  V:X
+        const maxNome = maxCols - metaStr.length - 2;
+        lines.push(`${nomeExibicao.substring(0, maxNome)}  ${metaStr}`.substring(0, maxCols));
+      } else {
+        lines.push(nomeExibicao.substring(0, maxCols));
+        if (metaStr) lines.push(metaStr.substring(0, maxCols));
+      }
     });
   } else {
     const mescla = isValidComposicao(rotulo.composicao || "");
@@ -496,7 +511,7 @@ function stripAccents(text: string): string {
     .replace(/[^\x20-\x7E\n\r]/g, ''); // keep only basic ASCII printable + newlines
 }
 
-function generateText(rotulo: RotuloItem, layoutConfig: LayoutConfig, layoutType?: LayoutType): string {
+function generateText(rotulo: RotuloItem, layoutConfig: LayoutConfig, layoutType?: LayoutType, amp10Options?: { metaInline?: boolean }): string {
   const resolvedLayoutTipo = resolveLayoutTipo(layoutConfig, layoutType);
 
   let result: string | null = null;
@@ -509,7 +524,7 @@ function generateText(rotulo: RotuloItem, layoutConfig: LayoutConfig, layoutType
   } else if (resolvedLayoutTipo === 'AMP_CX') {
     result = generateTextAmpCx(rotulo, layoutConfig);
   } else if (resolvedLayoutTipo === 'AMP10') {
-    result = generateTextAmp10(rotulo, layoutConfig);
+    result = generateTextAmp10(rotulo, layoutConfig, amp10Options);
   } else if (resolvedLayoutTipo === 'TIRZ') {
     result = generateTextTirz(rotulo, layoutConfig);
   }
@@ -618,14 +633,32 @@ function generateText(rotulo: RotuloItem, layoutConfig: LayoutConfig, layoutType
 // ---- Component ----
 
 const FONT_SIZE_KEY = 'label_editor_font_size';
+const LINE_SPACING_KEY = 'label_editor_line_spacing';
+const META_INLINE_KEY = 'label_editor_meta_inline';
+
 const getStoredFontSize = (layoutTipo?: string) => {
   try {
     const stored = localStorage.getItem(FONT_SIZE_KEY);
     if (stored) return parseInt(stored, 10);
   } catch {}
-  // A_PAC_PEQ usa fonte mínima por padrão (etiqueta pequena 45x25mm)
   if (layoutTipo === 'A_PAC_PEQ') return 5;
   return 14;
+};
+
+const getStoredLineSpacing = (): number => {
+  try {
+    const stored = localStorage.getItem(LINE_SPACING_KEY);
+    if (stored) return parseFloat(stored);
+  } catch {}
+  return 1.4;
+};
+
+const getStoredMetaInline = (): boolean => {
+  try {
+    const stored = localStorage.getItem(META_INLINE_KEY);
+    if (stored) return stored === 'true';
+  } catch {}
+  return false;
 };
 
 const LabelTextEditor = ({
@@ -637,12 +670,16 @@ const LabelTextEditor = ({
   const [cursorInfo, setCursorInfo] = useState({ line: 1, col: 1, totalLines: 1, totalCols: 1 });
   const [editorFontSize, setEditorFontSize] = useState(() => getStoredFontSize(layoutType));
   const [printQuantity, setPrintQuantity] = useState(1);
+  const [lineSpacing, setLineSpacing] = useState(getStoredLineSpacing);
+  const [metaInline, setMetaInline] = useState(getStoredMetaInline);
 
   const rotulo = rotulos[currentIndex];
   const maxCols = layoutConfig.colunasMax;
   const maxLines = layoutConfig.linhasMax;
+  const isAmp10 = layoutType === 'AMP10';
 
-  const text = rotulo?.textoLivre ?? generateText(rotulo, layoutConfig, layoutType);
+  const amp10Opts = isAmp10 ? { metaInline } : undefined;
+  const text = rotulo?.textoLivre ?? generateText(rotulo, layoutConfig, layoutType, amp10Opts);
 
   // Initialize textoLivre on load or layout change
   useEffect(() => {
@@ -650,7 +687,7 @@ const LabelTextEditor = ({
       const resolvedLayoutTipo = resolveLayoutTipo(layoutConfig, layoutType);
       const isFixedGrid = resolvedLayoutTipo === 'A_PAC_PEQ' || resolvedLayoutTipo === 'A_PAC_GRAN' || resolvedLayoutTipo === 'AMP_CX';
 
-      let generated = generateText(rotulo, layoutConfig, layoutType);
+      let generated = generateText(rotulo, layoutConfig, layoutType, amp10Opts);
       if (maxCols) {
         generated = isFixedGrid
           ? generated.split('\n').map(line => line.substring(0, maxCols)).join('\n')
@@ -658,7 +695,7 @@ const LabelTextEditor = ({
       }
       onTextChange(rotulo.id, generated);
     }
-  }, [rotulo?.id, layoutType]);
+  }, [rotulo?.id, layoutType, metaInline]);
 
   const updateCursorInfo = useCallback(() => {
     const ta = textareaRef.current;
@@ -715,6 +752,19 @@ const LabelTextEditor = ({
     });
   };
 
+  const handleLineSpacingChange = (delta: number) => {
+    setLineSpacing(prev => {
+      const next = Math.max(1.0, Math.min(2.0, Math.round((prev + delta) * 10) / 10));
+      localStorage.setItem(LINE_SPACING_KEY, String(next));
+      return next;
+    });
+  };
+
+  const handleMetaInlineToggle = (checked: boolean) => {
+    setMetaInline(checked);
+    localStorage.setItem(META_INLINE_KEY, String(checked));
+  };
+
   if (!rotulo) return null;
 
   return (
@@ -727,15 +777,37 @@ const LabelTextEditor = ({
             Registro: {currentIndex + 1}/{rotulos.length}
           </span>
         </div>
-        <div className="flex items-center gap-1">
-          <Type className="h-3.5 w-3.5 text-muted-foreground" />
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleFontSizeChange(-1)}>
-            <Minus className="h-3 w-3" />
-          </Button>
-          <span className="text-xs text-muted-foreground w-6 text-center">{editorFontSize}</span>
-          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleFontSizeChange(1)}>
-            <Plus className="h-3 w-3" />
-          </Button>
+        <div className="flex items-center gap-3">
+          {/* Font size */}
+          <div className="flex items-center gap-1">
+            <Type className="h-3.5 w-3.5 text-muted-foreground" />
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleFontSizeChange(-1)}>
+              <Minus className="h-3 w-3" />
+            </Button>
+            <span className="text-xs text-muted-foreground w-6 text-center">{editorFontSize}</span>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleFontSizeChange(1)}>
+              <Plus className="h-3 w-3" />
+            </Button>
+          </div>
+          {/* Line spacing */}
+          <div className="flex items-center gap-1">
+            <AlignVerticalSpaceAround className="h-3.5 w-3.5 text-muted-foreground" />
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleLineSpacingChange(-0.1)}>
+              <Minus className="h-3 w-3" />
+            </Button>
+            <span className="text-xs text-muted-foreground w-6 text-center">{lineSpacing.toFixed(1)}</span>
+            <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleLineSpacingChange(0.1)}>
+              <Plus className="h-3 w-3" />
+            </Button>
+          </div>
+          {/* Meta inline toggle (only for AMP10) */}
+          {isAmp10 && (
+            <div className="flex items-center gap-1.5">
+              <Rows3 className="h-3.5 w-3.5 text-muted-foreground" />
+              <Switch checked={metaInline} onCheckedChange={handleMetaInlineToggle} className="scale-75" />
+              <span className="text-xs text-muted-foreground">{metaInline ? 'Compacto' : 'Separado'}</span>
+            </div>
+          )}
         </div>
       </div>
 
@@ -749,7 +821,7 @@ const LabelTextEditor = ({
           onClick={handleCursorMove}
           onFocus={updateCursorInfo}
           className="w-full bg-background text-foreground font-mono p-4 resize-none focus:outline-none border-none min-h-[200px]"
-          style={{ fontSize: `${editorFontSize}px`, lineHeight: '1.4', letterSpacing: '-0.5px' }}
+          style={{ fontSize: `${editorFontSize}px`, lineHeight: String(lineSpacing), letterSpacing: '-0.5px' }}
           spellCheck={false}
           rows={Math.max(8, text.split('\n').length + 2)}
         />
