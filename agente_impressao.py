@@ -620,19 +620,12 @@ def gerar_ppla_amp10(rotulo, farmacia, dims=None, calibracao=None):
     else:
         # Não-KIT: composição + metadados
         composicao_full = (rotulo.get('composicao', '') or rotulo.get('formula', '') or '').upper()
-        ph = rotulo.get('ph', '')
+        ph = (rotulo.get('ph', '') or '').strip()
         lote = rotulo.get('lote', '')
         fab = rotulo.get('dataFabricacao', '')
         val = rotulo.get('dataValidade', '')
 
-        # Quebrar composição em linhas
-        comp_lines = []
-        remaining = composicao_full
-        while remaining and len(comp_lines) < 4:
-            comp_lines.append(remaining[:cols])
-            remaining = remaining[cols:]
-
-        # Adicionar pH/L/F/V à primeira linha de composição (ou como linha separada)
+        # Monta linha de metadados: pH (esquerda do lote) + L + F + V
         meta_parts = []
         if ph: meta_parts.append(f"pH:{ph}")
         if lote: meta_parts.append(f"L:{lote}")
@@ -640,20 +633,22 @@ def gerar_ppla_amp10(rotulo, farmacia, dims=None, calibracao=None):
         if val: meta_parts.append(f"V:{val}")
         meta_str = ' '.join(meta_parts)
 
-        if comp_lines:
-            # Tentar encaixar meta na primeira linha
-            first = comp_lines[0]
-            combined = _compact_line(first, meta_str)
-            if len(combined) <= cols:
-                comp_lines[0] = combined
-            else:
-                comp_lines.insert(1, meta_str[:cols])
-        elif meta_str:
-            comp_lines.append(meta_str[:cols])
+        # Composição ocupa no máximo as 4 primeiras linhas de conteúdo (índices 0-3)
+        # Meta (pH/L/F/V) sempre vai na linha de índice 4 (Y=12, x_lower) — linha dedicada
+        comp_lines = []
+        remaining = composicao_full
+        while remaining and len(comp_lines) < 4:
+            comp_lines.append(remaining[:cols])
+            remaining = remaining[cols:]
 
-        for i, cy in enumerate(content_y):
+        # Imprime linhas de composição
+        for i, cy in enumerate(content_y[:4]):
             if i < len(comp_lines) and comp_lines[i].strip():
                 linhas.append(ppla_text_dots(rot, font, 1, 1, cy, content_x[i], comp_lines[i][:cols]))
+
+        # Linha 5 (índice 4, Y=12, x_lower): sempre pH + Lote + Fab + Val
+        if meta_str:
+            linhas.append(ppla_text_dots(rot, font, 1, 1, content_y[4], content_x[4], meta_str[:cols]))
 
     # Linha 9 (Y=-9, X=4): Uso/Aplicação/REG
     footer_parts = []
