@@ -76,21 +76,29 @@ const formatarDataCurta = (data: string) => {
   return data;
 };
 
+const limparNomeProduto = (nome: string): string => {
+  if (!nome) return "";
+  let n = nome.trim().toUpperCase();
+  // Remove prefixos comuns
+  const prefixos = ["AMP ", "FRS ", "FR ", "BIS ", "ENV "];
+  for (const p of prefixos) {
+    if (n.startsWith(p)) { n = n.substring(p.length); break; }
+  }
+  // Remove sufixos de via de administração
+  const sufixos = [" ENDOVENOSO", " ENDOVENOSA", " ENDOVE", " ENDOV", " ENDOVEN", " IV ", " IV"];
+  for (const s of sufixos) {
+    if (n.endsWith(s.trimEnd())) { n = n.substring(0, n.length - s.trimEnd().length).trimEnd(); break; }
+  }
+  return n;
+};
+
 const formatarFormula = (formula: string) => {
   if (!formula) return "";
-  let nome = formula;
-  if (nome.toUpperCase().startsWith("AMP ")) nome = nome.substring(4);
-  return nome.toUpperCase();
+  return limparNomeProduto(formula);
 };
 
 const formatarNomeComponente = (nome: string): string => {
-  if (!nome) return "";
-  let limpo = nome.trim().toUpperCase();
-  const prefixos = ["AMP ", "FRS ", "FR ", "BIS ", "ENV "];
-  for (const p of prefixos) {
-    if (limpo.startsWith(p)) { limpo = limpo.substring(p.length); break; }
-  }
-  return limpo;
+  return limparNomeProduto(nome);
 };
 
 const isValidComposicao = (texto: string): boolean => {
