@@ -210,7 +210,8 @@ function generateTextAmpCx(rotulo: RotuloItem, layoutConfig: LayoutConfig): stri
         ? (comp.composicao || formatarNomeComponente(comp.nome))
         : formatarNomeComponente(comp.nome);
       const meta: string[] = [];
-      if (comp.ph) meta.push(`PH:${String(comp.ph).replace('.', ',')}`);
+      const compPhVal = comp.ph ? String(comp.ph).replace('.', ',') : '';
+      meta.push(`PH:${compPhVal}`);
       if (comp.lote) meta.push(`L:${comp.lote}`);
       if (comp.fabricacao) meta.push(`F:${formatarDataCurta(comp.fabricacao)}`);
       if (comp.validade) meta.push(`V:${formatarDataCurta(comp.validade)}`);
