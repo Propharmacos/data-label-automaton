@@ -3020,9 +3020,12 @@ def buscar_requisicao(nr_requisicao):
         
         # Busca itens da requisição (fórmulas) - incluindo CDPRIN para buscar composição de mesclas
         # SERIER contém a sequência das barras (0, 1, 2...) conforme FórmulaCerta
+        # JOIN FC03000 para obter NOMRED (descrição 2 / nome reduzido para rótulo)
         cursor.execute("""
-            SELECT I.SERIER, I.DESCR, I.QUANT, I.UNIDA, I.NRLOT, I.CDPRO, I.CDPRIN, I.ITEMID
+            SELECT I.SERIER, I.DESCR, I.QUANT, I.UNIDA, I.NRLOT, I.CDPRO, I.CDPRIN, I.ITEMID,
+                   P.NOMRED
             FROM FC12110 I
+            LEFT JOIN FC03000 P ON I.CDPRO = P.CDPRO
             WHERE I.NRRQU = ? AND I.CDFIL = ? AND I.TPCMP IN ('C', 'S')
             ORDER BY I.SERIER
         """, (int(nr_requisicao), filial_db))
