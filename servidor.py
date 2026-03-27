@@ -3020,12 +3020,31 @@ def buscar_requisicao(nr_requisicao):
         
         # Busca itens da requisição (fórmulas) - incluindo CDPRIN para buscar composição de mesclas
         # SERIER contém a sequência das barras (0, 1, 2...) conforme FórmulaCerta
-        # JOIN FC03000 para obter NOMRED (descrição 2 / nome reduzido para rótulo)
-        cursor.execute("""
+        # Verifica dinamicamente quais colunas existem para montar query compatível
+        cursor.execute("SELECT TRIM(RDB$FIELD_NAME) FROM RDB$RELATION_FIELDS WHERE RDB$RELATION_NAME = 'FC03000'")
+        cols_fc03000 = [r[0] for r in cursor.fetchall()]
+        cursor.execute("SELECT TRIM(RDB$FIELD_NAME) FROM RDB$RELATION_FIELDS WHERE RDB$RELATION_NAME = 'FC12110'")
+        cols_fc12110 = [r[0] for r in cursor.fetchall()]
+
+        tem_nomred  = 'NOMRED'  in cols_fc03000
+        tem_nrreg   = 'NRREG'   in cols_fc12110
+        tem_dtfab   = 'DTFAB'   in cols_fc12110
+        tem_dtval   = 'DTVAL'   in cols_fc12110
+
+        nomred_col = "P.NOMRED"  if tem_nomred else "NULL"
+        nrreg_col  = "I.NRREG"   if tem_nrreg  else "NULL"
+        dtfab_col  = "I.DTFAB"   if tem_dtfab  else "NULL"
+        dtval_col  = "I.DTVAL"   if tem_dtval  else "NULL"
+
+        join_fc03000 = "LEFT JOIN FC03000 P ON I.CDPRO = P.CDPRO" if tem_nomred else ""
+
+        print(f"  [FC12110] NOMRED={tem_nomred}, NRREG={tem_nrreg}, DTFAB={tem_dtfab}, DTVAL={tem_dtval}")
+
+        cursor.execute(f"""
             SELECT I.SERIER, I.DESCR, I.QUANT, I.UNIDA, I.NRLOT, I.CDPRO, I.CDPRIN, I.ITEMID,
-                   P.NOMRED, I.NRREG, I.DTFAB, I.DTVAL
+                   {nomred_col}, {nrreg_col}, {dtfab_col}, {dtval_col}
             FROM FC12110 I
-            LEFT JOIN FC03000 P ON I.CDPRO = P.CDPRO
+            {join_fc03000}
             WHERE I.NRRQU = ? AND I.CDFIL = ? AND I.TPCMP IN ('C', 'S')
             ORDER BY I.SERIER
         """, (int(nr_requisicao), filial_db))
