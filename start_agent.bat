@@ -1,19 +1,25 @@
 @echo off
 title ProPharmacos - Agente de Impressao
 color 0A
-cd /d "C:\servidor_rotulos"
 
-if not exist "C:\servidor_rotulos" (
-    echo ERRO: Pasta C:\servidor_rotulos nao encontrada!
+REM Detectar pasta correta automaticamente
+if exist "C:\ServidorRotulos\agente_impressao.py" (
+    set PASTA=C:\ServidorRotulos
+) else if exist "C:\servidor_rotulos\agente_impressao.py" (
+    set PASTA=C:\servidor_rotulos
+) else (
+    echo ERRO: Pasta do agente nao encontrada!
+    echo Verifique se existe C:\ServidorRotulos ou C:\servidor_rotulos
     pause
     exit /b 1
 )
 
-REM Definir ID do agente (edi ou daniel) — lido do arquivo agente_id.txt se existir
-REM Para configurar: crie C:\servidor_rotulos\agente_id.txt contendo apenas: edi  (ou daniel)
+cd /d "%PASTA%"
+
+REM Ler ID do agente
 if not defined AGENTE_ID (
-    if exist "C:\servidor_rotulos\agente_id.txt" (
-        set /p AGENTE_ID=<"C:\servidor_rotulos\agente_id.txt"
+    if exist "%PASTA%\agente_id.txt" (
+        set /p AGENTE_ID=<"%PASTA%\agente_id.txt"
     )
 )
 if defined AGENTE_ID (
@@ -29,9 +35,9 @@ echo ============================================
 REM Iniciar ngrok em janela propria se nao estiver rodando
 tasklist /FI "IMAGENAME eq ngrok.exe" 2>nul | find /I "ngrok.exe" >nul
 if errorlevel 1 (
-    if exist "C:\servidor_rotulos\ngrok.exe" (
+    if exist "%PASTA%\ngrok.exe" (
         echo Iniciando ngrok...
-        start "ngrok - ProPharmacos" "C:\servidor_rotulos\ngrok.exe" http 5002
+        start "ngrok - ProPharmacos" "%PASTA%\ngrok.exe" http 5002
         timeout /t 5 /nobreak >nul
     ) else if exist "C:\ngrok\ngrok.exe" (
         echo Iniciando ngrok...
