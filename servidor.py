@@ -3023,7 +3023,7 @@ def buscar_requisicao(nr_requisicao):
         # JOIN FC03000 para obter NOMRED (descrição 2 / nome reduzido para rótulo)
         cursor.execute("""
             SELECT I.SERIER, I.DESCR, I.QUANT, I.UNIDA, I.NRLOT, I.CDPRO, I.CDPRIN, I.ITEMID,
-                   P.NOMRED
+                   P.NOMRED, I.NRREG, I.DTFAB, I.DTVAL
             FROM FC12110 I
             LEFT JOIN FC03000 P ON I.CDPRO = P.CDPRO
             WHERE I.NRRQU = ? AND I.CDFIL = ? AND I.TPCMP IN ('C', 'S')
@@ -3624,28 +3624,32 @@ def buscar_requisicao(nr_requisicao):
             # ITEMID - identificador do item na FC12110 (com fallback seguro)
             item_id = item[7] if len(item) > 7 else None
             nomred_fc03000 = (item[8] or "").strip() if len(item) > 8 else ""
+            # Campos do pedido (inclusão): NRREG, DTFAB, DTVAL por item
+            nrreg_item = str(item[9] or "").strip() if len(item) > 9 else ""
+            dtfab_fc12110 = item[10] if len(item) > 10 else None
+            dtval_fc12110 = item[11] if len(item) > 11 else None
             descr_fc12110 = item[1] or ""  # DESCR da FC12110 (descrição 1)
             # PRIORIDADE: Usa NOMRED (descrição 2 / nome reduzido) quando disponível
             nome_produto = nomred_fc03000 if nomred_fc03000 else descr_fc12110
             print(f"  [NOME] DESCR='{descr_fc12110[:40]}', NOMRED='{nomred_fc03000[:40]}' => usando '{nome_produto[:40]}'")
-            
+
             # =====================================================
-            # RESOLVE LOTE/FAB/VAL do item via FC03140
-            # Sobrescreve datas da requisição (FC12100) com dados reais do lote
+            # LOTE/FAB/VAL: usa dados da inclusão do pedido (FC12110) como fonte primária
+            # Fallback para FC03140 apenas se os campos do pedido estiverem vazios
             # =====================================================
             lote_item = (item[4] or "").strip()
-            data_fab_item = dados_base["dataFabricacao"]
-            data_val_item = dados_base["dataValidade"]
-            
-            if cdpro:
+            data_fab_item = dtfab_fc12110.strftime('%d/%m/%Y') if dtfab_fc12110 else dados_base["dataFabricacao"]
+            data_val_item = dtval_fc12110.strftime('%d/%m/%Y') if dtval_fc12110 else dados_base["dataValidade"]
+
+            if cdpro and not (lote_item and data_fab_item and data_val_item):
                 lote_data = resolve_lote_componente(cursor, filial_db, cdpro)
-                if lote_data.get("lote"):
+                if not lote_item and lote_data.get("lote"):
                     lote_item = lote_data["lote"]
-                if lote_data.get("dtFab"):
+                if not data_fab_item and lote_data.get("dtFab"):
                     data_fab_item = lote_data["dtFab"]
-                if lote_data.get("dtVal"):
+                if not data_val_item and lote_data.get("dtVal"):
                     data_val_item = lote_data["dtVal"]
-                print(f"  [LOTE ITEM] LT={lote_item}, F={data_fab_item}, V={data_val_item}")
+            print(f"  [LOTE ITEM] NRREG={nrreg_item}, LT={lote_item}, F={data_fab_item}, V={data_val_item}")
             
             # =====================================================
             # PRIORIDADE: Busca dados na FC99999 usando CDPRIN quando disponível
@@ -4269,7 +4273,7 @@ def buscar_requisicao(nr_requisicao):
                 "observacoes": composicao,
                 "tipoItem": tipo_item,
                 "ph": ph_item,
-                "numeroRegistro": str(dados_base.get("numeroRegistro", "") or ""),  # Registro completo sem truncar
+                "numeroRegistro": nrreg_item or str(dados_base.get("numeroRegistro", "") or ""),  # Registro por item (FC12110.NRREG); fallback cabeçalho
             }
             
             # Se é KIT, adiciona dados completos ao rótulo
