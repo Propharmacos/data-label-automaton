@@ -100,14 +100,15 @@ echo [2/5] Criando start_agent_v2.bat com path fixo do Python...
     echo REM Iniciar ngrok se nao estiver rodando
     echo tasklist /FI "IMAGENAME eq ngrok.exe" 2^>nul ^| find /I "ngrok.exe" ^>nul
     echo if errorlevel 1 ^(
-    echo     set NGROK_EXE=
-    echo     if exist "%%PASTA%%\ngrok.exe" set NGROK_EXE=%%PASTA%%\ngrok.exe
-    echo     if exist "C:\ngrok\ngrok.exe" set NGROK_EXE=C:\ngrok\ngrok.exe
-    echo     if exist "C:\Users\%%USERNAME%%\ngrok.exe" set NGROK_EXE=C:\Users\%%USERNAME%%\ngrok.exe
-    echo     if defined NGROK_EXE ^(
+    echo     if exist "%%PASTA%%\ngrok.exe" ^(
     echo         echo Iniciando ngrok...
-    echo         echo [%%date%% %%time%%] Iniciando ngrok: %%NGROK_EXE%% >> "%%LOG%%"
-    echo         start "ngrok - ProPharmacos" "%%NGROK_EXE%%" http 5002
+    echo         echo [%%date%% %%time%%] Iniciando ngrok >> "%%LOG%%"
+    echo         start "ngrok - ProPharmacos" "%%PASTA%%\ngrok.exe" http 5002
+    echo         timeout /t 5 /nobreak ^>nul
+    echo     ^) else if exist "C:\ngrok\ngrok.exe" ^(
+    echo         echo Iniciando ngrok...
+    echo         echo [%%date%% %%time%%] Iniciando ngrok >> "%%LOG%%"
+    echo         start "ngrok - ProPharmacos" "C:\ngrok\ngrok.exe" http 5002
     echo         timeout /t 5 /nobreak ^>nul
     echo     ^) else ^(
     echo         echo [AVISO] ngrok nao encontrado - pulando.
