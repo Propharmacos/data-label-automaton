@@ -870,6 +870,11 @@ const LabelTextEditor = ({
   };
 
   const handleSaveGeneralLayout = () => {
+    const confirmed = window.confirm(
+      `Tem certeza que deseja salvar as configurações atuais (fonte ${editorFontSize}, espaçamento ${lineSpacing.toFixed(1)}) como PADRÃO GERAL para TODAS as requisições do layout "${layoutConfig.nome}"?\n\nIsso afetará todas as futuras requisições deste layout.`
+    );
+    if (!confirmed) return;
+
     saveGeneralDefaults(layoutType, {
       fontSize: editorFontSize,
       lineSpacing,
@@ -877,7 +882,7 @@ const LabelTextEditor = ({
     });
     toast({
       title: "Layout geral salvo!",
-      description: `As configurações (fonte ${editorFontSize}, espaçamento ${lineSpacing.toFixed(1)}) foram salvas como padrão para todas as requisições do layout ${layoutConfig.nome}.`,
+      description: `Configurações salvas como padrão para todas as requisições do layout ${layoutConfig.nome}.`,
     });
   };
 
