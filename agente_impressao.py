@@ -717,7 +717,10 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
     texto_livre = rotulo.get('textoLivre', '')
     if texto_livre:
         y_fine = int(rotulo.get('yOffsetDots', 0) or 0)
-        y_non_reg = [89 + y_fine, 78 + y_fine, 67 + y_fine, 56 + y_fine, 45 + y_fine, 34 + y_fine, 23 + y_fine]
+        lsf = float(rotulo.get('lineSpacingFactor', 1.0) or 1.0)
+        base_step = 11  # dots entre linhas padrão
+        effective_step = int(base_step * lsf)
+        y_non_reg = [89 + y_fine - i * (effective_step - base_step) for i in range(7)]
         y_reg = 12 + y_fine
         linhas_texto = texto_livre.split('\n')
         pplb_lines = []
