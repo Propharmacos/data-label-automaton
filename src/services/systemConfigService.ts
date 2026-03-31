@@ -8,6 +8,7 @@ type ConfigKey =
   | "print_stations"
   | "layout_printer_map"
   | "layout_station_map"
+  | "print_agent_config"
   | "modo_impressao";
 
 // ── Read ────────────────────────────────────────────────────────────
