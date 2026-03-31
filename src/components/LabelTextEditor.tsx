@@ -924,15 +924,26 @@ const LabelTextEditor = ({
               <span className="text-xs text-muted-foreground">{metaInline ? 'Compacto' : 'Separado'}</span>
             </div>
           )}
-          {/* Botão Salvar edições */}
+          {/* Botão Salvar edições (por requisição) */}
           <Button
             variant="ghost"
             size="icon"
             className="h-7 w-7"
-            title="Salvar edições de todos os rótulos desta requisição"
+            title="Salvar edições desta requisição"
             onClick={handleSaveAllTexts}
           >
             <Save className="h-4 w-4" />
+          </Button>
+          {/* Botão Salvar Layout Geral (padrão para todos do mesmo layout) */}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 gap-1 text-xs"
+            title={`Salvar fonte, espaçamento e opções como padrão para TODAS as requisições do layout ${layoutConfig.nome}`}
+            onClick={handleSaveGeneralLayout}
+          >
+            <BookMarked className="h-4 w-4" />
+            Geral
           </Button>
         </div>
       </div>
