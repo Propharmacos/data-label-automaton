@@ -800,6 +800,16 @@ const LabelTextEditor = ({
     localStorage.setItem(META_INLINE_KEY, String(checked));
   };
 
+  const handleYOffsetChange = (delta: number) => {
+    setYOffset(prev => {
+      const next = Math.max(0, Math.min(30, prev + delta));
+      localStorage.setItem(Y_OFFSET_KEY, String(next));
+      return next;
+    });
+  };
+
+  const isPacPeq = layoutType === 'A_PAC_PEQ';
+
   if (!rotulo) return null;
 
   return (
