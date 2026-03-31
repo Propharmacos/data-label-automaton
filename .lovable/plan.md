@@ -1,55 +1,34 @@
 
 
-## Plano: Melhorias no editor AMP10 — BLISTER, metadados e espaçamento
+## Plano: Controle de deslocamento vertical (subir/descer linhas) no A.PAC.PEQ
 
-### 1. BLISTER FRENTE / BLISTER FUNDO
+### Problema
+No layout A.PAC.PEQ, as linhas do rótulo começam na coordenada Y=78 (dots). O usuário precisa poder subir o texto ainda mais no rótulo físico, mas hoje não existe nenhum controle para isso.
 
-Esses nomes vêm dos **componentes do kit** (`rotulo.componentes`). O banco de dados retorna itens como "BIS BLISTER FRENTE" e "BIS BLISTER FUNDO" como componentes do kit. A função `formatarNomeComponente` (linha 85) remove apenas o prefixo "BIS " mas mantém "BLISTER FRENTE/FUNDO".
-
-**Solução**: Não filtrar automaticamente — esses são componentes reais do kit vindos do banco. Se não devem aparecer, o ideal é filtrar pelo tipo ou nome. Vou adicionar um filtro que remove componentes cujo nome contenha "BLISTER" (ou outra palavra-chave que você defina).
-
-### 2. Toggle: metadados na mesma linha vs linha abaixo
-
-Atualmente, para kits no AMP10, o código gera:
-```text
-CLORETO MG 400MG/2ML ENDOV
-L:729  F:02/26  V:02/27
-```
-
-Com o toggle "mesma linha", ficaria:
-```text
-CLORETO MG 400MG/2ML ENDOV  L:729  F:02/26  V:02/27
-```
-
-**Implementação**: Adicionar um botão/switch no header do editor ("↕ Compacto") que alterna entre os dois modos. O estado é salvo no localStorage por layout. Quando ativo, o `generateTextAmp10` concatena nome + metadados na mesma linha em vez de linhas separadas.
-
-### 3. Controle de espaçamento entre linhas
-
-Adicionar botões no header (junto ao controle de fonte) para ajustar o `line-height` do textarea:
-- Mínimo: 1.0 (linhas coladas)
-- Padrão: 1.4
-- Máximo: 2.0
-- Incremento: 0.1
-
-Isso afeta apenas o **preview visual** — a impressão física usa coordenadas Y fixas em dots.
+### Solução
+Adicionar um controle de **offset vertical** (em dots) no editor, específico para o A.PAC.PEQ, que desloca todas as coordenadas Y para cima. O valor é salvo no localStorage e enviado ao agente de impressão.
 
 ### Alterações
 
-**`src/components/LabelTextEditor.tsx`**:
+**1. Frontend — `src/components/LabelTextEditor.tsx`**
+- Novo state `yOffset` persistido no localStorage (chave `label_editor_y_offset_A_PAC_PEQ`)
+- Valor padrão: 0, range: 0 a +30 dots (cada +1 ≈ 0.12mm para cima), incremento de 1
+- Controle visual: ícone de seta vertical ↕ com botões +/− no header, visível apenas quando o layout é A_PAC_PEQ
+- O valor de offset é incluído no objeto do rótulo ao enviar para impressão (campo `yOffsetDots`)
 
-1. **Filtro BLISTER** (linhas 354-366): No loop de componentes do kit, pular componentes cujo nome (após limpeza) comece com "BLISTER"
+**2. Frontend — `src/pages/Index.tsx`**
+- Ao chamar a API de impressão, incluir o `yOffsetDots` do localStorage no payload enviado ao agente
 
-2. **Toggle metadados** (linhas 354-366 + header):
-   - Novo state `metaInline` (boolean, persistido no localStorage)
-   - Quando `true`, concatenar `nomeExibicao + "  " + meta.join("  ")` em uma única linha
-   - Quando `false`, manter comportamento atual (2 linhas)
-   - Botão no header: ícone de linhas ↕ com tooltip
+**3. Backend — `agente_impressao.py`**
+- Na função `gerar_ppla_a_pac_peq`, ler o campo `yOffsetDots` do rótulo recebido
+- Somar esse valor a cada coordenada Y da lista `y_positions = [78, 67, 56, 45, 34, 23, 12]`, resultando em `[78+N, 67+N, 56+N, ...]`
+- O mesmo se aplica ao modo estruturado (linhas fixas de Paciente, Médico, REG)
 
-3. **Controle de line-height** (header + textarea):
-   - Novo state `lineSpacing` (number, persistido no localStorage)
-   - Botões +/- no header ao lado do controle de fonte
-   - Aplicar no `style={{ lineHeight: lineSpacing }}` do textarea
+### Resultado
+O operador terá botões +/− no header do editor (visíveis apenas no A.PAC.PEQ) para ajustar quantos dots subir o texto. Exemplo: com offset +11, a linha do Paciente sai em Y=89 em vez de Y=78.
 
 ### Arquivos alterados
 - `src/components/LabelTextEditor.tsx`
+- `src/pages/Index.tsx`
+- `agente_impressao.py`
 
