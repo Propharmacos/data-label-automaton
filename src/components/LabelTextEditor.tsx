@@ -855,7 +855,7 @@ const LabelTextEditor = ({
           )}
           {/* Y-offset control (only for A_PAC_PEQ) */}
           {isPacPeq && (
-            <div className="flex items-center gap-1" title="Offset vertical (subir linhas em dots)">
+            <div className="flex items-center gap-1" title="Offset vertical de impressão (subir linhas em dots)">
               <span className="text-xs text-muted-foreground">↕Y</span>
               <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleYOffsetChange(-1)}>
                 <Minus className="h-3 w-3" />
