@@ -169,7 +169,11 @@ const Index = () => {
 
     const agentConfig = getPrintAgentConfig();
     const apiConfig = getApiConfig();
-    const station = getActiveStation();
+    
+    // Resolver estação automaticamente pelo layout (prioridade) ou fallback para ativa
+    const layoutStationId = getLayoutStation(layoutType);
+    const stations = getPrintStations();
+    const station = (layoutStationId ? stations.find(s => s.id === layoutStationId) : null) || getActiveStation();
     const agentUrl = station?.agentUrl || "";
     const impressora = selectedPrinter || getLayoutPrinter(layoutType) || "";
     
