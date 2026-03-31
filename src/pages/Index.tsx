@@ -233,8 +233,9 @@ const Index = () => {
       const configComImpressora = { ...agentConfig, agentUrl, impressora, calibracao: calibracaoPadrao };
       result = await imprimirViaAgente(configComImpressora, rotulosSelecionados, layoutType, farmaciaData);
     } else {
-      // Agente desativado ou sem estação ativa
-      result = { success: false, error: agentUrl ? "Ative o Agente HTTP nas configurações para imprimir." : "Nenhuma estação ativa encontrada. Verifique o mapeamento layout→estação." };
+      // Sem URL de estação configurada
+      const stationName = station?.nome || layoutStationId || 'desconhecida';
+      result = { success: false, error: `Estação "${stationName}" sem URL ngrok configurada. Vá em Configurações → Agente HTTP e preencha a URL da estação.` };
     }
     
     setIsPrinting(false);
