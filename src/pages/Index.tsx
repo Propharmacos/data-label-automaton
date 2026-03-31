@@ -67,9 +67,8 @@ const Index = () => {
     }
   }, []);
 
-  // Resetar layouts ao inicializar
+  // Carregar layout sem resetar (preserva edições salvas)
   useEffect(() => {
-    resetAllLayouts();
     setLayoutConfig(getLayout(layoutType));
   }, []);
 
