@@ -67,9 +67,8 @@ const Index = () => {
     }
   }, []);
 
-  // Resetar layouts ao inicializar
+  // Carregar layout sem resetar (preserva edições salvas)
   useEffect(() => {
-    resetAllLayouts();
     setLayoutConfig(getLayout(layoutType));
   }, []);
 
@@ -120,11 +119,24 @@ const Index = () => {
     const result = await buscarRequisicao(requisitionNumber);
     
     if (result.success && result.data && result.data.length > 0) {
-      setRotulos(result.data);
+      // Restaurar edições salvas do localStorage
+      const savedKey = `saved_rotulos_${requisitionNumber}`;
+      const savedData = localStorage.getItem(savedKey);
+      let restoredRotulos = result.data;
+      if (savedData) {
+        try {
+          const savedMap: Record<string, string> = JSON.parse(savedData);
+          restoredRotulos = result.data.map(r => {
+            const savedText = savedMap[r.id];
+            return savedText ? { ...r, textoLivre: savedText } : r;
+          });
+        } catch { /* ignore corrupt data */ }
+      }
+      setRotulos(restoredRotulos);
       setCurrentIndex(0);
       toast({
         title: "Requisição encontrada!",
-        description: `${result.data.length} rótulo(s) carregado(s).`,
+        description: `${restoredRotulos.length} rótulo(s) carregado(s).${savedData ? ' Edições salvas restauradas.' : ''}`,
       });
     } else {
       setRotulos([]);
@@ -149,7 +161,8 @@ const Index = () => {
     const rotuloAtual = rotulos[currentIndex];
     // Inject yOffsetDots for A_PAC_PEQ
     const yOffsetDots = layoutType === 'A_PAC_PEQ' ? parseInt(localStorage.getItem('label_editor_y_offset_A_PAC_PEQ') || '0', 10) : 0;
-    const rotulosSelecionados = Array.from({ length: quantity }, () => ({ ...rotuloAtual, yOffsetDots }));
+    const lineSpacingFactor = parseFloat(localStorage.getItem('label_editor_line_spacing') || '1.4');
+    const rotulosSelecionados = Array.from({ length: quantity }, () => ({ ...rotuloAtual, yOffsetDots, lineSpacingFactor }));
     await executePrint(rotulosSelecionados);
   };
 
@@ -157,8 +170,9 @@ const Index = () => {
     if (rotulos.length === 0) return;
     setIsPrinting(true);
     const yOffsetDots = layoutType === 'A_PAC_PEQ' ? parseInt(localStorage.getItem('label_editor_y_offset_A_PAC_PEQ') || '0', 10) : 0;
+    const lineSpacingFactor = parseFloat(localStorage.getItem('label_editor_line_spacing') || '1.4');
     const rotulosSelecionados = rotulos.flatMap(r => 
-      Array.from({ length: quantity }, () => ({ ...r, yOffsetDots }))
+      Array.from({ length: quantity }, () => ({ ...r, yOffsetDots, lineSpacingFactor }))
     );
     await executePrint(rotulosSelecionados);
   };

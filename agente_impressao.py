@@ -331,12 +331,20 @@ def _build_label(linhas, dims, cal, modo='mm'):
 # GERADORES PPLA POR LAYOUT (suportam mm e dots)
 # ============================================
 
-def _gerar_from_texto_livre(texto_livre, y_positions, x_start, rot, font, cols, dims, cal, modo):
-    """Helper: converte textoLivre (linhas editadas na UI) em comandos PPLA."""
+def _gerar_from_texto_livre(texto_livre, y_positions, x_start, rot, font, cols, dims, cal, modo, line_spacing_factor=1.0):
+    """Helper: converte textoLivre (linhas editadas na UI) em comandos PPLA.
+    line_spacing_factor: multiplica o espaçamento entre linhas (1.0=padrão, 1.2=mais aberto)."""
     linhas_texto = texto_livre.split('\n')
     pplb_lines = []
 
+    # Recalcular posições Y com fator de espaçamento
     y_positions_calc = list(y_positions)
+    if line_spacing_factor != 1.0 and len(y_positions_calc) >= 2:
+        base_y = y_positions_calc[0]
+        step = y_positions_calc[1] - y_positions_calc[0]  # normalmente negativo (descendo)
+        for i in range(1, len(y_positions_calc)):
+            y_positions_calc[i] = base_y + int(step * line_spacing_factor * i)
+
     if len(linhas_texto) > len(y_positions_calc) and len(y_positions_calc) >= 2:
         step = y_positions_calc[-1] - y_positions_calc[-2]
         while len(y_positions_calc) < len(linhas_texto):
@@ -391,9 +399,16 @@ def gerar_ppla_ampcx(rotulo, farmacia, dims=None, calibracao=None):
     # Se textoLivre foi editado na UI, usar diretamente (WYSIWYG)
     texto_livre = rotulo.get('textoLivre', '')
     if texto_livre:
+        lsf = float(rotulo.get('lineSpacingFactor', 1.0) or 1.0)
         linhas_texto = texto_livre.split('\n')
         pplb_lines = []
         y_dots_calc = list(y_dots)
+        # Aplicar fator de espaçamento
+        if lsf != 1.0 and len(y_dots_calc) >= 2:
+            base_y = y_dots_calc[0]
+            step = y_dots_calc[1] - y_dots_calc[0]
+            for i in range(1, len(y_dots_calc)):
+                y_dots_calc[i] = base_y + int(step * lsf * i)
         if len(linhas_texto) > len(y_dots_calc) and len(y_dots_calc) >= 2:
             step = y_dots_calc[-1] - y_dots_calc[-2]
             while len(y_dots_calc) < len(linhas_texto):
@@ -572,7 +587,8 @@ def gerar_ppla_amp10(rotulo, farmacia, dims=None, calibracao=None):
     texto_livre = rotulo.get('textoLivre', '')
     if texto_livre:
         y_positions = [78, 67, 56, 45, 34, 23, 12, 1, -9]
-        return _gerar_from_texto_livre(texto_livre, y_positions, x_upper, rot, font, cols, dims, cal, 'dots')
+        lsf = float(rotulo.get('lineSpacingFactor', 1.0) or 1.0)
+        return _gerar_from_texto_livre(texto_livre, y_positions, x_upper, rot, font, cols, dims, cal, 'dots', lsf)
 
     # === Dados do rótulo ===
     paciente = _clean_patient_name(rotulo.get('nomePaciente', ''))
@@ -701,7 +717,10 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
     texto_livre = rotulo.get('textoLivre', '')
     if texto_livre:
         y_fine = int(rotulo.get('yOffsetDots', 0) or 0)
-        y_non_reg = [89 + y_fine, 78 + y_fine, 67 + y_fine, 56 + y_fine, 45 + y_fine, 34 + y_fine, 23 + y_fine]
+        lsf = float(rotulo.get('lineSpacingFactor', 1.0) or 1.0)
+        base_step = 11  # dots entre linhas padrão
+        effective_step = int(base_step * lsf)
+        y_non_reg = [89 + y_fine - i * (effective_step - base_step) for i in range(7)]
         y_reg = 12 + y_fine
         linhas_texto = texto_livre.split('\n')
         pplb_lines = []
@@ -773,7 +792,8 @@ def gerar_ppla_a_pac_gran(rotulo, farmacia, dims=None, calibracao=None):
     # Se textoLivre foi editado na UI, usar diretamente
     texto_livre = rotulo.get('textoLivre', '')
     if texto_livre:
-        return _gerar_from_texto_livre(texto_livre, y_dots, x_dots_map['field'], rot, font, cols, dims, cal, modo)
+        lsf = float(rotulo.get('lineSpacingFactor', 1.0) or 1.0)
+        return _gerar_from_texto_livre(texto_livre, y_dots, x_dots_map['field'], rot, font, cols, dims, cal, modo, lsf)
 
     # === Geração estruturada ===
     paciente = (rotulo.get('nomePaciente', '') or '').upper()
@@ -856,7 +876,8 @@ def gerar_ppla_tirz(rotulo, farmacia, dims=None, calibracao=None):
     texto_livre = rotulo.get('textoLivre', '')
     if texto_livre:
         y_pos = [220, 190, 160, 130, 100, 70, 40, 20]
-        return _gerar_from_texto_livre(texto_livre, y_pos, 10, rot, font, cols, dims, cal, modo)
+        lsf = float(rotulo.get('lineSpacingFactor', 1.0) or 1.0)
+        return _gerar_from_texto_livre(texto_livre, y_pos, 10, rot, font, cols, dims, cal, modo, lsf)
     
     paciente = (rotulo.get('nomePaciente', '') or '')[:cols].upper()
     nr_req = rotulo.get('nrRequisicao', '')

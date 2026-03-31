@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Printer, Minus, Plus, Type, Zap, AlignVerticalSpaceAround, Rows3 } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Printer, Minus, Plus, Type, Zap, AlignVerticalSpaceAround, Rows3, Save } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -909,6 +909,30 @@ const LabelTextEditor = ({
               </Button>
             </div>
           )}
+          {/* Botão Salvar edições */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            title="Salvar edições de todos os rótulos desta requisição"
+            onClick={() => {
+              if (!searchedRequisition || rotulos.length === 0) return;
+              const savedMap: Record<string, string> = {};
+              rotulos.forEach(r => {
+                if (r.textoLivre) savedMap[r.id] = r.textoLivre;
+              });
+              localStorage.setItem(`saved_rotulos_${searchedRequisition}`, JSON.stringify(savedMap));
+              // Show visual feedback via toast (import via props not available, use alert-like feedback)
+              const btn = document.querySelector('[data-save-btn]') as HTMLElement;
+              if (btn) {
+                btn.classList.add('text-primary');
+                setTimeout(() => btn.classList.remove('text-primary'), 1500);
+              }
+            }}
+            data-save-btn=""
+          >
+            <Save className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 
