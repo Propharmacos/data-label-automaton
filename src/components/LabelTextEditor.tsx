@@ -870,7 +870,7 @@ const LabelTextEditor = ({
       </div>
 
       {/* Textarea */}
-      <div className="relative overflow-hidden" style={isPacPeq ? { paddingTop: `${Math.max(0, 80 - yOffset * 0.6)}px`, transition: 'padding-top 0.15s ease' } : undefined}>
+      <div className="relative">
         <textarea
           ref={textareaRef}
           value={text}
@@ -888,10 +888,8 @@ const LabelTextEditor = ({
       {/* Cursor info bar */}
       <div className="bg-muted/30 border-t border-border px-4 py-1 text-xs text-muted-foreground font-mono flex items-center justify-between">
         <span>Lin: {cursorInfo.line}{maxLines ? `/${maxLines}` : `/${cursorInfo.totalLines}`}  Col: {cursorInfo.col}{maxCols ? `/${maxCols}` : `/${cursorInfo.totalCols}`}</span>
-        {isPacPeq && (
-          <span className={yOffset > 0 ? "text-primary font-bold" : "text-muted-foreground"}>
-            ↑ {yOffset > 0 ? `+${yOffset} dots (≈${(yOffset * 0.125).toFixed(1)}mm acima)` : 'sem offset vertical'}
-          </span>
+        {isPacPeq && yOffset > 0 && (
+          <span className="text-primary font-semibold">↕ Offset: +{yOffset} dots (≈{(yOffset * 0.12).toFixed(1)}mm acima)</span>
         )}
       </div>
 
