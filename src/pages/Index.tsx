@@ -10,7 +10,7 @@ import LayoutEditor from "@/components/LayoutEditor";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
-import { getPharmacyConfig, getPrintAgentConfig, getApiConfig, getModoImpressao, setModoImpressao, ModoImpressao, getLayoutPrinter, setLayoutPrinter, getLayoutStation, setActiveStationId, getActiveStation } from "@/config/api";
+import { getPharmacyConfig, getPrintAgentConfig, getApiConfig, getModoImpressao, setModoImpressao, ModoImpressao, getLayoutPrinter, setLayoutPrinter, getLayoutStation, setActiveStationId, getActiveStation, getPrintStations } from "@/config/api";
 import { getLayout, getSelectedLayout, setSelectedLayout, resetAllLayouts } from "@/config/layouts";
 import { buscarRequisicao } from "@/services/requisicaoService";
 import { imprimirViaAgente, imprimirViaRotutx, imprimirViaRotutxRaw } from "@/services/printAgentService";
@@ -169,7 +169,11 @@ const Index = () => {
 
     const agentConfig = getPrintAgentConfig();
     const apiConfig = getApiConfig();
-    const station = getActiveStation();
+    
+    // Resolver estação automaticamente pelo layout (prioridade) ou fallback para ativa
+    const layoutStationId = getLayoutStation(layoutType);
+    const stations = getPrintStations();
+    const station = (layoutStationId ? stations.find(s => s.id === layoutStationId) : null) || getActiveStation();
     const agentUrl = station?.agentUrl || "";
     const impressora = selectedPrinter || getLayoutPrinter(layoutType) || "";
     
@@ -229,8 +233,9 @@ const Index = () => {
       const configComImpressora = { ...agentConfig, agentUrl, impressora, calibracao: calibracaoPadrao };
       result = await imprimirViaAgente(configComImpressora, rotulosSelecionados, layoutType, farmaciaData);
     } else {
-      // Agente desativado ou sem estação ativa
-      result = { success: false, error: agentUrl ? "Ative o Agente HTTP nas configurações para imprimir." : "Nenhuma estação ativa encontrada. Verifique o mapeamento layout→estação." };
+      // Sem URL de estação configurada
+      const stationName = station?.nome || layoutStationId || 'desconhecida';
+      result = { success: false, error: `Estação "${stationName}" sem URL ngrok configurada. Vá em Configurações → Agente HTTP e preencha a URL da estação.` };
     }
     
     setIsPrinting(false);

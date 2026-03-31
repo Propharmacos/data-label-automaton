@@ -443,6 +443,88 @@ export type Database = {
         }
         Relationships: []
       }
+      config_empresa_tributario: {
+        Row: {
+          aliquota_inss_emp: number | null
+          aliquota_rat: number | null
+          aliquota_terceiros: number | null
+          ativo: boolean | null
+          id: string
+          loja_id: number
+          regime: string
+          vigencia: string
+        }
+        Insert: {
+          aliquota_inss_emp?: number | null
+          aliquota_rat?: number | null
+          aliquota_terceiros?: number | null
+          ativo?: boolean | null
+          id?: string
+          loja_id: number
+          regime: string
+          vigencia: string
+        }
+        Update: {
+          aliquota_inss_emp?: number | null
+          aliquota_rat?: number | null
+          aliquota_terceiros?: number | null
+          ativo?: boolean | null
+          id?: string
+          loja_id?: number
+          regime?: string
+          vigencia?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_empresa_tributario_loja_id_fkey"
+            columns: ["loja_id"]
+            isOneToOne: false
+            referencedRelation: "dim_loja"
+            referencedColumns: ["loja_id"]
+          },
+        ]
+      }
+      config_vr_vt_loja: {
+        Row: {
+          ativo: boolean | null
+          id: string
+          loja_id: number
+          paga_vr: boolean | null
+          paga_vt: boolean | null
+          valor_dia_vr: number | null
+          valor_dia_vt: number | null
+          vigencia: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          id?: string
+          loja_id: number
+          paga_vr?: boolean | null
+          paga_vt?: boolean | null
+          valor_dia_vr?: number | null
+          valor_dia_vt?: number | null
+          vigencia: string
+        }
+        Update: {
+          ativo?: boolean | null
+          id?: string
+          loja_id?: number
+          paga_vr?: boolean | null
+          paga_vt?: boolean | null
+          valor_dia_vr?: number | null
+          valor_dia_vt?: number | null
+          vigencia?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "config_vr_vt_loja_loja_id_fkey"
+            columns: ["loja_id"]
+            isOneToOne: false
+            referencedRelation: "dim_loja"
+            referencedColumns: ["loja_id"]
+          },
+        ]
+      }
       dim_forma_recebimento: {
         Row: {
           ativo: boolean
@@ -580,6 +662,60 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      emprestimos_internos: {
+        Row: {
+          colaborador_id: number
+          created_at: string | null
+          data_concessao: string
+          id: string
+          loja_id: number
+          observacao: string | null
+          parcela_mensal: number
+          saldo_devedor: number
+          status: string | null
+          valor_total: number
+        }
+        Insert: {
+          colaborador_id: number
+          created_at?: string | null
+          data_concessao: string
+          id?: string
+          loja_id: number
+          observacao?: string | null
+          parcela_mensal: number
+          saldo_devedor: number
+          status?: string | null
+          valor_total: number
+        }
+        Update: {
+          colaborador_id?: number
+          created_at?: string | null
+          data_concessao?: string
+          id?: string
+          loja_id?: number
+          observacao?: string | null
+          parcela_mensal?: number
+          saldo_devedor?: number
+          status?: string | null
+          valor_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "emprestimos_internos_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "rv_config_colaboradores"
+            referencedColumns: ["colaborador_id"]
+          },
+          {
+            foreignKeyName: "emprestimos_internos_loja_id_fkey"
+            columns: ["loja_id"]
+            isOneToOne: false
+            referencedRelation: "dim_loja"
+            referencedColumns: ["loja_id"]
+          },
+        ]
       }
       f_cmv_manipulados: {
         Row: {
@@ -866,6 +1002,56 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "dim_laboratorio"
             referencedColumns: ["id_laboratorio"]
+          },
+        ]
+      }
+      ferias_controle: {
+        Row: {
+          colaborador_id: number
+          created_at: string | null
+          data_fim_gozo: string | null
+          data_inicio_gozo: string | null
+          dias_direito: number | null
+          dias_gozados: number | null
+          dias_vendidos: number | null
+          id: string
+          periodo_aquisitivo_fim: string
+          periodo_aquisitivo_inicio: string
+          status: string | null
+        }
+        Insert: {
+          colaborador_id: number
+          created_at?: string | null
+          data_fim_gozo?: string | null
+          data_inicio_gozo?: string | null
+          dias_direito?: number | null
+          dias_gozados?: number | null
+          dias_vendidos?: number | null
+          id?: string
+          periodo_aquisitivo_fim: string
+          periodo_aquisitivo_inicio: string
+          status?: string | null
+        }
+        Update: {
+          colaborador_id?: number
+          created_at?: string | null
+          data_fim_gozo?: string | null
+          data_inicio_gozo?: string | null
+          dias_direito?: number | null
+          dias_gozados?: number | null
+          dias_vendidos?: number | null
+          id?: string
+          periodo_aquisitivo_fim?: string
+          periodo_aquisitivo_inicio?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ferias_controle_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "rv_config_colaboradores"
+            referencedColumns: ["colaborador_id"]
           },
         ]
       }
@@ -2484,6 +2670,60 @@ export type Database = {
           },
         ]
       }
+      lotacao_historico: {
+        Row: {
+          ativo: boolean | null
+          colaborador_id: number
+          created_at: string | null
+          data_fim: string | null
+          data_inicio: string
+          id: string
+          loja_id: number
+          percentual: number | null
+          setor: string | null
+          setor_interno: string | null
+        }
+        Insert: {
+          ativo?: boolean | null
+          colaborador_id: number
+          created_at?: string | null
+          data_fim?: string | null
+          data_inicio: string
+          id?: string
+          loja_id: number
+          percentual?: number | null
+          setor?: string | null
+          setor_interno?: string | null
+        }
+        Update: {
+          ativo?: boolean | null
+          colaborador_id?: number
+          created_at?: string | null
+          data_fim?: string | null
+          data_inicio?: string
+          id?: string
+          loja_id?: number
+          percentual?: number | null
+          setor?: string | null
+          setor_interno?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lotacao_historico_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "rv_config_colaboradores"
+            referencedColumns: ["colaborador_id"]
+          },
+          {
+            foreignKeyName: "lotacao_historico_loja_id_fkey"
+            columns: ["loja_id"]
+            isOneToOne: false
+            referencedRelation: "dim_loja"
+            referencedColumns: ["loja_id"]
+          },
+        ]
+      }
       map_baixa_motivo_subtipo: {
         Row: {
           categoria_dre_override: string | null
@@ -3158,67 +3398,133 @@ export type Database = {
       }
       rv_config_colaboradores: {
         Row: {
+          agencia: string | null
+          assist_medica_colaborador: number | null
+          assist_medica_empresa: number | null
+          assist_odonto: number | null
           ativo: boolean
+          banco: string | null
+          carga_horaria_semanal: number | null
           cargo: string | null
+          categoria: string | null
           cnpj_empresa: string | null
           colaborador_id: number
+          conta_corrente: string | null
           cpf: string | null
           created_at: string
           data_admissao: string | null
+          data_desligamento: string | null
           data_inativacao: string | null
           data_nascimento: string | null
           data_registro: string | null
+          dependentes_irrf: number | null
           empresa_registro: string | null
+          gratificacao_fixa: number | null
+          gratificacao_habitual: boolean | null
+          isento_vt: boolean | null
           laboratorio_id: number | null
           loja_origem_id: number
           meta_lab_tipo: string | null
           nome: string
           nome_completo: string | null
+          rateado: boolean | null
+          remuneracao_complementar: number | null
           rv_percentual_custom: number | null
+          salario_base: number | null
+          setor_interno: string | null
           setor_lab: string | null
+          sindicato_associativo: boolean | null
+          sindicato_valor: number | null
+          situacao: string | null
           tipo: Database["public"]["Enums"]["rv_colaborador_tipo"]
+          tipo_contrato: string | null
+          vale_dia_20: number | null
         }
         Insert: {
+          agencia?: string | null
+          assist_medica_colaborador?: number | null
+          assist_medica_empresa?: number | null
+          assist_odonto?: number | null
           ativo?: boolean
+          banco?: string | null
+          carga_horaria_semanal?: number | null
           cargo?: string | null
+          categoria?: string | null
           cnpj_empresa?: string | null
           colaborador_id: number
+          conta_corrente?: string | null
           cpf?: string | null
           created_at?: string
           data_admissao?: string | null
+          data_desligamento?: string | null
           data_inativacao?: string | null
           data_nascimento?: string | null
           data_registro?: string | null
+          dependentes_irrf?: number | null
           empresa_registro?: string | null
+          gratificacao_fixa?: number | null
+          gratificacao_habitual?: boolean | null
+          isento_vt?: boolean | null
           laboratorio_id?: number | null
           loja_origem_id: number
           meta_lab_tipo?: string | null
           nome: string
           nome_completo?: string | null
+          rateado?: boolean | null
+          remuneracao_complementar?: number | null
           rv_percentual_custom?: number | null
+          salario_base?: number | null
+          setor_interno?: string | null
           setor_lab?: string | null
+          sindicato_associativo?: boolean | null
+          sindicato_valor?: number | null
+          situacao?: string | null
           tipo?: Database["public"]["Enums"]["rv_colaborador_tipo"]
+          tipo_contrato?: string | null
+          vale_dia_20?: number | null
         }
         Update: {
+          agencia?: string | null
+          assist_medica_colaborador?: number | null
+          assist_medica_empresa?: number | null
+          assist_odonto?: number | null
           ativo?: boolean
+          banco?: string | null
+          carga_horaria_semanal?: number | null
           cargo?: string | null
+          categoria?: string | null
           cnpj_empresa?: string | null
           colaborador_id?: number
+          conta_corrente?: string | null
           cpf?: string | null
           created_at?: string
           data_admissao?: string | null
+          data_desligamento?: string | null
           data_inativacao?: string | null
           data_nascimento?: string | null
           data_registro?: string | null
+          dependentes_irrf?: number | null
           empresa_registro?: string | null
+          gratificacao_fixa?: number | null
+          gratificacao_habitual?: boolean | null
+          isento_vt?: boolean | null
           laboratorio_id?: number | null
           loja_origem_id?: number
           meta_lab_tipo?: string | null
           nome?: string
           nome_completo?: string | null
+          rateado?: boolean | null
+          remuneracao_complementar?: number | null
           rv_percentual_custom?: number | null
+          salario_base?: number | null
+          setor_interno?: string | null
           setor_lab?: string | null
+          sindicato_associativo?: boolean | null
+          sindicato_valor?: number | null
+          situacao?: string | null
           tipo?: Database["public"]["Enums"]["rv_colaborador_tipo"]
+          tipo_contrato?: string | null
+          vale_dia_20?: number | null
         }
         Relationships: []
       }
@@ -3429,6 +3735,69 @@ export type Database = {
           updated_at?: string
           updated_by?: string | null
           value?: Json
+        }
+        Relationships: []
+      }
+      tabela_inss: {
+        Row: {
+          aliquota: number | null
+          ativo: boolean | null
+          faixa: number
+          id: string
+          salario_ate: number | null
+          salario_de: number | null
+          vigencia: string
+        }
+        Insert: {
+          aliquota?: number | null
+          ativo?: boolean | null
+          faixa: number
+          id?: string
+          salario_ate?: number | null
+          salario_de?: number | null
+          vigencia: string
+        }
+        Update: {
+          aliquota?: number | null
+          ativo?: boolean | null
+          faixa?: number
+          id?: string
+          salario_ate?: number | null
+          salario_de?: number | null
+          vigencia?: string
+        }
+        Relationships: []
+      }
+      tabela_irrf: {
+        Row: {
+          aliquota: number | null
+          ativo: boolean | null
+          base_ate: number | null
+          base_de: number | null
+          deducao_fixa: number | null
+          faixa: number
+          id: string
+          vigencia: string
+        }
+        Insert: {
+          aliquota?: number | null
+          ativo?: boolean | null
+          base_ate?: number | null
+          base_de?: number | null
+          deducao_fixa?: number | null
+          faixa: number
+          id?: string
+          vigencia: string
+        }
+        Update: {
+          aliquota?: number | null
+          ativo?: boolean | null
+          base_ate?: number | null
+          base_de?: number | null
+          deducao_fixa?: number | null
+          faixa?: number
+          id?: string
+          vigencia?: string
         }
         Relationships: []
       }
@@ -3799,6 +4168,7 @@ export type Database = {
           tipo: string
         }[]
       }
+      get_my_loja_ids: { Args: never; Returns: number[] }
       get_my_permissions: {
         Args: never
         Returns: {
