@@ -699,6 +699,7 @@ const LabelTextEditor = ({
   const [printQuantity, setPrintQuantity] = useState(1);
   const [lineSpacing, setLineSpacing] = useState(getStoredLineSpacing);
   const [metaInline, setMetaInline] = useState(getStoredMetaInline);
+  const [yOffset, setYOffset] = useState(getStoredYOffset);
 
   const rotulo = rotulos[currentIndex];
   const maxCols = layoutConfig.colunasMax;
