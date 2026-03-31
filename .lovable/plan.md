@@ -1,34 +1,44 @@
 
 
-## Plano: Controle de deslocamento vertical (subir/descer linhas) no A.PAC.PEQ
+## Plano: 3 Alterações — Impressoras, Botão Salvar e Espaçamento na Impressão
 
-### Problema
-No layout A.PAC.PEQ, as linhas do rótulo começam na coordenada Y=78 (dots). O usuário precisa poder subir o texto ainda mais no rótulo físico, mas hoje não existe nenhum controle para isso.
+### 1. Atualizar mapeamento TIRZ → AMP PEQUENA NOVA
 
-### Solução
-Adicionar um controle de **offset vertical** (em dots) no editor, específico para o A.PAC.PEQ, que desloca todas as coordenadas Y para cima. O valor é salvo no localStorage e enviado ao agente de impressão.
+**Arquivo:** `src/config/api.ts`
 
-### Alterações
+O mapeamento dos outros 4 layouts já está correto. Apenas o TIRZ precisa mudar de `'PEQUENO'` para `'AMP PEQUENA NOVA'`.
 
-**1. Frontend — `src/components/LabelTextEditor.tsx`**
-- Novo state `yOffset` persistido no localStorage (chave `label_editor_y_offset_A_PAC_PEQ`)
-- Valor padrão: 0, range: 0 a +30 dots (cada +1 ≈ 0.12mm para cima), incremento de 1
-- Controle visual: ícone de seta vertical ↕ com botões +/− no header, visível apenas quando o layout é A_PAC_PEQ
-- O valor de offset é incluído no objeto do rótulo ao enviar para impressão (campo `yOffsetDots`)
+---
 
-**2. Frontend — `src/pages/Index.tsx`**
-- Ao chamar a API de impressão, incluir o `yOffsetDots` do localStorage no payload enviado ao agente
+### 2. Botão SALVAR para preservar edições manuais dos rótulos
 
-**3. Backend — `agente_impressao.py`**
-- Na função `gerar_ppla_a_pac_peq`, ler o campo `yOffsetDots` do rótulo recebido
-- Somar esse valor a cada coordenada Y da lista `y_positions = [78, 67, 56, 45, 34, 23, 12]`, resultando em `[78+N, 67+N, 56+N, ...]`
-- O mesmo se aplica ao modo estruturado (linhas fixas de Paciente, Médico, REG)
+**Problema:** Na linha 72 do `Index.tsx`, `resetAllLayouts()` é chamado toda vez que a página carrega, apagando qualquer edição manual. Além disso, o `textoLivre` editado pelo operador não é salvo em lugar nenhum — se ele navegar ou recarregar a página, perde tudo.
 
-### Resultado
-O operador terá botões +/− no header do editor (visíveis apenas no A.PAC.PEQ) para ajustar quantos dots subir o texto. Exemplo: com offset +11, a linha do Paciente sai em Y=89 em vez de Y=78.
+**Solução:**
+- **Remover** a chamada `resetAllLayouts()` do `useEffect` no `Index.tsx` (linha 72), para que edições de layout persistam.
+- **Adicionar um botão "Salvar"** no `LabelTextEditor.tsx` (no header, ao lado dos controles existentes) que salva o `textoLivre` de **todos** os rótulos da requisição atual no `localStorage`, usando a chave `saved_rotulos_{nrRequisicao}`.
+- Ao buscar uma requisição, **verificar** se há dados salvos no localStorage para aquela requisição e restaurá-los automaticamente, preservando as edições do operador.
 
-### Arquivos alterados
-- `src/components/LabelTextEditor.tsx`
-- `src/pages/Index.tsx`
-- `agente_impressao.py`
+**Arquivos:** `src/pages/Index.tsx`, `src/components/LabelTextEditor.tsx`
+
+---
+
+### 3. Espaçamento entre linhas (1.0 +/−) afetar a impressão real
+
+**Problema:** O controle de espaçamento (lineSpacing) hoje só muda o CSS visual no preview. Não tem nenhum efeito na impressão física.
+
+**Solução:**
+- **Frontend:** Incluir o valor `lineSpacing` no payload enviado ao agente (campo `lineSpacingFactor`), junto com `yOffsetDots`.
+- **Agente (`agente_impressao.py`):** Ler `lineSpacingFactor` do rótulo e multiplicar o espaçamento entre coordenadas Y por esse fator. Ex: se o espaçamento padrão entre linhas é 11 dots e o fator é 1.2, o espaçamento passa a ser 13 dots.
+
+**Arquivos:** `src/pages/Index.tsx`, `src/services/printAgentService.ts`, `agente_impressao.py`
+
+---
+
+### Resumo de arquivos alterados
+- `src/config/api.ts` — TIRZ → AMP PEQUENA NOVA
+- `src/pages/Index.tsx` — remover resetAllLayouts, carregar edições salvas, enviar lineSpacing
+- `src/components/LabelTextEditor.tsx` — botão Salvar
+- `src/services/printAgentService.ts` — incluir lineSpacingFactor no payload
+- `agente_impressao.py` — aplicar fator de espaçamento nas coordenadas Y
 
