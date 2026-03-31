@@ -886,8 +886,11 @@ const LabelTextEditor = ({
       </div>
 
       {/* Cursor info bar */}
-      <div className="bg-muted/30 border-t border-border px-4 py-1 text-xs text-muted-foreground font-mono">
-        Lin: {cursorInfo.line}{maxLines ? `/${maxLines}` : `/${cursorInfo.totalLines}`}  Col: {cursorInfo.col}{maxCols ? `/${maxCols}` : `/${cursorInfo.totalCols}`}
+      <div className="bg-muted/30 border-t border-border px-4 py-1 text-xs text-muted-foreground font-mono flex items-center justify-between">
+        <span>Lin: {cursorInfo.line}{maxLines ? `/${maxLines}` : `/${cursorInfo.totalLines}`}  Col: {cursorInfo.col}{maxCols ? `/${maxCols}` : `/${cursorInfo.totalCols}`}</span>
+        {isPacPeq && yOffset > 0 && (
+          <span className="text-primary font-semibold">↕ Offset: +{yOffset} dots (≈{(yOffset * 0.12).toFixed(1)}mm acima)</span>
+        )}
       </div>
 
       {/* Navigation */}
