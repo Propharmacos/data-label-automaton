@@ -695,12 +695,14 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
 
     # WYSIWYG: textoLivre reflete exatamente o que o operador vê no editor
     # Grid de 8 posições Y: [89, 78, 67, 56, 45, 34, 23, 12]
-    # Linhas em branco no texto consumem posições mas não geram comando PPLA
-    # REG: sempre posicionado em Y=12, independente de onde estiver no texto
+    # yOffsetDots = offset fino em dots (acumulado pelo botão ↑/↓, sem limite superior)
+    # Linhas em branco consomem posições mas não geram comando PPLA
+    # REG: sempre posicionado em Y=12+offset, independente de onde estiver no texto
     texto_livre = rotulo.get('textoLivre', '')
     if texto_livre:
-        y_non_reg = [89, 78, 67, 56, 45, 34, 23]
-        y_reg = 12
+        y_fine = int(rotulo.get('yOffsetDots', 0) or 0)
+        y_non_reg = [89 + y_fine, 78 + y_fine, 67 + y_fine, 56 + y_fine, 45 + y_fine, 34 + y_fine, 23 + y_fine]
+        y_reg = 12 + y_fine
         linhas_texto = texto_livre.split('\n')
         pplb_lines = []
         non_reg_idx = 0

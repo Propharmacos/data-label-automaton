@@ -809,22 +809,47 @@ const LabelTextEditor = ({
     localStorage.setItem(META_INLINE_KEY, String(checked));
   };
 
+  const STEP = 5; // dots por clique (~0.6mm)
+  const LINE_DOTS = 11; // dots entre linhas do grid
+
   const handleYOffsetChange = (delta: number) => {
     if (!rotulo) return;
-    const lines = text.split('\n');
-    if (delta > 0) {
-      // Subir: remove a primeira linha se estiver em branco
-      if (lines[0].trim() === '') {
-        onTextChange(rotulo.id, lines.slice(1).join('\n'));
+    setYOffset(prev => {
+      const next = prev + delta * STEP;
+
+      if (delta > 0) {
+        // Subindo: quando acumula ≥ LINE_DOTS, consome uma linha em branco do topo
+        if (next >= LINE_DOTS) {
+          const lines = text.split('\n');
+          if (lines[0].trim() === '') {
+            onTextChange(rotulo.id, lines.slice(1).join('\n'));
+            const adjusted = next - LINE_DOTS;
+            localStorage.setItem(Y_OFFSET_KEY, String(adjusted));
+            return adjusted;
+          }
+        }
+        // Sem linha em branco para consumir: sem limite (corta no topo, OK)
+      } else {
+        // Descendo: quando vai abaixo de 0, adiciona linha em branco no topo
+        if (next < 0) {
+          const lines = text.split('\n');
+          const blanksAtTop = lines.findIndex(l => l.trim() !== '');
+          const count = blanksAtTop === -1 ? lines.length : blanksAtTop;
+          if (count < 4) {
+            onTextChange(rotulo.id, ['', ...lines].join('\n'));
+            const adjusted = next + LINE_DOTS;
+            localStorage.setItem(Y_OFFSET_KEY, String(adjusted));
+            return adjusted;
+          }
+          // Não pode adicionar mais blanks: para no zero
+          localStorage.setItem(Y_OFFSET_KEY, '0');
+          return 0;
+        }
       }
-    } else {
-      // Descer: adiciona linha em branco no topo (máx 4 margens)
-      const blanksAtTop = lines.findIndex(l => l.trim() !== '');
-      const count = blanksAtTop === -1 ? lines.length : blanksAtTop;
-      if (count < 4) {
-        onTextChange(rotulo.id, ['', ...lines].join('\n'));
-      }
-    }
+
+      localStorage.setItem(Y_OFFSET_KEY, String(next));
+      return next;
+    });
   };
 
   const isPacPeq = layoutType === 'A_PAC_PEQ';
@@ -888,7 +913,7 @@ const LabelTextEditor = ({
       </div>
 
       {/* Textarea */}
-      <div className="relative">
+      <div className="relative overflow-visible">
         <textarea
           ref={textareaRef}
           value={text}
@@ -897,7 +922,13 @@ const LabelTextEditor = ({
           onClick={handleCursorMove}
           onFocus={updateCursorInfo}
           className="w-full bg-background text-foreground font-mono p-4 resize-none focus:outline-none border-none min-h-[200px]"
-          style={{ fontSize: `${editorFontSize}px`, lineHeight: String(lineSpacing), letterSpacing: '-0.5px' }}
+          style={{
+            fontSize: `${editorFontSize}px`,
+            lineHeight: String(lineSpacing),
+            letterSpacing: '-0.5px',
+            transform: isPacPeq && yOffset !== 0 ? `translateY(-${yOffset * 1.2}px)` : undefined,
+            transition: 'transform 0.08s ease',
+          }}
           spellCheck={false}
           rows={Math.max(8, text.split('\n').length + 2)}
         />
@@ -906,12 +937,11 @@ const LabelTextEditor = ({
       {/* Cursor info bar */}
       <div className="bg-muted/30 border-t border-border px-4 py-1 text-xs text-muted-foreground font-mono flex items-center justify-between">
         <span>Lin: {cursorInfo.line}{maxLines ? `/${maxLines}` : `/${cursorInfo.totalLines}`}  Col: {cursorInfo.col}{maxCols ? `/${maxCols}` : `/${cursorInfo.totalCols}`}</span>
-        {isPacPeq && (() => {
-          const blanks = text.split('\n').findIndex(l => l.trim() !== '');
-          const top = blanks === -1 ? 0 : blanks;
-          if (top === 0) return <span className="text-primary text-xs font-semibold">↑ Layout no topo</span>;
-          return null;
-        })()}
+        {isPacPeq && yOffset !== 0 && (
+          <span className="text-primary text-xs font-semibold">
+            {yOffset > 0 ? `↑ +${yOffset} dots` : `↓ ${yOffset} dots`}
+          </span>
+        )}
       </div>
 
       {/* Navigation */}
