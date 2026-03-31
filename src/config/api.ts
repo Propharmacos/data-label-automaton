@@ -37,9 +37,9 @@ const DEFAULT_PRINTER_CONFIG: PrinterConfig = {
 };
 
 const DEFAULT_PRINT_AGENT_CONFIG: PrintAgentConfig = {
-  enabled: false,
-  agentUrl: "http://192.168.10.105:5001",
-  impressora: "argox01",
+  enabled: true,
+  agentUrl: "",
+  impressora: "",
   calibracao: {
     margem_c: 0,
     offset_r: 0,
