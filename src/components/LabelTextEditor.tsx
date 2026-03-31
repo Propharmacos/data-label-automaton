@@ -680,6 +680,14 @@ const getStoredMetaInline = (): boolean => {
   return false;
 };
 
+const getStoredYOffset = (): number => {
+  try {
+    const stored = localStorage.getItem(Y_OFFSET_KEY);
+    if (stored) return parseInt(stored, 10);
+  } catch {}
+  return 0;
+};
+
 const LabelTextEditor = ({
    rotulos, currentIndex, onIndexChange, onTextChange,
    layoutConfig, layoutType, pharmacyConfig, searchedRequisition,
