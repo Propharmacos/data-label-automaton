@@ -925,8 +925,8 @@ const LabelTextEditor = ({
               // Show visual feedback via toast (import via props not available, use alert-like feedback)
               const btn = document.querySelector('[data-save-btn]') as HTMLElement;
               if (btn) {
-                btn.classList.add('text-green-500');
-                setTimeout(() => btn.classList.remove('text-green-500'), 1500);
+                btn.classList.add('text-primary');
+                setTimeout(() => btn.classList.remove('text-primary'), 1500);
               }
             }}
             data-save-btn=""
