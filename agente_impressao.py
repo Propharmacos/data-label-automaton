@@ -580,7 +580,8 @@ def gerar_ppla_amp10(rotulo, farmacia, dims=None, calibracao=None):
     texto_livre = rotulo.get('textoLivre', '')
     if texto_livre:
         y_positions = [78, 67, 56, 45, 34, 23, 12, 1, -9]
-        return _gerar_from_texto_livre(texto_livre, y_positions, x_upper, rot, font, cols, dims, cal, 'dots')
+        lsf = float(rotulo.get('lineSpacingFactor', 1.0) or 1.0)
+        return _gerar_from_texto_livre(texto_livre, y_positions, x_upper, rot, font, cols, dims, cal, 'dots', lsf)
 
     # === Dados do rótulo ===
     paciente = _clean_patient_name(rotulo.get('nomePaciente', ''))
