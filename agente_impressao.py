@@ -331,12 +331,20 @@ def _build_label(linhas, dims, cal, modo='mm'):
 # GERADORES PPLA POR LAYOUT (suportam mm e dots)
 # ============================================
 
-def _gerar_from_texto_livre(texto_livre, y_positions, x_start, rot, font, cols, dims, cal, modo):
-    """Helper: converte textoLivre (linhas editadas na UI) em comandos PPLA."""
+def _gerar_from_texto_livre(texto_livre, y_positions, x_start, rot, font, cols, dims, cal, modo, line_spacing_factor=1.0):
+    """Helper: converte textoLivre (linhas editadas na UI) em comandos PPLA.
+    line_spacing_factor: multiplica o espaçamento entre linhas (1.0=padrão, 1.2=mais aberto)."""
     linhas_texto = texto_livre.split('\n')
     pplb_lines = []
 
+    # Recalcular posições Y com fator de espaçamento
     y_positions_calc = list(y_positions)
+    if line_spacing_factor != 1.0 and len(y_positions_calc) >= 2:
+        base_y = y_positions_calc[0]
+        step = y_positions_calc[1] - y_positions_calc[0]  # normalmente negativo (descendo)
+        for i in range(1, len(y_positions_calc)):
+            y_positions_calc[i] = base_y + int(step * line_spacing_factor * i)
+
     if len(linhas_texto) > len(y_positions_calc) and len(y_positions_calc) >= 2:
         step = y_positions_calc[-1] - y_positions_calc[-2]
         while len(y_positions_calc) < len(linhas_texto):
