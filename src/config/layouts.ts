@@ -135,23 +135,30 @@ export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
   },
 
   // Layout 4: A_PAC_GRAN (Ampola Pacote Grande) - baseado no ROTULOID A.PAC.GRAN do FormulaCerta
-  // Mostra: formula simples + ph/lote/val. Sem posologia, sem composicao, sem observacoes.
+  // Mostra apenas: paciente / requisicao / medico / registro
+  // Médico quebra em 2 linhas (nome + CRM separados) devido ao colunasMax menor
   A_PAC_GRAN: {
     tipo: 'A_PAC_GRAN',
     nome: 'Ampola Pacote Grande',
     dimensoes: { larguraMM: 76, alturaMM: 25 },
-    colunasMax: 55,
-    linhasMax: 10,
+    colunasMax: 32,
+    linhasMax: 5,
     linhas: [
-      { id: 'linha1', campos: ['paciente', 'requisicao'], spacing: 'normal' },
-      { id: 'linha2', campos: ['medico'], spacing: 'normal' },
-      { id: 'linha3', campos: ['formula'], spacing: 'normal' },
-      { id: 'linha4', campos: ['ph', 'lote', 'fabricacao', 'validade'], spacing: 'compact' },
-      { id: 'linha5', campos: ['tipoUso', 'aplicacao'], spacing: 'normal' },
-      { id: 'linha6', campos: ['contem', 'registro'], spacing: 'normal' },
+      { id: 'linha1', campos: ['paciente'], spacing: 'normal' },
+      { id: 'linha2', campos: ['requisicao'], spacing: 'normal' },
+      { id: 'linha3', campos: ['medico'], spacing: 'normal' },
+      { id: 'linha4', campos: ['registro'], spacing: 'normal' },
     ],
     campoConfig: baseCampoConfig({
       composicao: { visible: false },
+      formula: { visible: false },
+      lote: { visible: false },
+      fabricacao: { visible: false },
+      validade: { visible: false },
+      ph: { visible: false },
+      tipoUso: { visible: false },
+      aplicacao: { visible: false },
+      contem: { visible: false },
       posologia: { visible: false },
       observacoes: { visible: false },
     }),
