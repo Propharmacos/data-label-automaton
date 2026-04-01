@@ -187,7 +187,7 @@ def ppla_setup_mm(altura_mm=25, margem_c=0, offset_r=0, contraste=12, velocidade
         f"M{m_value:04d}",  # Comprimento máximo
         f"P{velocidade}",   # Velocidade
         f"H{contraste:02d}",# Contraste
-        "D11",              # Pixel size
+        "D14",              # Pixel size
         f"C{margem_c:04d}", # Margem esquerda
         f"R{offset_r:04d}", # Compensação vertical
         "Q0001",            # 1 cópia
@@ -243,7 +243,7 @@ def ppla_setup_dots(largura_dots=360, altura_dots=200, gap_dots=24, contraste=14
         "\x02L",                           # Entrar modo formatação com STX
         "\x02e",                           # Gap sensor com STX
         "PA",                              # Position Absolute
-        "D11",                             # Pixel size
+        "D14",                             # Pixel size
         f"H{contraste:02d}",               # Contraste
     ]
     return "\r".join(partes) + "\r"
@@ -367,7 +367,7 @@ def _build_label_ampcx(linhas, dims, cal):
         "\x02L",
         "\x02e",
         "PB",
-        "D11",
+        "D14",
         f"H{contraste:02d}",
     ]
     setup = "\r".join(setup_parts) + "\r"
@@ -388,7 +388,7 @@ def gerar_ppla_ampcx(rotulo, farmacia, dims=None, calibracao=None):
     cal = calibracao or {}
     modo = 'dots'
     cols = dims['cols_max']
-    font = 1
+    font = int(rotulo.get('fontPpla', cal.get('fonte', 1)) or 1)
     rot = 1
 
     # Coordenadas Y em dots (203 DPI) para etiqueta 109x25mm
@@ -511,7 +511,7 @@ def _build_label_ppla(linhas, cal, velocidade='PA'):
         "\x02L",
         "\x02e",
         velocidade,
-        "D11",
+        "D14",
         f"H{contraste:02d}",
     ]
     setup = "\r".join(setup_parts) + "\r"
@@ -527,7 +527,7 @@ def _build_label_amp10(linhas, dims, cal):
         "\x02L",
         "\x02e",
         "PA",
-        "D11",
+        "D14",
         f"H{contraste:02d}",
     ]
     setup = "\r".join(setup_parts) + "\r"
@@ -577,16 +577,19 @@ def gerar_ppla_amp10(rotulo, farmacia, dims=None, calibracao=None):
     font = 1
     rot = 1
 
-    # Coordenadas Y DIRETAS do FC capturado (9 níveis)
-    y_dots = [78, 67, 56, 45, 34, 23, 12, 1, -9]
+    # Coordenadas Y ajustadas para posicionar o texto no topo da etiqueta 38mm (304 dots)
+    # Y=0 é a borda inferior; Y=192 ≈ 3mm do topo (192 = 304 - 112)
+    y_dots = [192, 181, 170, 159, 148, 137, 126, 115, 104]
     # X: 21 para linhas 1-6, 4 para linhas 7-9
     x_upper = 21
     x_lower = 4
 
+    font = int(rotulo.get('fontPpla', cal.get('fonte', font)) or font)
+
     # Se textoLivre foi editado na UI, usar diretamente (WYSIWYG)
     texto_livre = rotulo.get('textoLivre', '')
     if texto_livre:
-        y_positions = [78, 67, 56, 45, 34, 23, 12, 1, -9]
+        y_positions = [192, 181, 170, 159, 148, 137, 126, 115, 104]
         lsf = float(rotulo.get('lineSpacingFactor', 1.0) or 1.0)
         return _gerar_from_texto_livre(texto_livre, y_positions, x_upper, rot, font, cols, dims, cal, 'dots', lsf)
 
@@ -783,11 +786,11 @@ def gerar_ppla_a_pac_gran(rotulo, farmacia, dims=None, calibracao=None):
     cal = calibracao or {}
     modo = 'dots'
     cols = dims['cols_max']
-    font = 1
+    font = int(rotulo.get('fontPpla', cal.get('fonte', 1)) or 1)
     rot = 1
 
-    # Coordenadas Y DIRETAS em dots (referência FC capturada) - abaixado +0,5mm para evitar corte no topo
-    y_dots = [78, 67, 56, 45, 34, 23, 12, 1]
+    # Coordenadas Y alinhadas com A_PAC_PEQ (mesma altura de etiqueta 25mm = 200 dots)
+    y_dots = [89, 78, 67, 56, 45, 34, 23, 12]
     # Coordenadas X DIRETAS em dots
     x_dots_map = {'left': 4, 'field': 21, 'col2': 55, 'col3': 98, 'col4': 137, 'req': 141, 'right': 159}
 

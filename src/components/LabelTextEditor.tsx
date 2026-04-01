@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Printer, Minus, Plus, Type, Zap, AlignVerticalSpaceAround, Rows3, Save } from "lucide-react";
+import { ChevronLeft, ChevronRight, Printer, Minus, Plus, Type, Zap, AlignVerticalSpaceAround, Rows3, X } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -54,7 +54,7 @@ interface LabelTextEditorProps {
   rotulos: RotuloItem[];
   currentIndex: number;
   onIndexChange: (index: number) => void;
-  onTextChange: (id: string, text: string) => void;
+  onTextChange: (id: string, text: string | undefined) => void;
   layoutConfig: LayoutConfig;
   layoutType: LayoutType;
   pharmacyConfig: PharmacyConfig;
@@ -67,6 +67,7 @@ interface LabelTextEditorProps {
   availablePrinters: string[];
   selectedPrinter: string;
   onPrinterChange: (printer: string) => void;
+  onClose?: () => void;
 }
 
 // ---- text generation (reused from LabelCard logic) ----
@@ -656,6 +657,15 @@ function generateText(rotulo: RotuloItem, layoutConfig: LayoutConfig, layoutType
 const FONT_SIZE_KEY = 'label_editor_font_size';
 const LINE_SPACING_KEY = 'label_editor_line_spacing';
 const META_INLINE_KEY = 'label_editor_meta_inline';
+const PPLA_FONT_KEY = 'label_ppla_font';
+
+function editorFontToPpla(fontSize: number): number {
+  if (fontSize <= 8) return 1;
+  if (fontSize <= 11) return 2;
+  if (fontSize <= 14) return 3;
+  if (fontSize <= 18) return 4;
+  return 5;
+}
 const getStoredFontSize = (layoutTipo?: string) => {
   try {
     const stored = localStorage.getItem(FONT_SIZE_KEY);
@@ -685,6 +695,7 @@ const LabelTextEditor = ({
    rotulos, currentIndex, onIndexChange, onTextChange,
    layoutConfig, layoutType, pharmacyConfig, searchedRequisition,
    onPrint, onPrintAll, onPrintFcRaw, isPrinting, availablePrinters, selectedPrinter, onPrinterChange,
+   onClose,
  }: LabelTextEditorProps) => {
   const { toast } = useToast();
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -760,22 +771,24 @@ const LabelTextEditor = ({
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     let newText = e.target.value;
-    if (maxCols && maxLines) {
+    if (maxCols) {
       const resolvedLayoutTipo = resolveLayoutTipo(layoutConfig, layoutType);
       const isFixedGrid = resolvedLayoutTipo === 'A_PAC_PEQ' || resolvedLayoutTipo === 'AMP_CX';
-      const isFreeScroll = resolvedLayoutTipo === 'A_PAC_GRAN';
-      if (isFreeScroll) {
-        // A_PAC_GRAN: sem limite de coluna durante edição — texto flui livremente na linha
-        const lines = newText.split('\n').slice(0, maxLines);
-        newText = lines.join('\n');
-      } else {
-        newText = isFixedGrid
-          ? truncateText(newText, maxCols, maxLines)
-          : wrapText(newText, maxCols, maxLines);
+      if (isFixedGrid) {
+        // Limita colunas por linha mas sem limite de número de linhas
+        newText = newText.split('\n').map(line => line.substring(0, maxCols)).join('\n');
       }
     }
     onTextChange(rotulo.id, newText);
     setTimeout(updateCursorInfo, 0);
+  };
+
+  const handleCancelar = () => {
+    // Restaura o texto gerado automaticamente (descarta edições)
+    const fresh = generateText(rotulo, layoutConfig, layoutType, amp10Opts);
+    onTextChange(rotulo.id, undefined);
+    // Force regeneration by clearing then re-setting
+    setTimeout(() => onTextChange(rotulo.id, fresh), 0);
   };
 
   const handleCursorMove = () => {
@@ -791,6 +804,7 @@ const LabelTextEditor = ({
     setEditorFontSize(prev => {
       const next = Math.max(6, Math.min(24, prev + delta));
       localStorage.setItem(FONT_SIZE_KEY, String(next));
+      localStorage.setItem(PPLA_FONT_KEY, String(editorFontToPpla(next)));
       return next;
     });
   };
@@ -896,16 +910,36 @@ const LabelTextEditor = ({
               <span className="text-xs text-muted-foreground">{metaInline ? 'Compacto' : 'Separado'}</span>
             </div>
           )}
-          {/* Botão Salvar edições (por requisição) */}
+          {/* Cancelar / Salvar / Fechar */}
           <Button
             variant="ghost"
-            size="icon"
-            className="h-7 w-7"
+            size="sm"
+            className="h-7 px-2 text-xs text-muted-foreground hover:text-destructive"
+            title="Descartar edições e restaurar texto original"
+            onClick={handleCancelar}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 px-2 text-xs text-primary hover:text-primary/80"
             title="Salvar edições desta requisição"
             onClick={handleSaveAllTexts}
           >
-            <Save className="h-4 w-4" />
+            Salvar
           </Button>
+          {onClose && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              title="Fechar editor"
+              onClick={onClose}
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          )}
         </div>
       </div>
 

@@ -157,7 +157,7 @@ const Index = () => {
     setIsLoading(false);
   };
 
-  const handleTextChange = (id: string, text: string) => {
+  const handleTextChange = (id: string, text: string | undefined) => {
     setRotulos(prev => prev.map(r => r.id === id ? { ...r, textoLivre: text } : r));
   };
 
