@@ -16,6 +16,7 @@ import { buscarRequisicao } from "@/services/requisicaoService";
 import { imprimirViaAgente, imprimirViaRotutx, imprimirViaRotutxRaw } from "@/services/printAgentService";
 import { RotuloItem, PharmacyConfig, LayoutType, LayoutConfig } from "@/types/requisicao";
 import { listarImpressoras } from "@/services/printAgentService";
+import { supabase } from "@/integrations/supabase/client";
 
 import logoProPharmacos from "@/assets/logo-propharmacos.png";
 import { Edit } from "lucide-react";
@@ -119,24 +120,29 @@ const Index = () => {
     const result = await buscarRequisicao(requisitionNumber);
     
     if (result.success && result.data && result.data.length > 0) {
-      // Restaurar edições salvas do localStorage
-      const savedKey = `saved_rotulos_${requisitionNumber}`;
-      const savedData = localStorage.getItem(savedKey);
+      // Restaurar edições salvas do Supabase
       let restoredRotulos = result.data;
-      if (savedData) {
-        try {
-          const savedMap: Record<string, string> = JSON.parse(savedData);
+      try {
+        const { data: savedRows } = await supabase
+          .from('saved_rotulos')
+          .select('item_id, texto_livre')
+          .eq('nr_requisicao', requisitionNumber);
+        
+        if (savedRows && savedRows.length > 0) {
+          const savedMap: Record<string, string> = {};
+          savedRows.forEach(row => { savedMap[row.item_id] = row.texto_livre; });
           restoredRotulos = result.data.map(r => {
             const savedText = savedMap[r.id];
             return savedText ? { ...r, textoLivre: savedText } : r;
           });
-        } catch { /* ignore corrupt data */ }
-      }
+        }
+      } catch { /* ignore */ }
       setRotulos(restoredRotulos);
       setCurrentIndex(0);
+      const hasSaved = restoredRotulos.some((r, i) => r.textoLivre !== result.data![i].textoLivre);
       toast({
         title: "Requisição encontrada!",
-        description: `${restoredRotulos.length} rótulo(s) carregado(s).${savedData ? ' Edições salvas restauradas.' : ''}`,
+        description: `${restoredRotulos.length} rótulo(s) carregado(s).${hasSaved ? ' Edições salvas restauradas.' : ''}`,
       });
     } else {
       setRotulos([]);
