@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Printer, Minus, Plus, Type, Zap, AlignVerticalSpaceAround, Rows3, Save, BookMarked } from "lucide-react";
+import { ChevronLeft, ChevronRight, Printer, Minus, Plus, Type, Zap, AlignVerticalSpaceAround, Rows3, Save } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -655,39 +655,7 @@ function generateText(rotulo: RotuloItem, layoutConfig: LayoutConfig, layoutType
 const FONT_SIZE_KEY = 'label_editor_font_size';
 const LINE_SPACING_KEY = 'label_editor_line_spacing';
 const META_INLINE_KEY = 'label_editor_meta_inline';
-const GENERAL_LAYOUT_KEY = 'general_layout_defaults'; // per layout type defaults
-
-interface GeneralLayoutDefaults {
-  fontSize: number;
-  lineSpacing: number;
-  metaInline: boolean;
-}
-
-function getGeneralDefaults(layoutTipo: string): GeneralLayoutDefaults | null {
-  try {
-    const stored = localStorage.getItem(GENERAL_LAYOUT_KEY);
-    if (stored) {
-      const all = JSON.parse(stored);
-      if (all[layoutTipo]) return all[layoutTipo];
-    }
-  } catch {}
-  return null;
-}
-
-function saveGeneralDefaults(layoutTipo: string, defaults: GeneralLayoutDefaults): void {
-  try {
-    const stored = localStorage.getItem(GENERAL_LAYOUT_KEY);
-    const all = stored ? JSON.parse(stored) : {};
-    all[layoutTipo] = defaults;
-    localStorage.setItem(GENERAL_LAYOUT_KEY, JSON.stringify(all));
-  } catch {}
-}
-
 const getStoredFontSize = (layoutTipo?: string) => {
-  if (layoutTipo) {
-    const general = getGeneralDefaults(layoutTipo);
-    if (general) return general.fontSize;
-  }
   try {
     const stored = localStorage.getItem(FONT_SIZE_KEY);
     if (stored) return parseInt(stored, 10);
@@ -697,10 +665,6 @@ const getStoredFontSize = (layoutTipo?: string) => {
 };
 
 const getStoredLineSpacing = (layoutTipo?: string): number => {
-  if (layoutTipo) {
-    const general = getGeneralDefaults(layoutTipo);
-    if (general) return general.lineSpacing;
-  }
   try {
     const stored = localStorage.getItem(LINE_SPACING_KEY);
     if (stored) return parseFloat(stored);
@@ -709,10 +673,6 @@ const getStoredLineSpacing = (layoutTipo?: string): number => {
 };
 
 const getStoredMetaInline = (layoutTipo?: string): boolean => {
-  if (layoutTipo) {
-    const general = getGeneralDefaults(layoutTipo);
-    if (general) return general.metaInline;
-  }
   try {
     const stored = localStorage.getItem(META_INLINE_KEY);
     if (stored) return stored === 'true';
@@ -869,22 +829,6 @@ const LabelTextEditor = ({
     });
   };
 
-  const handleSaveGeneralLayout = () => {
-    const confirmed = window.confirm(
-      `Tem certeza que deseja salvar as configurações atuais (fonte ${editorFontSize}, espaçamento ${lineSpacing.toFixed(1)}) como PADRÃO GERAL para TODAS as requisições do layout "${layoutConfig.nome}"?\n\nIsso afetará todas as futuras requisições deste layout.`
-    );
-    if (!confirmed) return;
-
-    saveGeneralDefaults(layoutType, {
-      fontSize: editorFontSize,
-      lineSpacing,
-      metaInline,
-    });
-    toast({
-      title: "Layout geral salvo!",
-      description: `Configurações salvas como padrão para todas as requisições do layout ${layoutConfig.nome}.`,
-    });
-  };
 
   if (!rotulo) return null;
 
@@ -938,17 +882,6 @@ const LabelTextEditor = ({
             onClick={handleSaveAllTexts}
           >
             <Save className="h-4 w-4" />
-          </Button>
-          {/* Botão Salvar Layout Geral (padrão para todos do mesmo layout) */}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2 gap-1 text-xs"
-            title={`Salvar fonte, espaçamento e opções como padrão para TODAS as requisições do layout ${layoutConfig.nome}`}
-            onClick={handleSaveGeneralLayout}
-          >
-            <BookMarked className="h-4 w-4" />
-            Geral
           </Button>
         </div>
       </div>
