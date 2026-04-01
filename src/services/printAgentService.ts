@@ -286,7 +286,7 @@ export const imprimirViaAgente = async (
   try {
     const calibracao: PrinterCalibrationConfig = config.calibracao || {
       margem_c: 0,
-      offset_r: 270,
+      offset_r: -500,
       contraste: 12,
       fonte: 2,
       rotacao: 0,
