@@ -655,39 +655,7 @@ function generateText(rotulo: RotuloItem, layoutConfig: LayoutConfig, layoutType
 const FONT_SIZE_KEY = 'label_editor_font_size';
 const LINE_SPACING_KEY = 'label_editor_line_spacing';
 const META_INLINE_KEY = 'label_editor_meta_inline';
-const GENERAL_LAYOUT_KEY = 'general_layout_defaults'; // per layout type defaults
-
-interface GeneralLayoutDefaults {
-  fontSize: number;
-  lineSpacing: number;
-  metaInline: boolean;
-}
-
-function getGeneralDefaults(layoutTipo: string): GeneralLayoutDefaults | null {
-  try {
-    const stored = localStorage.getItem(GENERAL_LAYOUT_KEY);
-    if (stored) {
-      const all = JSON.parse(stored);
-      if (all[layoutTipo]) return all[layoutTipo];
-    }
-  } catch {}
-  return null;
-}
-
-function saveGeneralDefaults(layoutTipo: string, defaults: GeneralLayoutDefaults): void {
-  try {
-    const stored = localStorage.getItem(GENERAL_LAYOUT_KEY);
-    const all = stored ? JSON.parse(stored) : {};
-    all[layoutTipo] = defaults;
-    localStorage.setItem(GENERAL_LAYOUT_KEY, JSON.stringify(all));
-  } catch {}
-}
-
 const getStoredFontSize = (layoutTipo?: string) => {
-  if (layoutTipo) {
-    const general = getGeneralDefaults(layoutTipo);
-    if (general) return general.fontSize;
-  }
   try {
     const stored = localStorage.getItem(FONT_SIZE_KEY);
     if (stored) return parseInt(stored, 10);
@@ -697,10 +665,6 @@ const getStoredFontSize = (layoutTipo?: string) => {
 };
 
 const getStoredLineSpacing = (layoutTipo?: string): number => {
-  if (layoutTipo) {
-    const general = getGeneralDefaults(layoutTipo);
-    if (general) return general.lineSpacing;
-  }
   try {
     const stored = localStorage.getItem(LINE_SPACING_KEY);
     if (stored) return parseFloat(stored);
@@ -709,10 +673,6 @@ const getStoredLineSpacing = (layoutTipo?: string): number => {
 };
 
 const getStoredMetaInline = (layoutTipo?: string): boolean => {
-  if (layoutTipo) {
-    const general = getGeneralDefaults(layoutTipo);
-    if (general) return general.metaInline;
-  }
   try {
     const stored = localStorage.getItem(META_INLINE_KEY);
     if (stored) return stored === 'true';
