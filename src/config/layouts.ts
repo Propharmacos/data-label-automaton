@@ -59,92 +59,65 @@ const baseCampoConfig = (overrides: Partial<Record<LabelFieldId, Partial<FieldCo
 
 // Configurações padrão para cada tipo de layout
 export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
-  // Layout 1: AMP_CX (Ampola Caixa) - 6 linhas
+  // Layout 1: AMP_CX (Ampola Caixa) - baseado no ROTULOID AMP.CX do FormulaCerta
+  // Mostra: composicao detalhada + observacoes. Sem posologia, sem formula simples.
   AMP_CX: {
     tipo: 'AMP_CX',
     nome: 'Ampola Caixa',
     dimensoes: { larguraMM: 109, alturaMM: 25 },
-    colunasMax: 73,
-    linhasMax: 10,
-    linhas: [
-      { id: 'linha1', campos: ['paciente', 'requisicao'], spacing: 'normal' },
-      { id: 'linha2', campos: ['medico'], spacing: 'normal' },
-      { id: 'linha3', campos: ['composicao', 'formula'], spacing: 'normal' },
-      { id: 'linha4', campos: ['ph', 'lote', 'fabricacao', 'validade'], spacing: 'compact' },
-      { id: 'linha5', campos: ['tipoUso', 'aplicacao'], spacing: 'normal' },
-      { id: 'linha6', campos: ['contem', 'registro'], spacing: 'normal' },
-    ],
-    campoConfig: baseCampoConfig({
-      posologia: { visible: false },
-      observacoes: { visible: false },
-    }),
-  },
-
-  // Layout 2: AMP10 (Ampola 10) - 7 linhas
-  AMP10: {
-    tipo: 'AMP10',
-    nome: 'Ampola 10',
-    dimensoes: { larguraMM: 89, alturaMM: 38 },
-    colunasMax: 65,
+    colunasMax: 55,
     linhasMax: 10,
     linhas: [
       { id: 'linha1', campos: ['paciente', 'requisicao'], spacing: 'normal' },
       { id: 'linha2', campos: ['medico'], spacing: 'normal' },
       { id: 'linha3', campos: ['composicao'], spacing: 'normal' },
-      { id: 'linha4', campos: ['formula'], spacing: 'normal' },
-      { id: 'linha5', campos: ['registro'], spacing: 'normal' },
-      { id: 'linha6', campos: ['ph', 'lote', 'validade', 'aplicacao'], spacing: 'compact' },
-      { id: 'linha7', campos: ['tipoUso', 'posologia'], spacing: 'normal' },
+      { id: 'linha4', campos: ['ph', 'lote', 'fabricacao', 'validade'], spacing: 'compact' },
+      { id: 'linha5', campos: ['tipoUso', 'aplicacao'], spacing: 'normal' },
+      { id: 'linha6', campos: ['contem', 'registro'], spacing: 'normal' },
+      { id: 'linha7', campos: ['observacoes'], spacing: 'normal' },
     ],
     campoConfig: baseCampoConfig({
-      fabricacao: { visible: false },
-      contem: { visible: false },
+      formula: { visible: false },
+      posologia: { visible: false },
+    }),
+  },
+
+  // Layout 2: AMP10 (Ampola 10) - baseado no ROTULOID AMP10 do FormulaCerta
+  // Mostra: formula + posologia. Sem composicao detalhada, sem observacoes.
+  AMP10: {
+    tipo: 'AMP10',
+    nome: 'Ampola 10',
+    dimensoes: { larguraMM: 89, alturaMM: 38 },
+    colunasMax: 50,
+    linhasMax: 10,
+    linhas: [
+      { id: 'linha1', campos: ['paciente', 'requisicao'], spacing: 'normal' },
+      { id: 'linha2', campos: ['medico'], spacing: 'normal' },
+      { id: 'linha3', campos: ['formula'], spacing: 'normal' },
+      { id: 'linha4', campos: ['posologia'], spacing: 'normal' },
+      { id: 'linha5', campos: ['ph', 'lote', 'fabricacao', 'validade'], spacing: 'compact' },
+      { id: 'linha6', campos: ['tipoUso', 'aplicacao'], spacing: 'normal' },
+      { id: 'linha7', campos: ['contem', 'registro'], spacing: 'normal' },
+    ],
+    campoConfig: baseCampoConfig({
+      composicao: { visible: false },
       observacoes: { visible: false },
     }),
   },
 
-  // Layout 3: A_PAC_PEQ (Ampola Pacote Pequeno) - 45x25mm
+  // Layout 3: A_PAC_PEQ (Ampola Pacote Pequeno) - baseado no ROTULOID A.PAC.PEQ do FormulaCerta
+  // Mostra apenas: paciente / requisicao / medico / registro
   A_PAC_PEQ: {
     tipo: 'A_PAC_PEQ',
     nome: 'Ampola Pacote Pequeno',
     dimensoes: { larguraMM: 45, alturaMM: 25 },
-    colunasMax: 38,
-    linhasMax: 8,
-    linhas: [
-      { id: 'linha1', campos: ['paciente', 'requisicao'], spacing: 'normal' },
-      { id: 'linha2', campos: ['medico', 'registro'], spacing: 'normal' },
-      { id: 'linha3', campos: ['registro'], spacing: 'normal' },
-    ],
-    campoConfig: baseCampoConfig({
-      composicao: { visible: false },
-      formula: { visible: false },
-      lote: { visible: false },
-      fabricacao: { visible: false },
-      validade: { visible: false },
-      ph: { visible: false },
-      tipoUso: { visible: false },
-      aplicacao: { visible: false },
-      contem: { visible: false },
-      posologia: { visible: false },
-      observacoes: { visible: false },
-      paciente: { visible: true },
-      requisicao: { visible: true },
-      medico: { visible: true },
-      registro: { visible: true },
-    }),
-  },
-
-  // Layout 4: A_PAC_GRAN (Ampola Pacote Grande) - 76x25mm
-  A_PAC_GRAN: {
-    tipo: 'A_PAC_GRAN',
-    nome: 'Ampola Pacote Grande',
-    dimensoes: { larguraMM: 76, alturaMM: 25 },
-    colunasMax: 57,
-    linhasMax: 8,
+    colunasMax: 51,
+    linhasMax: 4,
     linhas: [
       { id: 'linha1', campos: ['paciente'], spacing: 'normal' },
       { id: 'linha2', campos: ['requisicao'], spacing: 'normal' },
       { id: 'linha3', campos: ['medico'], spacing: 'normal' },
+      { id: 'linha4', campos: ['registro'], spacing: 'normal' },
     ],
     campoConfig: baseCampoConfig({
       composicao: { visible: false },
@@ -158,7 +131,29 @@ export const defaultLayouts: Record<LayoutType, LayoutConfig> = {
       contem: { visible: false },
       posologia: { visible: false },
       observacoes: { visible: false },
-      registro: { visible: false },
+    }),
+  },
+
+  // Layout 4: A_PAC_GRAN (Ampola Pacote Grande) - baseado no ROTULOID A.PAC.GRAN do FormulaCerta
+  // Mostra: formula simples + ph/lote/val. Sem posologia, sem composicao, sem observacoes.
+  A_PAC_GRAN: {
+    tipo: 'A_PAC_GRAN',
+    nome: 'Ampola Pacote Grande',
+    dimensoes: { larguraMM: 76, alturaMM: 25 },
+    colunasMax: 55,
+    linhasMax: 10,
+    linhas: [
+      { id: 'linha1', campos: ['paciente', 'requisicao'], spacing: 'normal' },
+      { id: 'linha2', campos: ['medico'], spacing: 'normal' },
+      { id: 'linha3', campos: ['formula'], spacing: 'normal' },
+      { id: 'linha4', campos: ['ph', 'lote', 'fabricacao', 'validade'], spacing: 'compact' },
+      { id: 'linha5', campos: ['tipoUso', 'aplicacao'], spacing: 'normal' },
+      { id: 'linha6', campos: ['contem', 'registro'], spacing: 'normal' },
+    ],
+    campoConfig: baseCampoConfig({
+      composicao: { visible: false },
+      posologia: { visible: false },
+      observacoes: { visible: false },
     }),
   },
 
