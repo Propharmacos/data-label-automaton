@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RotuloItem, PharmacyConfig, LayoutConfig, LayoutType } from "@/types/requisicao";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 // ---- Word-wrap utility ----
 function wrapText(text: string, maxCols: number, maxLines: number): string {
