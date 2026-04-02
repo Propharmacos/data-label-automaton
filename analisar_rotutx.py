@@ -75,32 +75,54 @@ def extrair_campos(ppla):
             })
     return campos
 
+def get_colunas(cur, tabela):
+    cur.execute("""
+        SELECT TRIM(RDB$FIELD_NAME)
+        FROM RDB$RELATION_FIELDS
+        WHERE RDB$RELATION_NAME = ?
+        ORDER BY RDB$FIELD_POSITION
+    """, (tabela,))
+    return [r[0].strip().upper() for r in cur.fetchall()]
+
 def analisar():
     print("Conectando ao banco Firebird...")
     conn = get_conn()
     cur = conn.cursor()
 
-    print("Buscando ultimos 100 registros com ROTUTX...")
-    cur.execute("""
+    # Descobre colunas reais da FC12300
+    colunas = get_colunas(cur, 'FC12300')
+    print(f"Colunas da FC12300: {colunas}\n")
+
+    # Detecta coluna de item
+    col_item = next((c for c in ('NRITE', 'NRITEM', 'NRIT', 'NR_ITEM') if c in colunas), None)
+    # Detecta coluna de serie/layout
+    col_serie = next((c for c in ('SERIER', 'SERIE', 'SERIERQ', 'SERIERQU', 'CDROT', 'ROTUID') if c in colunas), None)
+
+    print(f"Coluna item: {col_item}")
+    print(f"Coluna serie/layout: {col_serie}\n")
+
+    # Monta SELECT com colunas corretas
+    select_cols = f"NRRQU, CDFIL, {col_item or 'NULL'}, {col_serie or 'NULL'}, ROTUTX"
+    print(f"Buscando ultimos 100 registros com ROTUTX...")
+    cur.execute(f"""
         SELECT FIRST 100
-            NRREQ, NRSER, NRITEM, ROTUID, ROTUTX
+            {select_cols}
         FROM FC12300
         WHERE ROTUTX IS NOT NULL
-          AND CHAR_LENGTH(CAST(ROTUTX AS VARCHAR(10))) > 0
-        ORDER BY NRREQ DESC
+        ORDER BY NRRQU DESC
     """)
 
     rows = cur.fetchall()
     print(f"Encontrados: {len(rows)} registros\n")
 
-    # Agrupa por ROTUID
+    # Agrupa por col_serie (layout)
     por_layout = defaultdict(list)
-    for nrreq, nrser, nritem, rotuid, rotutx_blob in rows:
+    for nrreq, cdfil, nritem, rotuid, rotutx_blob in rows:
         ppla = decode_rotutx(rotutx_blob)
         if ppla:
-            por_layout[rotuid].append({
+            por_layout[str(rotuid).strip() if rotuid else 'SEM_SERIE'].append({
                 'req': nrreq,
-                'ser': nrser,
+                'filial': cdfil,
                 'item': nritem,
                 'ppla': ppla,
             })
@@ -124,7 +146,7 @@ def analisar():
 
         # Analisa campos do primeiro registro
         campos_exemplo = extrair_campos(registros[0]['ppla'])
-        print(f"\n  Campos (exemplo req {registros[0]['req']}):")
+        print(f"\n  Campos (exemplo req {registros[0]['req']} item {registros[0]['item']}):")
         for c in campos_exemplo:
             print(f"    rot={c['rot']} font={c['font']} wmult={c['wmult']} hmult={c['hmult']} "
                   f"y={c['y']:>7} x={c['x']:>4}  '{c['texto']}'")
@@ -145,9 +167,9 @@ def analisar():
         print(f"    X positions:   {sorted(todos_x)}")
 
         # Mostra PPLA raw do primeiro exemplo
-        print(f"\n  PPLA RAW (req {registros[0]['req']}, primeiros 500 chars):")
+        print(f"\n  PPLA RAW (req {registros[0]['req']}, primeiros 600 chars):")
         ppla_raw = registros[0]['ppla']
-        print(f"    {repr(ppla_raw[:500])}")
+        print(f"    {repr(ppla_raw[:600])}")
 
     conn.close()
     print("\n\nAnalise concluida.")
