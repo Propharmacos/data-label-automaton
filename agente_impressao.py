@@ -54,13 +54,12 @@ IMPRESSORA_PADRAO = "PEQUENO"
 # ============================================
 PRINTER_CONFIGS = {
     'PEQUEN': {
-        'largura_mm': 45, 'altura_mm': 25,
-        'largura_dots': 360, 'altura_dots': 200, 'gap_dots': 24,
-        'cols_max': 38,
-        # Coordenadas Y em 0.1mm (origem bottom-left, PPLA)
-        # Para 25mm: Y=220 é 3mm do topo, Y=020 é 23mm do topo
-        'y_positions_mm': [220, 180, 140, 100, 70, 40, 20],
-        'font': 2,  # Fonte 2 conforme documentação
+        'largura_mm': 35, 'altura_mm': 25,
+        'largura_dots': 282, 'altura_dots': 203, 'gap_dots': 24,
+        'cols_max': 28,  # 20 CPP × 1,39pol = 27,8 ≈ 28 colunas (FC real)
+        # Y em dots (8 LPP × 203 dots = 25 dots/linha, origem bottom-left)
+        'y_positions_mm': [188, 163, 138, 113, 88, 63, 38, 13],
+        'font': 1,
     },
     'GRAND': {
         'largura_mm': 109, 'altura_mm': 25,
@@ -675,19 +674,19 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
     font = 1
     rot = 1
 
-    # Coordenadas FC captura real
-    x_paciente = 12
-    x_req = 116
-    x_reg = 129
+    # Coordenadas baseadas no FC real: 35,3mm × 25,4mm, 8 LPP, 20 CPP
+    x_paciente = 5    # margem esquerda (~0.5mm)
+    x_req = 183       # ~65% da largura (282 dots) = campo REQ lado direito
+    x_reg = 190       # REG alinhado à direita
 
     # WYSIWYG: textoLivre reflete o que o operador vê no editor
-    # Grid de 8 posições Y: [89, 78, 67, 56, 45, 34, 23, 12]
+    # Grid de 8 posições Y (8 LPP, 25 dots/linha): [188, 163, 138, 113, 88, 63, 38, 13]
     # Linhas em branco consomem posições Y mas não geram comando PPLA.
     # Linha com REQ: → patient em x_paciente + REQ em x_req (mesmo Y)
     # Linha com REG: → REG em x_reg
     texto_livre = rotulo.get('textoLivre', '')
     if texto_livre:
-        y_positions = [89, 78, 67, 56, 45, 34, 23, 12]
+        y_positions = [188, 163, 138, 113, 88, 63, 38, 13]
         linhas_texto = texto_livre.split('\n')
         pplb_lines = []
         pos_idx = 0
@@ -728,25 +727,25 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
     registro = str(rotulo.get('numeroRegistro', '') or '')[:8]
 
     linhas = []
-    # Y=89: Paciente + REQ
+    # Y=188: Paciente + REQ (linha 1 do topo)
     if paciente:
-        linhas.append(ppla_text_dots(rot, font, 1, 1, 89, x_paciente, paciente))
+        linhas.append(ppla_text_dots(rot, font, 1, 1, 188, x_paciente, paciente))
     req_str = f"REQ:{nr_req}-{nr_item}"
-    linhas.append(ppla_text_dots(rot, font, 1, 1, 89, x_req, req_str))
+    linhas.append(ppla_text_dots(rot, font, 1, 1, 188, x_req, req_str))
 
-    # Y=78: DR(A)Médico CRF-UF-NUM (tudo na mesma linha, X=12)
+    # Y=163: DR(A)Médico CRF-UF-NUM (linha 2)
     if nome_medico:
         medico_str = f"DR(A){nome_medico}"
         if crm:
             medico_str = f"{medico_str} {crm}"
-        linhas.append(ppla_text_dots(rot, font, 1, 1, 78, x_paciente, medico_str[:cols]))
+        linhas.append(ppla_text_dots(rot, font, 1, 1, 163, x_paciente, medico_str[:cols]))
 
-    # Y=67, X=129: REG
+    # Y=138: REG (linha 3)
     if registro:
-        linhas.append(ppla_text_dots(rot, font, 1, 1, 67, x_reg, f"REG:{registro}"))
+        linhas.append(ppla_text_dots(rot, font, 1, 1, 138, x_reg, f"REG:{registro}"))
 
     if not linhas:
-        linhas.append(ppla_text_dots(rot, font, 1, 1, 89, x_paciente, 'SEM DADOS'))
+        linhas.append(ppla_text_dots(rot, font, 1, 1, 188, x_paciente, 'SEM DADOS'))
 
     return _build_label_ppla(linhas, cal)
 
