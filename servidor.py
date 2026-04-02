@@ -5630,11 +5630,15 @@ def _codigo_atual_srv() -> str:
 
 def _fetch_latest_servidor() -> str:
     try:
+        import ssl
+        ctx = ssl.create_default_context()
+        ctx.check_hostname = False
+        ctx.verify_mode = ssl.CERT_NONE
         req = urllib.request.Request(
             GITHUB_RAW_URL_SERVIDOR,
             headers={"Cache-Control": "no-cache"}
         )
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=15, context=ctx) as resp:
             return resp.read().decode("utf-8")
     except Exception as e:
         print(f"[UPDATE_SRV] Erro ao buscar GitHub: {e}")
