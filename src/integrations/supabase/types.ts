@@ -1055,6 +1055,36 @@ export type Database = {
           },
         ]
       }
+      folha_reclassificacao: {
+        Row: {
+          ativo: boolean
+          conta_codigo: string
+          nome_alpha7: string
+          nome_correto: string
+          sub_bloco_dfc: string
+          sub_bloco_dre: string | null
+          sub_order: number
+        }
+        Insert: {
+          ativo?: boolean
+          conta_codigo: string
+          nome_alpha7: string
+          nome_correto: string
+          sub_bloco_dfc: string
+          sub_bloco_dre?: string | null
+          sub_order?: number
+        }
+        Update: {
+          ativo?: boolean
+          conta_codigo?: string
+          nome_alpha7?: string
+          nome_correto?: string
+          sub_bloco_dfc?: string
+          sub_bloco_dre?: string | null
+          sub_order?: number
+        }
+        Relationships: []
+      }
       gerencial_lancamentos_ajuste: {
         Row: {
           categoria: string
@@ -3048,6 +3078,177 @@ export type Database = {
         }
         Relationships: []
       }
+      pre_folha_linha: {
+        Row: {
+          adiantamento: number
+          adicional_noturno: number
+          aprovado_em: string | null
+          aprovado_por: string | null
+          assist_medica_desconto: number
+          assist_medica_empresa: number
+          assist_odonto_desconto: number
+          assist_odonto_empresa: number
+          colaborador_id: number
+          comissoes: number
+          competencia: string
+          created_at: string
+          custo_total_empresa: number
+          dsr: number
+          emprestimo_desconto: number
+          faltas: number
+          farmacia_desconto: number
+          fgts: number
+          gratificacao: number
+          horas_extras: number
+          id: string
+          insalubridade: number
+          inss_empregado: number
+          inss_patronal: number
+          irrf: number
+          loja_id: number
+          outros_descontos: number
+          pensao_alimenticia: number
+          periculosidade: number
+          provisao_13: number
+          provisao_13_encargos: number
+          provisao_ferias: number
+          provisao_ferias_encargos: number
+          rat: number
+          salario_base: number
+          salario_bruto: number
+          salario_liquido: number
+          seguro_vida: number
+          status: string
+          terceiros: number
+          total_beneficios_empresa: number
+          total_descontos: number
+          total_encargos_patronais: number
+          total_provisoes: number
+          updated_at: string
+          vr_desconto: number
+          vr_empresa: number
+          vt_desconto: number
+          vt_empresa: number
+        }
+        Insert: {
+          adiantamento?: number
+          adicional_noturno?: number
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          assist_medica_desconto?: number
+          assist_medica_empresa?: number
+          assist_odonto_desconto?: number
+          assist_odonto_empresa?: number
+          colaborador_id: number
+          comissoes?: number
+          competencia: string
+          created_at?: string
+          custo_total_empresa?: number
+          dsr?: number
+          emprestimo_desconto?: number
+          faltas?: number
+          farmacia_desconto?: number
+          fgts?: number
+          gratificacao?: number
+          horas_extras?: number
+          id?: string
+          insalubridade?: number
+          inss_empregado?: number
+          inss_patronal?: number
+          irrf?: number
+          loja_id: number
+          outros_descontos?: number
+          pensao_alimenticia?: number
+          periculosidade?: number
+          provisao_13?: number
+          provisao_13_encargos?: number
+          provisao_ferias?: number
+          provisao_ferias_encargos?: number
+          rat?: number
+          salario_base?: number
+          salario_bruto?: number
+          salario_liquido?: number
+          seguro_vida?: number
+          status?: string
+          terceiros?: number
+          total_beneficios_empresa?: number
+          total_descontos?: number
+          total_encargos_patronais?: number
+          total_provisoes?: number
+          updated_at?: string
+          vr_desconto?: number
+          vr_empresa?: number
+          vt_desconto?: number
+          vt_empresa?: number
+        }
+        Update: {
+          adiantamento?: number
+          adicional_noturno?: number
+          aprovado_em?: string | null
+          aprovado_por?: string | null
+          assist_medica_desconto?: number
+          assist_medica_empresa?: number
+          assist_odonto_desconto?: number
+          assist_odonto_empresa?: number
+          colaborador_id?: number
+          comissoes?: number
+          competencia?: string
+          created_at?: string
+          custo_total_empresa?: number
+          dsr?: number
+          emprestimo_desconto?: number
+          faltas?: number
+          farmacia_desconto?: number
+          fgts?: number
+          gratificacao?: number
+          horas_extras?: number
+          id?: string
+          insalubridade?: number
+          inss_empregado?: number
+          inss_patronal?: number
+          irrf?: number
+          loja_id?: number
+          outros_descontos?: number
+          pensao_alimenticia?: number
+          periculosidade?: number
+          provisao_13?: number
+          provisao_13_encargos?: number
+          provisao_ferias?: number
+          provisao_ferias_encargos?: number
+          rat?: number
+          salario_base?: number
+          salario_bruto?: number
+          salario_liquido?: number
+          seguro_vida?: number
+          status?: string
+          terceiros?: number
+          total_beneficios_empresa?: number
+          total_descontos?: number
+          total_encargos_patronais?: number
+          total_provisoes?: number
+          updated_at?: string
+          vr_desconto?: number
+          vr_empresa?: number
+          vt_desconto?: number
+          vt_empresa?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pre_folha_linha_colaborador_id_fkey"
+            columns: ["colaborador_id"]
+            isOneToOne: false
+            referencedRelation: "rv_config_colaboradores"
+            referencedColumns: ["colaborador_id"]
+          },
+          {
+            foreignKeyName: "pre_folha_linha_loja_id_fkey"
+            columns: ["loja_id"]
+            isOneToOne: false
+            referencedRelation: "dim_loja"
+            referencedColumns: ["loja_id"]
+          },
+        ]
+      }
       rateio_empreendimento_criterios: {
         Row: {
           ano: number
@@ -4447,6 +4648,7 @@ export type Database = {
         | "apoio"
         | "central"
         | "supervisao"
+        | "estagiario"
       rv_componente_manual:
         | "orcamentista"
         | "revitalize"
@@ -4709,6 +4911,7 @@ export const Constants = {
         "apoio",
         "central",
         "supervisao",
+        "estagiario",
       ],
       rv_componente_manual: [
         "orcamentista",
