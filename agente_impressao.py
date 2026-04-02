@@ -679,43 +679,39 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
     x_req = 183       # ~65% da largura (282 dots) = campo REQ lado direito
     x_reg = 190       # REG alinhado à direita
 
-    # WYSIWYG: textoLivre reflete o que o operador vê no editor
-    # Grid de 8 posições Y (8 LPP, 25 dots/linha): [188, 163, 138, 113, 88, 63, 38, 13]
-    # Linhas em branco consomem posições Y mas não geram comando PPLA.
-    # Linha com REQ: → patient em x_paciente + REQ em x_req (mesmo Y)
-    # Linha com REG: → REG em x_reg
+    # WYSIWYG: textoLivre reflete o que o operador vê no editor do A.PAC.PEQ.
+    # Ao contrário do GRAN, o pequeno é um empilhamento vertical estrito.
+    # Cada linha do texto deve sair exatamente em uma linha dedicada do FC.
     texto_livre = rotulo.get('textoLivre', '')
     if texto_livre:
         y_positions = [188, 163, 138, 113, 88, 63, 38, 13]
+        lsf = float(rotulo.get('lineSpacingFactor', 1.0) or 1.0)
         linhas_texto = texto_livre.split('\n')
         pplb_lines = []
-        pos_idx = 0
-        for line_text in linhas_texto:
+        y_positions_calc = list(y_positions)
+        if lsf != 1.0 and len(y_positions_calc) >= 2:
+            base_y = y_positions_calc[0]
+            step = y_positions_calc[1] - y_positions_calc[0]
+            for i in range(1, len(y_positions_calc)):
+                y_positions_calc[i] = base_y + int(step * lsf * i)
+        if len(linhas_texto) > len(y_positions_calc) and len(y_positions_calc) >= 2:
+            step = y_positions_calc[-1] - y_positions_calc[-2]
+            while len(y_positions_calc) < len(linhas_texto):
+                y_positions_calc.append(y_positions_calc[-1] + step)
+
+        for pos_idx, line_text in enumerate(linhas_texto):
             stripped = line_text.strip()
             if not stripped:
-                pos_idx += 1
                 continue
-            y = y_positions[pos_idx] if pos_idx < len(y_positions) else y_positions[-1]
-            if 'REQ:' in stripped:
-                req_match = re.search(r'(REQ:\S+)', stripped)
-                if req_match:
-                    patient_part = stripped[:req_match.start()].strip()
-                    if patient_part:
-                        pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_paciente, patient_part[:cols]))
-                    pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_req, req_match.group(1)[:cols]))
-                else:
-                    pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_paciente, stripped[:cols]))
-            elif 'REG:' in stripped:
-                reg_match = re.search(r'(REG:\S+)', stripped)
-                if reg_match:
-                    pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_reg, reg_match.group(1)[:cols]))
-                else:
-                    pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_paciente, stripped[:cols]))
+            y = y_positions_calc[pos_idx] if pos_idx < len(y_positions_calc) else y_positions_calc[-1]
+            if stripped.startswith('REQ:'):
+                pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_paciente, stripped[:cols]))
+            elif stripped.startswith('REG:'):
+                pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_reg, stripped[:cols]))
             else:
                 pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_paciente, stripped[:cols]))
-            pos_idx += 1
         if not pplb_lines:
-            pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y_positions[0], x_paciente, 'SEM DADOS'))
+            pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y_positions_calc[0], x_paciente, 'SEM DADOS'))
         return _build_label_ppla(pplb_lines, cal)
 
     # Modo estruturado: gera campos com X distintos como FC (fallback sem textoLivre)
