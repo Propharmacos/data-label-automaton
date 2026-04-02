@@ -1739,10 +1739,17 @@ def debug_kit(cdsac):
 # POST /api/debug/query
 # Body: { "sql": "SELECT ...", "params": [] }
 # =====================================================
+MCP_TOKEN = os.environ.get("MCP_TOKEN", "propharmacos-mcp-2026")
+
 @app.route('/api/debug/query', methods=['POST', 'OPTIONS'])
 def debug_query():
     if request.method == 'OPTIONS':
         return '', 200
+
+    # Validação do token MCP
+    auth = request.headers.get("X-MCP-Token", "")
+    if auth != MCP_TOKEN:
+        return jsonify({"success": False, "error": "Não autorizado"}), 401
 
     try:
         body = request.get_json(force=True) or {}
