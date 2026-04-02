@@ -601,7 +601,7 @@ def gerar_ppla_amp10(rotulo, farmacia, dims=None, calibracao=None):
     nr_req     = rotulo.get('nrRequisicao', '')
     nr_item    = rotulo.get('nrItem', '0')
     nome_med   = (rotulo.get('nomeMedico', '') or '').upper()
-    conselho   = _format_conselho_dots(rotulo)
+    conselho   = _crm_completo(rotulo)
     comp_full  = (rotulo.get('composicao', '') or rotulo.get('formula', '') or '').upper()
     ph         = (rotulo.get('ph', '') or '').strip()
     lote       = rotulo.get('lote', '')
