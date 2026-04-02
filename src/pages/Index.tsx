@@ -50,34 +50,72 @@ const Index = () => {
     });
   };
 
-  // Carregar impressoras do agente
+  // Sincronizar layout, estação e impressora sempre que o layout mudar
   useEffect(() => {
-    const agentConfig = getPrintAgentConfig();
-    if (agentConfig.enabled) {
-      // Usar impressora mapeada ao layout, não campo global legado
-      setSelectedPrinter(getLayoutPrinter(layoutType) || "");
-      // Carregar lista de impressoras da estação ativa
-      const station = getActiveStation();
-      if (station?.agentUrl) {
-        listarImpressoras(station.agentUrl).then(result => {
-          if (result.success && result.data) {
-            setAvailablePrinters(result.data.impressoras);
-          }
-        });
-      }
-    }
-  }, []);
+    let cancelled = false;
 
-  // Carregar layout sem resetar (preserva edições salvas)
-  useEffect(() => {
-    setLayoutConfig(getLayout(layoutType));
-  }, []);
+    const syncLayoutDependencies = async () => {
+      setLayoutConfig(getLayout(layoutType));
+
+      const agentConfig = getPrintAgentConfig();
+      if (!agentConfig.enabled) return;
+
+      const mappedPrinter = getLayoutPrinter(layoutType) || "";
+      if (mappedPrinter) {
+        setSelectedPrinter(mappedPrinter);
+        setAvailablePrinters((prev) =>
+          prev.includes(mappedPrinter) ? prev : [mappedPrinter, ...prev]
+        );
+      }
+
+      const mappedStationId = getLayoutStation(layoutType);
+      if (mappedStationId) {
+        setActiveStationId(mappedStationId);
+      }
+
+      const station = mappedStationId
+        ? getPrintStations().find((item) => item.id === mappedStationId)
+        : getActiveStation();
+
+      if (!station?.agentUrl) {
+        if (!cancelled) {
+          setAvailablePrinters(mappedPrinter ? [mappedPrinter] : []);
+        }
+        return;
+      }
+
+      const result = await listarImpressoras(station.agentUrl);
+      if (cancelled) return;
+
+      if (result.success && result.data) {
+        const printers = result.data.impressoras || [];
+        const mergedPrinters = mappedPrinter && !printers.includes(mappedPrinter)
+          ? [mappedPrinter, ...printers]
+          : printers;
+
+        setAvailablePrinters(mergedPrinters);
+
+        if (!mappedPrinter && result.data.padrao) {
+          setSelectedPrinter(result.data.padrao);
+        }
+      } else {
+        setAvailablePrinters(mappedPrinter ? [mappedPrinter] : []);
+      }
+    };
+
+    syncLayoutDependencies();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [layoutType]);
 
   // Recarregar configs quando a página recebe foco
   useEffect(() => {
     const handleFocus = () => {
       setPharmacyConfig(getPharmacyConfig());
       setLayoutConfig(getLayout(layoutType));
+      setSelectedPrinter(getLayoutPrinter(layoutType) || "");
     };
     window.addEventListener("focus", handleFocus);
     return () => window.removeEventListener("focus", handleFocus);
@@ -86,26 +124,6 @@ const Index = () => {
   const handleLayoutChange = (newType: LayoutType) => {
     setLayoutType(newType);
     setSelectedLayout(newType);
-    setLayoutConfig(getLayout(newType));
-    // Auto-selecionar impressora associada ao layout
-    const mappedPrinter = getLayoutPrinter(newType);
-    if (mappedPrinter) {
-      setSelectedPrinter(mappedPrinter);
-    }
-    // Auto-switch de estação (PC) associada ao layout
-    const mappedStation = getLayoutStation(newType);
-    if (mappedStation) {
-      setActiveStationId(mappedStation);
-      // Recarregar impressoras do novo agente
-      const station = getActiveStation();
-      if (station?.agentUrl) {
-        listarImpressoras(station.agentUrl).then(result => {
-          if (result.success && result.data) {
-            setAvailablePrinters(result.data.impressoras);
-          }
-        });
-      }
-    }
   };
 
   const handleLayoutEditorSave = (newLayout: LayoutConfig) => {
