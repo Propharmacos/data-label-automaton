@@ -106,6 +106,12 @@ export const LAYOUT_INFO: Record<LayoutType, { cols: number; rows: number; lpp: 
   TIRZ: { cols: 73, rows: 8, lpp: 8, cpp: 20 },
 };
 
+const cloneTemplates = (templates: Record<LayoutType, string[]>): Record<LayoutType, string[]> => {
+  return Object.fromEntries(
+    Object.entries(templates).map(([layout, lines]) => [layout, [...lines]])
+  ) as Record<LayoutType, string[]>;
+};
+
 // Parse de template: extrai segmentos de campo e texto estático
 export interface TemplateSegment {
   type: 'field' | 'text';
@@ -168,13 +174,40 @@ export function fillTemplate(templateLines: string[], data: Record<string, strin
 
 // Storage
 const TEMPLATES_KEY = 'fc_label_templates_v1';
+const FROZEN_TEMPLATE_LAYOUTS: LayoutType[] = ['A_PAC_PEQ', 'A_PAC_GRAN'];
 
 export function getTemplates(): Record<LayoutType, string[]> {
   try {
     const stored = localStorage.getItem(TEMPLATES_KEY);
-    if (stored) return JSON.parse(stored);
+    if (stored) {
+      const parsed = JSON.parse(stored) as Partial<Record<LayoutType, string[]>>;
+      const merged = {
+        ...cloneTemplates(DEFAULT_TEMPLATES),
+        ...parsed,
+      } as Record<LayoutType, string[]>;
+
+      let needsSave = false;
+
+      FROZEN_TEMPLATE_LAYOUTS.forEach((layout) => {
+        const defaults = DEFAULT_TEMPLATES[layout];
+        const current = merged[layout];
+        const shouldReset = JSON.stringify(current) !== JSON.stringify(defaults);
+
+        if (shouldReset) {
+          merged[layout] = [...defaults];
+          needsSave = true;
+        }
+      });
+
+      if (needsSave) {
+        localStorage.setItem(TEMPLATES_KEY, JSON.stringify(merged));
+        console.log('[Templates] Migração: templates homologados reaplicados para A_PAC_PEQ/A_PAC_GRAN');
+      }
+
+      return cloneTemplates(merged);
+    }
   } catch {}
-  return { ...DEFAULT_TEMPLATES };
+  return cloneTemplates(DEFAULT_TEMPLATES);
 }
 
 export function getTemplate(layout: LayoutType): string[] {
