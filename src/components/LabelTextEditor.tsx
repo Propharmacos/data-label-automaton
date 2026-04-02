@@ -657,15 +657,6 @@ function generateText(rotulo: RotuloItem, layoutConfig: LayoutConfig, layoutType
 const FONT_SIZE_KEY = 'label_editor_font_size';
 const LINE_SPACING_KEY = 'label_editor_line_spacing';
 const META_INLINE_KEY = 'label_editor_meta_inline';
-const PPLA_FONT_KEY = 'label_ppla_font';
-
-function editorFontToPpla(fontSize: number): number {
-  if (fontSize <= 8) return 1;
-  if (fontSize <= 11) return 2;
-  if (fontSize <= 14) return 3;
-  if (fontSize <= 18) return 4;
-  return 5;
-}
 const getStoredFontSize = (layoutTipo?: string) => {
   try {
     const stored = localStorage.getItem(FONT_SIZE_KEY);
@@ -804,7 +795,6 @@ const LabelTextEditor = ({
     setEditorFontSize(prev => {
       const next = Math.max(6, Math.min(24, prev + delta));
       localStorage.setItem(FONT_SIZE_KEY, String(next));
-      localStorage.setItem(PPLA_FONT_KEY, String(editorFontToPpla(next)));
       return next;
     });
   };

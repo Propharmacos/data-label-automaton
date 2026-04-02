@@ -294,7 +294,6 @@ export const imprimirViaAgente = async (
     };
 
     const lineSpacingFactor = parseFloat(localStorage.getItem('label_editor_line_spacing') || '1.0') || 1.0;
-    const fontPpla = parseInt(localStorage.getItem('label_ppla_font') || '1', 10) || 1;
 
     const payload = {
       impressora: config.impressora,
@@ -328,7 +327,6 @@ export const imprimirViaAgente = async (
         descricaoProduto: r.descricaoProduto,
         textoLivre: r.textoLivre,
         lineSpacingFactor: r.lineSpacingFactor ?? lineSpacingFactor,
-        fontPpla: r.fontPpla ?? fontPpla,
         tipoItem: r.tipoItem,
         componentes: r.componentes,
       })),

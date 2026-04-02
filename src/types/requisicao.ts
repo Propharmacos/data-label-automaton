@@ -100,7 +100,6 @@ export interface RotuloItem {
   descricaoProduto: string;  // Do banco (FC03300 CDICP 00004) - nome completo do produto
   textoLivre?: string;       // Texto editado livremente pelo usuário (bloco de notas)
   lineSpacingFactor?: number; // Fator de espaçamento entre linhas (1.0 = padrão)
-  fontPpla?: number;          // Fonte PPLA (1-9) para a impressora
   tipoItem?: TipoItem;       // Tipo do item: PRODUTO ÚNICO, MESCLA ou KIT
   eSinonimo?: boolean;        // True se o kit foi resolvido via sinônimo (FC03200)
   componentes?: ComponenteKit[];  // Componentes do kit (apenas se tipoItem === 'KIT')
