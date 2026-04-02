@@ -577,7 +577,7 @@ def gerar_ppla_amp10(rotulo, farmacia, dims=None, calibracao=None):
         dims = PRINTER_CONFIGS['AMP10']
     cal = calibracao or {}
     cols = dims['cols_max']
-    font = 9   # FC usa font=9 para AMP10
+    font = 1   # font padrão (compatível com demais layouts)
     rot = 1
 
     # Y levels FC exatos (step -9)
