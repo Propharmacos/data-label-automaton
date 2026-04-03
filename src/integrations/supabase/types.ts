@@ -484,6 +484,30 @@ export type Database = {
           },
         ]
       }
+      config_shadow_mode: {
+        Row: {
+          ativado_em: string | null
+          ativado_por: string | null
+          ativo: boolean
+          competencia: string
+          id: string
+        }
+        Insert: {
+          ativado_em?: string | null
+          ativado_por?: string | null
+          ativo?: boolean
+          competencia: string
+          id?: string
+        }
+        Update: {
+          ativado_em?: string | null
+          ativado_por?: string | null
+          ativo?: boolean
+          competencia?: string
+          id?: string
+        }
+        Relationships: []
+      }
       config_vr_vt_loja: {
         Row: {
           ativo: boolean | null
