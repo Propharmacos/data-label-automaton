@@ -140,17 +140,30 @@ const Index = () => {
     const result = await buscarRequisicao(requisitionNumber);
     
     if (result.success && result.data && result.data.length > 0) {
-      // Restaurar edições salvas do Supabase
+      // Restaurar edições salvas do Supabase (somente se compatível com layout atual)
       let restoredRotulos = result.data;
       try {
         const { data: savedRows } = await supabase
           .from('saved_rotulos')
-          .select('item_id, texto_livre')
+          .select('item_id, texto_livre, layout_tipo')
           .eq('nr_requisicao', requisitionNumber);
         
         if (savedRows && savedRows.length > 0) {
+          const currentCols = layoutConfig.colunasMax || 57;
           const savedMap: Record<string, string> = {};
-          savedRows.forEach(row => { savedMap[row.item_id] = row.texto_livre; });
+          savedRows.forEach(row => {
+            // Só restaurar se o layout salvo corresponde ao layout atual,
+            // ou se não tem layout_tipo salvo mas a largura do texto é compatível
+            if (row.layout_tipo === layoutType) {
+              savedMap[row.item_id] = row.texto_livre;
+            } else if (!row.layout_tipo) {
+              // Fallback: verificar se a largura máxima das linhas é compatível
+              const maxLineLen = Math.max(...row.texto_livre.split('\n').map((l: string) => l.length));
+              if (Math.abs(maxLineLen - currentCols) <= 3) {
+                savedMap[row.item_id] = row.texto_livre;
+              }
+            }
+          });
           restoredRotulos = result.data.map(r => {
             const savedText = savedMap[r.id];
             return savedText ? { ...r, textoLivre: savedText } : r;
