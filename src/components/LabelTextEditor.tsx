@@ -43,6 +43,30 @@ function truncateText(text: string, maxCols: number, maxLines: number): string {
   return lines.map(line => line.substring(0, maxCols)).join('\n');
 }
 
+// ---- Abbreviate name utility: progressive abbreviation to fit maxLen ----
+function abbreviateName(name: string, maxLen: number): string {
+  if (name.length <= maxLen) return name;
+  const parts = name.trim().split(/\s+/).filter(p => p.length > 0);
+  if (parts.length <= 1) return name.substring(0, maxLen);
+
+  const first = parts[0];
+  const last = parts[parts.length - 1];
+  const middle = parts.slice(1, -1);
+
+  const attempts = [
+    [first, ...middle.map(p => p[0] + '.'), last].join(' '),
+    first + (middle.length ? ' ' + middle.map(p => p[0] + '.').join('') : '') + last,
+    [first[0] + '.', ...middle.map(p => p[0] + '.'), last].join(' '),
+    `${first[0]}. ${last}`,
+    last.substring(0, maxLen),
+  ];
+
+  for (const attempt of attempts) {
+    if (attempt.length <= maxLen) return attempt;
+  }
+  return name.substring(0, maxLen);
+}
+
 // ---- Pad line utility: align left+right within fixed width ----
 function padLine(left: string, right: string, width: number): string {
   const space = width - left.length - right.length;
