@@ -165,7 +165,7 @@ function generateTextPacPeq(rotulo: RotuloItem, layoutConfig: LayoutConfig): str
     ? `${conselhoNome}-${rotulo.ufCRM || '??'}-${rotulo.numeroCRM}`.substring(0, 15)
     : "";
   const medicoMax = conselhoStr ? maxCols - 5 - conselhoStr.length - 1 : maxCols - 5;
-  const medico = rotulo.nomeMedico ? rotulo.nomeMedico.toUpperCase().substring(0, Math.max(0, medicoMax)) : "";
+  const medico = rotulo.nomeMedico ? abbreviateName(rotulo.nomeMedico.toUpperCase(), Math.max(0, medicoMax)) : "";
   const drName = medico ? `DR(A)${medico}` : "";
   const line2 = padLine(drName, conselhoStr, maxCols);
 
