@@ -43,7 +43,7 @@ function truncateText(text: string, maxCols: number, maxLines: number): string {
   return lines.map(line => line.substring(0, maxCols)).join('\n');
 }
 
-// ---- Abbreviate name utility: progressive abbreviation to fit maxLen ----
+// ---- Abbreviate name to fit maxLen: keeps first+last, abbreviates middle names ----
 function abbreviateName(name: string, maxLen: number): string {
   if (name.length <= maxLen) return name;
   const parts = name.trim().split(/\s+/).filter(p => p.length > 0);
@@ -54,10 +54,15 @@ function abbreviateName(name: string, maxLen: number): string {
   const middle = parts.slice(1, -1);
 
   const attempts = [
+    // 1. First + middle initials (spaced) + Last: "KAROLINY A. VIEIRA"
     [first, ...middle.map(p => p[0] + '.'), last].join(' '),
+    // 2. First + middle initials (compact) + Last: "KAROLINY A.VIEIRA"
     first + (middle.length ? ' ' + middle.map(p => p[0] + '.').join('') : '') + last,
+    // 3. First initial + middle initials + Last: "K. A. VIEIRA"
     [first[0] + '.', ...middle.map(p => p[0] + '.'), last].join(' '),
+    // 4. First initial + Last: "K. VIEIRA"
     `${first[0]}. ${last}`,
+    // 5. Last name only
     last.substring(0, maxLen),
   ];
 
@@ -169,7 +174,7 @@ function generateTextPacPeq(rotulo: RotuloItem, layoutConfig: LayoutConfig): str
   const drName = medico ? `DR(A)${medico}` : "";
   const line2 = padLine(drName, conselhoStr, maxCols);
 
-  // Line 3: REG alinhado à direita (Y=138 no PPLA)
+  // Line 3: REG alinhado à direita (Y=138, X=190 no PPLA)
   const regNum = String(rotulo.numeroRegistro || "");
   const reg = regNum ? `REG:${regNum}` : "";
   const lineReg = reg ? padLine("", reg, maxCols) : "";
