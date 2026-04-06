@@ -292,14 +292,14 @@ function generateTextAmpCx(rotulo: RotuloItem, layoutConfig: LayoutConfig): stri
   const drName = medico ? `DR(A)${medico}` : "";
   lines.push(compactLine(drName, conselhoStr));
 
-  // Line 3: Composição/Fórmula (1 linha apenas para não empurrar campos)
+  // Line 3+: Composição/Fórmula — quebra em até 3 linhas para não perder ativos
   const mescla = isValidComposicao(rotulo.composicao || "");
   if (mescla) {
     const compText = rotulo.composicao!.toUpperCase();
-    lines.push(compText.substring(0, maxCols));
+    wrapText(compText, maxCols, 3).split('\n').forEach(l => lines.push(l));
   } else {
     const f = formatarFormula(rotulo.formula);
-    if (f) lines.push(f.substring(0, maxCols));
+    if (f) wrapText(f, maxCols, 3).split('\n').forEach(l => lines.push(l));
   }
 
   // Line: PH + Lote + Fabricação + Validade (PH sempre visível para preenchimento manual)
