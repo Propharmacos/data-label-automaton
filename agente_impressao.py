@@ -504,7 +504,7 @@ def gerar_ppla_ampcx(rotulo, farmacia, dims=None, calibracao=None):
 
 def _build_label_ppla(linhas, cal, velocidade='PA'):
     """Função base PPLA: setup para etiquetas 25mm (200 dots a 203 DPI)."""
-    contraste = cal.get('contraste', 14)
+    contraste = cal.get('contraste', 16)
     setup_parts = [
         "\x02f200",    # form length correto para 25mm (200 dots a 203 DPI)
         "\x02L",
@@ -671,7 +671,7 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
         dims = PRINTER_CONFIGS['PEQUEN']
     cal = calibracao or {}
     cols = dims['cols_max']
-    font = 1
+    font = 2   # font=2 (10 dots/char) = 20 CPP × 1,39" = 28 colunas, igual ao FC
     rot = 1
 
     # Coordenadas baseadas no FC real: 35,3mm × 25,4mm, 8 LPP, 20 CPP
