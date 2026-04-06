@@ -671,20 +671,19 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
         dims = PRINTER_CONFIGS['PEQUEN']
     cal = calibracao or {}
     cols = dims['cols_max']
-    font = 2   # font=2 (10 dots/char) = 20 CPP × 1,39" = 28 colunas, igual ao FC
+    font = 1   # font=1 igual ao FC (fonte pequena, paridade visual)
     rot = 1
 
-    # Coordenadas baseadas no FC real: 35,3mm × 25,4mm, 8 LPP, 20 CPP
-    x_paciente = 5    # margem esquerda (~0.5mm)
-    x_req = 183       # ~65% da largura (282 dots) = campo REQ lado direito
-    x_reg = 190       # REG alinhado à direita
+    # Coordenadas FC originais capturadas: Y de baixo para cima, 8 LPP com step=11
+    x_paciente = 12   # margem esquerda FC original
+    x_req = 116       # campo REQ lado direito FC original
+    x_reg = 129       # REG alinhado à direita FC original
 
-    # WYSIWYG: textoLivre reflete o que o operador vê no editor do A.PAC.PEQ.
-    # Ao contrário do GRAN, o pequeno é um empilhamento vertical estrito.
-    # Cada linha do texto deve sair exatamente em uma linha dedicada do FC.
+    # y_positions: valores exatos do FC (89=topo, decremento de 11 por linha)
+    y_positions = [89, 78, 67, 56, 45, 34, 23, 12]
+
     texto_livre = rotulo.get('textoLivre', '')
     if texto_livre:
-        y_positions = [188, 163, 138, 113, 88, 63, 38, 13]
         lsf = float(rotulo.get('lineSpacingFactor', 1.0) or 1.0)
         linhas_texto = texto_livre.split('\n')
         pplb_lines = []
@@ -694,27 +693,35 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
             step = y_positions_calc[1] - y_positions_calc[0]
             for i in range(1, len(y_positions_calc)):
                 y_positions_calc[i] = base_y + int(step * lsf * i)
-        if len(linhas_texto) > len(y_positions_calc) and len(y_positions_calc) >= 2:
-            step = y_positions_calc[-1] - y_positions_calc[-2]
-            while len(y_positions_calc) < len(linhas_texto):
-                y_positions_calc.append(y_positions_calc[-1] + step)
 
         for pos_idx, line_text in enumerate(linhas_texto):
             stripped = line_text.strip()
             if not stripped:
                 continue
             y = y_positions_calc[pos_idx] if pos_idx < len(y_positions_calc) else y_positions_calc[-1]
-            if stripped.startswith('REQ:'):
-                pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_paciente, stripped[:cols]))
-            elif stripped.startswith('REG:'):
-                pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_reg, stripped[:cols]))
+            # Linha com REQ: paciente à esquerda + REQ à direita (mesmo Y, como FC)
+            if 'REQ:' in stripped:
+                req_match = re.search(r'(REQ:\S+)', stripped)
+                if req_match:
+                    patient_part = stripped[:req_match.start()].strip()
+                    if patient_part:
+                        pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_paciente, patient_part[:cols]))
+                    pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_req, req_match.group(1)[:cols]))
+                else:
+                    pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_paciente, stripped[:cols]))
+            elif 'REG:' in stripped:
+                reg_match = re.search(r'(REG:\S+)', stripped)
+                if reg_match:
+                    pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_reg, reg_match.group(1)[:cols]))
+                else:
+                    pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_paciente, stripped[:cols]))
             else:
                 pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_paciente, stripped[:cols]))
         if not pplb_lines:
-            pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y_positions_calc[0], x_paciente, 'SEM DADOS'))
+            pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y_positions[0], x_paciente, 'SEM DADOS'))
         return _build_label_ppla(pplb_lines, cal)
 
-    # Modo estruturado: gera campos com X distintos como FC (fallback sem textoLivre)
+    # Modo estruturado: coordenadas FC exatas
     paciente = (rotulo.get('nomePaciente', '') or '')[:25].upper()
     nr_req = rotulo.get('nrRequisicao', '')
     nr_item = rotulo.get('nrItem', '1')
@@ -723,25 +730,25 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
     registro = str(rotulo.get('numeroRegistro', '') or '')[:8]
 
     linhas = []
-    # Y=188: Paciente + REQ (linha 1 do topo)
+    # Y=89: Paciente (X=12) + REQ (X=116)
     if paciente:
-        linhas.append(ppla_text_dots(rot, font, 1, 1, 188, x_paciente, paciente))
+        linhas.append(ppla_text_dots(rot, font, 1, 1, 89, x_paciente, paciente))
     req_str = f"REQ:{nr_req}-{nr_item}"
-    linhas.append(ppla_text_dots(rot, font, 1, 1, 188, x_req, req_str))
+    linhas.append(ppla_text_dots(rot, font, 1, 1, 89, x_req, req_str))
 
-    # Y=163: DR(A)Médico CRF-UF-NUM (linha 2)
+    # Y=78: DR(A)Médico + CRM
     if nome_medico:
         medico_str = f"DR(A){nome_medico}"
         if crm:
             medico_str = f"{medico_str} {crm}"
-        linhas.append(ppla_text_dots(rot, font, 1, 1, 163, x_paciente, medico_str[:cols]))
+        linhas.append(ppla_text_dots(rot, font, 1, 1, 78, x_paciente, medico_str[:cols]))
 
-    # Y=138: REG (linha 3)
+    # Y=67: REG (X=129)
     if registro:
-        linhas.append(ppla_text_dots(rot, font, 1, 1, 138, x_reg, f"REG:{registro}"))
+        linhas.append(ppla_text_dots(rot, font, 1, 1, 67, x_reg, f"REG:{registro}"))
 
     if not linhas:
-        linhas.append(ppla_text_dots(rot, font, 1, 1, 188, x_paciente, 'SEM DADOS'))
+        linhas.append(ppla_text_dots(rot, font, 1, 1, 89, x_paciente, 'SEM DADOS'))
 
     return _build_label_ppla(linhas, cal)
 
