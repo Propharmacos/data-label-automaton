@@ -503,14 +503,14 @@ def gerar_ppla_ampcx(rotulo, farmacia, dims=None, calibracao=None):
 
 
 def _build_label_ppla(linhas, cal, velocidade='PA'):
-    """Função base PPLA: setup para etiquetas 25mm (200 dots a 203 DPI)."""
-    contraste = cal.get('contraste', 16)
+    """Função base PPLA: setup para etiquetas 25mm — formato FC exato."""
+    contraste = cal.get('contraste', 14)
     setup_parts = [
-        "\x02f200",    # form length correto para 25mm (200 dots a 203 DPI)
+        "\x02f289",    # form length FC exato (f289 para etiquetas 25mm altura)
         "\x02L",
         "\x02e",
         velocidade,
-        "D14",
+        "D11",         # pixel size FC exato (D11, não D14)
         f"H{contraste:02d}",
     ]
     setup = "\r".join(setup_parts) + "\r"
@@ -671,15 +671,15 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
         dims = PRINTER_CONFIGS['PEQUEN']
     cal = calibracao or {}
     cols = dims['cols_max']
-    font = 1   # font=1 igual ao FC
-    wmult = 1  # Argox PPLA: wmult=1 = largura normal (1×)
-    hmult = 0  # Argox PPLA: hmult=0 = altura normal (1×), hmult=1 seria dupla!
+    font = 1   # FC: 1111 = rot=1, font=1, wmult=1, hmult=1
+    wmult = 1
+    hmult = 1
     rot = 1
 
-    # Coordenadas FC originais capturadas: Y de baixo para cima, 8 LPP com step=11
-    x_paciente = 12   # margem esquerda FC original
-    x_req = 116       # campo REQ lado direito FC original
-    x_reg = 129       # REG alinhado à direita FC original
+    # Coordenadas FC exatas capturadas do PPLA real:
+    x_paciente = 12   # X=12 paciente
+    x_req = 116       # X=116 REQ (lado direito no PEQ)
+    x_reg = 129       # X=129 REG
 
     # y_positions: valores exatos do FC (89=topo, decremento de 11 por linha)
     y_positions = [89, 78, 67, 56, 45, 34, 23, 12]
@@ -757,35 +757,67 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
 def gerar_ppla_a_pac_gran(rotulo, farmacia, dims=None, calibracao=None):
     """Layout A.PAC.GRAN (76x25mm) — formato FC EXATO capturado do FormulaCerta.
 
-    Setup: f289, PA, D14, font=1
-    Capturado do FC:
+    Setup FC exato: f289, PA, D11, H14, prefixo 1111
+    Capturado do PPLA real:
       Y=89 X=12:  Paciente  | X=172: REQ
       Y=78 X=12:  DR(A)Med  | X=159: CRM | X=223: REG
-    textoLivre: y_positions=[89,78,67,56,...] X=12
     """
     if not dims:
         dims = PRINTER_CONFIGS.get('A_PAC_GRAN', PRINTER_CONFIGS['GRAND'])
     cal = calibracao or {}
     cols = dims['cols_max']
     font = 1
+    wmult = 1
+    hmult = 1
     rot = 1
 
-    # Y levels FC exatos
+    # Coordenadas FC exatas capturadas do PPLA real
     x_pac = 12
     x_req = 172
     x_med = 12
     x_crm = 159
     x_reg = 223
-    # Para textoLivre, continua a partir de Y=89 descendo de 11 em 11
     y_positions = [89, 78, 67, 56, 45, 34, 23, 12]
 
-    # textoLivre: cada linha mapeia para y_positions[i] no X=12
     texto_livre = rotulo.get('textoLivre', '')
     if texto_livre:
         lsf = float(rotulo.get('lineSpacingFactor', 1.0) or 1.0)
-        return _gerar_from_texto_livre(texto_livre, y_positions, x_pac, rot, font, cols, dims, cal, 'dots', lsf)
+        linhas_texto = texto_livre.split('\n')
+        pplb_lines = []
+        y_positions_calc = list(y_positions)
+        if lsf != 1.0 and len(y_positions_calc) >= 2:
+            base_y = y_positions_calc[0]
+            step = y_positions_calc[1] - y_positions_calc[0]
+            for i in range(1, len(y_positions_calc)):
+                y_positions_calc[i] = base_y + int(step * lsf * i)
 
-    # === Geração estruturada (paridade FC) ===
+        for pos_idx, line_text in enumerate(linhas_texto):
+            stripped = line_text.strip()
+            if not stripped:
+                continue
+            y = y_positions_calc[pos_idx] if pos_idx < len(y_positions_calc) else y_positions_calc[-1]
+            if 'REQ:' in stripped:
+                req_match = re.search(r'(REQ:\S+)', stripped)
+                if req_match:
+                    patient_part = stripped[:req_match.start()].strip()
+                    if patient_part:
+                        pplb_lines.append(ppla_text_dots(rot, font, wmult, hmult, y, x_pac, patient_part[:cols]))
+                    pplb_lines.append(ppla_text_dots(rot, font, wmult, hmult, y, x_req, req_match.group(1)[:cols]))
+                else:
+                    pplb_lines.append(ppla_text_dots(rot, font, wmult, hmult, y, x_pac, stripped[:cols]))
+            elif 'REG:' in stripped:
+                reg_match = re.search(r'(REG:\S+)', stripped)
+                if reg_match:
+                    pplb_lines.append(ppla_text_dots(rot, font, wmult, hmult, y, x_reg, reg_match.group(1)[:cols]))
+                else:
+                    pplb_lines.append(ppla_text_dots(rot, font, wmult, hmult, y, x_pac, stripped[:cols]))
+            else:
+                pplb_lines.append(ppla_text_dots(rot, font, wmult, hmult, y, x_pac, stripped[:cols]))
+        if not pplb_lines:
+            pplb_lines.append(ppla_text_dots(rot, font, wmult, hmult, y_positions[0], x_pac, 'SEM DADOS'))
+        return _build_label_ppla(pplb_lines, cal)
+
+    # === Geração estruturada — paridade FC exata ===
     paciente  = _clean_patient_name(rotulo.get('nomePaciente', ''))
     nr_req    = rotulo.get('nrRequisicao', '')
     nr_item   = rotulo.get('nrItem', '1')
@@ -796,18 +828,18 @@ def gerar_ppla_a_pac_gran(rotulo, farmacia, dims=None, calibracao=None):
     linhas = []
 
     # Y=89: Paciente (X=12) + REQ (X=172)
-    linhas.append(ppla_text_dots(rot, font, 1, 1, 89, x_pac, paciente[:cols]))
-    linhas.append(ppla_text_dots(rot, font, 1, 1, 89, x_req, f"REQ:{nr_req}-{nr_item}"))
+    linhas.append(ppla_text_dots(rot, font, wmult, hmult, 89, x_pac, paciente[:cols]))
+    linhas.append(ppla_text_dots(rot, font, wmult, hmult, 89, x_req, f"REQ:{nr_req}-{nr_item}"))
 
     # Y=78: DR(A)Medico (X=12) + CRM (X=159) + REG (X=223)
-    linhas.append(ppla_text_dots(rot, font, 1, 1, 78, x_med, f"DR(A){nom_med}"[:cols]))
+    linhas.append(ppla_text_dots(rot, font, wmult, hmult, 78, x_med, f"DR(A){nom_med}"[:cols]))
     if crm:
-        linhas.append(ppla_text_dots(rot, font, 1, 1, 78, x_crm, crm))
+        linhas.append(ppla_text_dots(rot, font, wmult, hmult, 78, x_crm, crm))
     if registro:
-        linhas.append(ppla_text_dots(rot, font, 1, 1, 78, x_reg, f"REG:{registro}"))
+        linhas.append(ppla_text_dots(rot, font, wmult, hmult, 78, x_reg, f"REG:{registro}"))
 
     if not linhas:
-        linhas.append(ppla_text_dots(rot, font, 1, 1, 89, x_pac, 'SEM DADOS'))
+        linhas.append(ppla_text_dots(rot, font, wmult, hmult, 89, x_pac, 'SEM DADOS'))
 
     return _build_label_ppla(linhas, cal)
 
