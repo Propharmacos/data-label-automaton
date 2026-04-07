@@ -359,14 +359,14 @@ def _gerar_from_texto_livre(texto_livre, y_positions, x_start, rot, font, cols, 
 
 
 def _build_label_ampcx(linhas, dims, cal):
-    """Build AMP_CX label — 109x25mm = 200 dots altura a 203 DPI."""
+    """Build AMP_CX label — 109x25mm. Usa mesmos parâmetros do FC (f289, D11)."""
     contraste = cal.get('contraste', 14)
     setup_parts = [
-        "\x02f200",    # form length correto para 25mm (200 dots a 203 DPI)
+        "\x02f289",    # form length FC exato (igual A_PAC_PEQ)
         "\x02L",
         "\x02e",
         "PA",
-        "D14",
+        "D11",         # pixel size FC exato
         f"H{contraste:02d}",
     ]
     setup = "\r".join(setup_parts) + "\r"
@@ -519,14 +519,14 @@ def _build_label_ppla(linhas, cal, velocidade='PA'):
 
 
 def _build_label_amp10(linhas, dims, cal):
-    """Build AMP10 label — 89x38mm = 304 dots altura a 203 DPI."""
+    """Build AMP10 label — 89x38mm. D11 para paridade FC."""
     contraste = cal.get('contraste', 14)
     setup_parts = [
-        "\x02f304",    # form length correto para 38mm (304 dots a 203 DPI)
+        "\x02f304",    # form length para 38mm (304 dots a 203 DPI)
         "\x02L",
         "\x02e",
         "PA",
-        "D14",
+        "D11",         # pixel size FC exato
         f"H{contraste:02d}",
     ]
     setup = "\r".join(setup_parts) + "\r"
