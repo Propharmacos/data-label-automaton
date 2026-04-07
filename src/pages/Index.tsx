@@ -277,8 +277,7 @@ const Index = () => {
         data: { impressos: sucessos },
       };
     } else if (agentConfig.enabled && agentUrl) {
-      // Modo Agente — envia textoLivre (mesmo texto do preview) para o agente renderizar
-      // Isso garante paridade WYSIWYG: o que está na tela = o que sai na impressora
+      // Modo Agente — envia dados para o agente Python gerar e imprimir
       const configComImpressora = { ...agentConfig, agentUrl, impressora, calibracao: calibracaoPadrao };
       result = await imprimirViaAgente(configComImpressora, rotulosSelecionados, layoutType, farmaciaData);
     } else {
