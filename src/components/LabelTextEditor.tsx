@@ -1183,6 +1183,13 @@ const LabelTextEditor = ({
           )}
         </div>
       </div>
+      {/* Unsaved changes dialog */}
+      <UnsavedChangesDialog
+        open={unsavedDialogOpen}
+        onSaveAndContinue={handleDialogSaveAndContinue}
+        onDiscardAndContinue={handleDialogDiscard}
+        onCancel={handleDialogCancel}
+      />
     </div>
   );
 };
