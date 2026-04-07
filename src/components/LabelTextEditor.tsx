@@ -1035,7 +1035,30 @@ const LabelTextEditor = ({
               <span className="text-xs text-muted-foreground">{metaInline ? 'Compacto' : 'Separado'}</span>
             </div>
           )}
-          {/* Cancelar / Salvar / Fechar */}
+          {/* Save status + Cancelar / Salvar / Fechar */}
+          <div className="flex items-center gap-1.5">
+            {/* Save status indicator */}
+            {saveStatus === 'saving' && (
+              <span className="flex items-center gap-1 text-xs text-muted-foreground animate-pulse">
+                <Loader2 className="h-3 w-3 animate-spin" /> Salvando...
+              </span>
+            )}
+            {saveStatus === 'saved' && (
+              <span className="flex items-center gap-1 text-xs text-green-600">
+                <Check className="h-3 w-3" /> Salvo
+              </span>
+            )}
+            {saveStatus === 'error' && (
+              <span className="flex items-center gap-1 text-xs text-destructive">
+                <AlertCircle className="h-3 w-3" /> Erro ao salvar
+              </span>
+            )}
+            {saveStatus === 'dirty' && (
+              <span className="flex items-center gap-1 text-xs text-amber-600">
+                <AlertCircle className="h-3 w-3" /> Não salvo
+              </span>
+            )}
+          </div>
           <Button
             variant="ghost"
             size="sm"
@@ -1048,9 +1071,10 @@ const LabelTextEditor = ({
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 px-2 text-xs text-primary hover:text-primary/80"
+            className={`h-7 px-2 text-xs ${isDirty ? 'text-primary font-semibold' : 'text-primary/60'} hover:text-primary/80`}
             title="Salvar edições desta requisição"
             onClick={handleSaveAllTexts}
+            disabled={saveStatus === 'saving'}
           >
             Salvar
           </Button>
@@ -1060,7 +1084,7 @@ const LabelTextEditor = ({
               size="icon"
               className="h-7 w-7"
               title="Fechar editor"
-              onClick={onClose}
+              onClick={() => guardAction(() => onClose())}
             >
               <X className="h-4 w-4" />
             </Button>
