@@ -1,11 +1,12 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Printer, Minus, Plus, Type, Zap, AlignVerticalSpaceAround, Rows3, X } from "lucide-react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { ChevronLeft, ChevronRight, Printer, Minus, Plus, Type, Zap, AlignVerticalSpaceAround, Rows3, X, Check, Loader2, AlertCircle } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RotuloItem, PharmacyConfig, LayoutConfig, LayoutType } from "@/types/requisicao";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import UnsavedChangesDialog from "@/components/UnsavedChangesDialog";
 
 // ---- Word-wrap utility ----
 function wrapText(text: string, maxCols: number, maxLines: number): string {
