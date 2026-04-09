@@ -2,25 +2,33 @@
 
 ## Diagnóstico
 
-O A.PAC.PEQ usa `colunasMax: 28`, mas o Fórmula Certa mostra que a etiqueta suporta até **41 colunas** (print 1: "Col: 41/27"). Com apenas 28 colunas, o espaço para o nome do médico fica limitado a **7 caracteres** (28 - 5 do prefixo "DR(A)" - 15 do conselho - 1 espaço), causando a truncagem "DR(A)NATHALIA VE" no print 2.
+Na foto impressa do A.PAC.PEQ:
+- **Linha 1**: "NATHALIA VERISSIMO CARNA**REQ**:9743-0" — o nome do paciente sobrepõe o campo REQ
+- **Linha 2**: "DR(A)NATHALIA VERISSIMO CARN" — nome truncado em 28 caracteres
 
-Com 41 colunas, o nome do médico terá **20 caracteres** disponíveis — suficiente para "NATHALIA VERISSIMO" (18 chars) sem abreviação.
+**Causa raiz**: O frontend gera texto com 41 colunas, mas o agente coloca o paciente em X=12 e o REQ em X=116 (coordenadas físicas fixas em dots). O espaço físico entre X=12 e X=116 só comporta ~20 caracteres — não os 30 que o frontend está permitindo. Além disso, o agente trunca campos em `cols_max=28` (config PEQUEN), cortando o nome do médico na linha 2.
+
+**Problema duplo**:
+1. Paciente: frontend permite ~30 chars, mas fisicamente só cabem ~20 antes do REQ
+2. Médico: agente trunca em 28 chars, mas a linha 2 não tem campo à direita no agente (DR+CRM ficam juntos), então poderia usar mais espaço
 
 ## Plano
 
-### 1. `src/config/layouts.ts` — Aumentar colunasMax de 28 para 41
+### 1. `agente_impressao.py` — Atualizar cols_max e adicionar limite de paciente
 
-### 2. `src/components/LabelTextEditor.tsx` — Ajustar fallback de detecção
+Na config `PRINTER_CONFIGS['PEQUEN']` (linha 59):
+- Aumentar `cols_max` de 28 para **41** (para campos que usam a largura total, como médico na linha 2)
 
-Na linha 586, o fallback que detecta A_PAC_PEQ por `colunasMax === 28` precisa incluir `41`:
-```
-if ((layoutConfig.colunasMax === 28 || layoutConfig.colunasMax === 38 || layoutConfig.colunasMax === 41) ...
-```
+Na função `gerar_ppla_a_pac_peq` (linha 699-711):
+- Adicionar constante `MAX_PAT_CHARS = 20` — limite físico do paciente antes de X=116
+- Truncar `patient_part` com `[:MAX_PAT_CHARS]` em vez de `[:cols]`
 
-### 3. `src/components/LabelTextEditor.tsx` — Ajustar default na função
+### 2. `src/components/LabelTextEditor.tsx` — Limitar paciente no frontend
 
-Linha 160: trocar o fallback `|| 28` para `|| 41`.
+Na função `generateTextPacPeq` (linha 165):
+- Calcular `pacienteMax` como `Math.min(maxCols - req.length - 1, 20)` — garante que o preview mostre o mesmo que a impressão física
+- O médico continua usando `maxCols` normalmente (sem limite extra)
 
-### Nenhuma alteração no agente ou no layout
-O agente já usa coordenadas em dots (X=12, X=116, X=129) que não dependem do colunasMax do frontend. O layout (estrutura de linhas, fontes, coordenadas Y) permanece intacto.
+### Nenhuma alteração de layout
+Linhas, dimensões, coordenadas Y e estrutura permanecem intactos.
 
