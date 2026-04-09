@@ -157,7 +157,7 @@ const tiposPrescritores: Record<string, { conselho: string }> = {
 
 // ---- A_PAC_PEQ specific generator (compact fixed grid, distinct from GRAN) ----
 function generateTextPacPeq(rotulo: RotuloItem, layoutConfig: LayoutConfig): string {
-  const maxCols = layoutConfig.colunasMax || 28;
+  const maxCols = layoutConfig.colunasMax || 41;
 
   // Line 1: PACIENTE + REQ na mesma linha (mesmo Y no PPLA: Y=188)
   const reqNum = `${rotulo.nrRequisicao}-${rotulo.nrItem || '0'}`.substring(0, 7);
@@ -583,7 +583,7 @@ function resolveLayoutTipo(layoutConfig: LayoutConfig, layoutType?: LayoutType):
   }
 
   // Fallback por limites físicos do layout (evita quebrar quando tipo vem legado)
-  if ((layoutConfig.colunasMax === 28 || layoutConfig.colunasMax === 38) && layoutConfig.linhasMax === 8) return 'A_PAC_PEQ';
+  if ((layoutConfig.colunasMax === 28 || layoutConfig.colunasMax === 38 || layoutConfig.colunasMax === 41) && layoutConfig.linhasMax === 8) return 'A_PAC_PEQ';
   if (layoutConfig.colunasMax === 57 && (layoutConfig.linhasMax === 5 || layoutConfig.linhasMax === 8)) return 'A_PAC_GRAN';
 
   return layoutConfig.tipo;
