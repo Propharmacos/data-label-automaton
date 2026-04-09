@@ -2,50 +2,37 @@
 
 ## Diagnóstico
 
-**Problema central**: O agente de impressão usa `enumerate()` para iterar pelas linhas do `textoLivre`, mas pula linhas vazias com `continue` sem resetar o contador. Como o A_PAC_GRAN tem `linhasMax=5` e apenas 2 linhas com conteúdo, o editor envia 5 linhas (2 com texto + 3 vazias). O resultado:
+Nas fotos, o layout A.PAC.GRAN (57 colunas) mostra:
 
-```text
-pos_idx=0: "SUSANE ZANINI          REQ:009740-0"  → Y=89 ✓
-pos_idx=1: ""  → skip
-pos_idx=2: ""  → skip  
-pos_idx=3: ""  → skip
-pos_idx=4: "DR(A)SUSANE ZANINI   CRBM-PR-4556 REG:23993" → Y=45 ✗ (deveria ser Y=78)
-```
+- **Print 1**: Nome do médico truncado: `DR(A)MATEUS SANCHES DO` (cortado em 22 caracteres)
+- **Print 2**: Usuário tentou forçar o nome completo manualmente e o texto sobrepôs o conselho, criando borrão preto
 
-A linha do médico vai para Y=45 (dots) em vez de Y=78, caindo fora da área visível da etiqueta ou ficando tão distante que parece "apagada".
+**Causa raiz**: Na função `generateTextPacGran`, a zona direita da linha 2 (`RIGHT_L2_WIDTH`) está definida como **35 caracteres**, deixando apenas `57 - 35 = 22` caracteres para o nome do médico. O campo direito real ("CRBM-SP-67499 REG:24017") usa apenas ~24 caracteres, então há 11 colunas desperdiçadas.
 
-**Problema secundário**: `CRBM` (Conselho Regional de Biomedicina) está ausente da regex de conselhos no agente, impedindo a extração correta do conselho quando presente.
+**Solução**: Duas correções combinadas:
+
+1. **Reduzir RIGHT_L2_WIDTH** de 35 para **26** (o suficiente para o maior conselho+REG possível), dando ao médico **31 caracteres** em vez de 22.
+
+2. **Aplicar `abbreviateName`** ao nome do médico (já existe no código para A.PAC.PEQ) para que nomes que ainda excedam o limite sejam abreviados progressivamente em vez de cortados bruscamente.
+
+Isso garante: nomes curtos aparecem completos, nomes longos são abreviados de forma inteligente (ex: `DR(A)M. S. D. DE SOUZA`), e nunca há sobreposição com o conselho.
 
 ---
 
-## Plano de correção
+## Plano
 
-### 1. Agente (`agente_impressao.py`) — Corrigir contagem de posição Y
+### Arquivo: `src/components/LabelTextEditor.tsx`
 
-Na função `gerar_ppla_a_pac_gran`, trocar o `pos_idx` do `enumerate` por um contador separado (`visible_idx`) que só incrementa para linhas não-vazias:
+Na função `generateTextPacGran` (~linha 326):
 
-```python
-visible_idx = 0
-for line_text in linhas_texto:
-    stripped = line_text.strip()
-    if not stripped:
-        continue
-    y = y_positions_calc[visible_idx] if visible_idx < len(y_positions_calc) else y_positions_calc[-1]
-    # ... parsing existente ...
-    visible_idx += 1
-```
+1. Alterar `RIGHT_L2_WIDTH` de `35` para `26`
+2. Antes de montar `drName`, calcular o espaço disponível e usar `abbreviateName`:
+   ```
+   const medicoMax = LEFT_L2 - 5;  // 5 = "DR(A)" prefix
+   const medicoAbrev = abbreviateName(medico, medicoMax);
+   const drName = medicoAbrev ? `DR(A)${medicoAbrev}` : "";
+   ```
 
-Isso garante: Linha 1 → Y=89, Linha 2 → Y=78 (independente de quantas linhas vazias existam no meio).
-
-### 2. Agente (`agente_impressao.py`) — Adicionar CRBM à regex de conselhos
-
-Adicionar `CRBM` ao pattern de detecção de conselhos (linha 817):
-
-```python
-r'((?:CRM|CRBM|COREN|CRO|CRF|CRMV|CRN|CREFITO|CREF|CRP|CRFA)-\S+)'
-```
-
-### 2 arquivos alterados
-
-- `agente_impressao.py` — fix do `pos_idx` e adição de `CRBM` na regex
+### Nenhuma alteração no agente
+O layout, coordenadas Y e parsing do agente permanecem intactos.
 
