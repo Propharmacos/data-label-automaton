@@ -44,7 +44,10 @@ function truncateText(text: string, maxCols: number, maxLines: number): string {
   return lines.map(line => line.substring(0, maxCols)).join('\n');
 }
 
-// ---- Abbreviate name to fit maxLen: keeps first+last, abbreviates middle names ----
+// ---- Abbreviate name to fit maxLen ----
+// Rules: never abbreviate first name, never abbreviate last name.
+// Only abbreviate middle names, and only when there are 3+ surnames (4+ parts total).
+// If 2 surnames or fewer (3 parts), keep the full name (truncate only as last resort).
 function abbreviateName(name: string, maxLen: number): string {
   if (name.length <= maxLen) return name;
   const parts = name.trim().split(/\s+/).filter(p => p.length > 0);
@@ -54,18 +57,18 @@ function abbreviateName(name: string, maxLen: number): string {
   const last = parts[parts.length - 1];
   const middle = parts.slice(1, -1);
 
-  const attempts = [
-    // 1. First + middle initials (spaced) + Last: "KAROLINY A. VIEIRA"
-    [first, ...middle.map(p => p[0] + '.'), last].join(' '),
-    // 2. First + middle initials (compact) + Last: "KAROLINY A.VIEIRA"
-    first + (middle.length ? ' ' + middle.map(p => p[0] + '.').join('') : '') + last,
-    // 3. First initial + middle initials + Last: "K. A. VIEIRA"
-    [first[0] + '.', ...middle.map(p => p[0] + '.'), last].join(' '),
-    // 4. First initial + Last: "K. VIEIRA"
-    `${first[0]}. ${last}`,
-    // 5. Last name only
-    last.substring(0, maxLen),
-  ];
+  // Only 2 surnames (3 parts total) or fewer: don't abbreviate, just truncate if needed
+  if (middle.length <= 1) {
+    return name.substring(0, maxLen);
+  }
+
+  // 3+ surnames (4+ parts): abbreviate middle names progressively (right to left, keeping last)
+  const attempts: string[] = [];
+
+  // 1. First + middle initials (spaced) + Last: "KAROLINY A. V. VIEIRA"
+  attempts.push([first, ...middle.map(p => p[0] + '.'), last].join(' '));
+  // 2. First + middle initials (compact) + Last: "KAROLINY A.V.VIEIRA"
+  attempts.push(first + ' ' + middle.map(p => p[0] + '.').join('') + last);
 
   for (const attempt of attempts) {
     if (attempt.length <= maxLen) return attempt;
