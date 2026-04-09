@@ -1,66 +1,74 @@
 
 ## Diagnóstico
 
-O problema agora não parece ser mais “o layout” do A.PAC.PEQ em si.
+Pelo print, o problema agora não é mais “qual regra usar”, e sim **onde a regra está sendo perdida**.
 
-Pelo código atual:
-- o frontend já limita o **paciente** a 20 caracteres antes da `REQ`
-- o agente já imprime o **paciente** com `MAX_PAT_CHARS = 20`
-- o `cols_max` do A.PAC.PEQ já está em **41**
+Hoje o projeto já tem lógica para abreviar o médico no `A_PAC_PEQ`, mas o fluxo real é WYSIWYG:
+- o `textoLivre` salvo/reutilizado continua tendo a linha antiga do `DR(A)`
+- no `A_PAC_PEQ`, o preview pode manter esse texto já salvo
+- no agente, quando chega `textoLivre`, ele imprime essa linha praticamente como veio
 
-Então, se ainda está saindo “um em cima do outro”, a causa mais provável é outra:
+Resultado: mesmo com a função de abreviação existente, a linha do prescritor continua aparecendo como `DR(A)KAROLINY ADRIANA VIEI...` em vez de algo no padrão obrigatório, como:
+```text
+DR(A)KAROLINY VIEIRA COREN-SC-59418
+```
+ou, se precisar reduzir mais:
+```text
+DR(A)KAROLINY A. VIEIRA COREN-SC-59418
+```
 
-1. O sistema está **restaurando `textoLivre` salvo** da requisição no Supabase
-2. Esse `textoLivre` pode ter sido salvo **antes da correção**, com o nome inteiro invadindo a área da `REQ`
-3. Na impressão, o agente usa esse `textoLivre` já salvo e **não regenera automaticamente** o texto corrigido
+## O que vou ajustar
 
-Ou seja: a correção existe, mas o rótulo antigo salvo continua sendo reimpresso.
+### 1. `src/components/LabelTextEditor.tsx` — forçar a linha 2 do A.PAC.PEQ
+Vou ajustar a geração do `A_PAC_PEQ` para que a linha do prescritor siga obrigatoriamente esta regra:
+- manter **primeiro nome inteiro**
+- manter **último sobrenome inteiro**
+- abreviar/remover apenas nomes do meio
+- nunca deixar o final do nome “cortado no meio”
 
-## O que ajustar
+Também vou adicionar uma normalização específica para a linha 2 do `textoLivre` do `A_PAC_PEQ`, para que texto antigo/manual seja refeito nesse padrão ao abrir/editar.
 
-### 1. Forçar regeneração do `textoLivre` no A.PAC.PEQ quando ele estiver incompatível
-No carregamento da requisição (`src/pages/Index.tsx`), além da checagem por largura da linha, validar também:
-- se a linha 1 com `REQ:` tem texto à esquerda maior que o limite físico
-- se a linha 2 do médico ultrapassa a área segura
-- se estiver incompatível, **ignorar o texto salvo** e regenerar com a lógica nova
+### 2. `src/pages/Index.tsx` — invalidar texto salvo antigo do DR(A)
+Hoje a restauração salva já valida a linha do paciente antes da `REQ`.  
+Vou ampliar essa validação para a linha 2:
+- se a linha `DR(A)` salva não respeitar o formato novo
+- ou se o nome do prescritor estiver truncado em vez de abreviado
+- o sistema vai **descartar esse texto salvo** e regenerar com a regra correta
 
-### 2. Adicionar uma normalização específica do A.PAC.PEQ
-Em `src/components/LabelTextEditor.tsx`, criar uma rotina para:
-- reprocessar linha 1 como `PACIENTE + REQ`
-- reprocessar linha 2 como `DR(A)+MÉDICO + CONSELHO`
-- manter linha 3 com `REG`
-- aplicar sempre o limite físico real antes de salvar/imprimir
+Isso evita que o sistema continue reaproveitando uma linha velha quebrada.
 
-Isso garante que, mesmo se houver texto antigo ou editado manualmente, o conteúdo volte para a faixa correta sem mudar o layout.
+### 3. `agente_impressao.py` — proteção final no modo `textoLivre`
+Como o `A_PAC_PEQ` imprime em fluxo WYSIWYG, vou colocar uma barreira final no agente:
+- detectar linha com `DR(A)`
+- separar nome e conselho
+- reaplicar a abreviação obrigatória do médico antes de enviar para a impressora
 
-### 3. Proteger a impressão no agente
-Em `agente_impressao.py`, no modo `textoLivre` do A.PAC.PEQ:
-- além do limite atual do paciente, reforçar a separação entre campo esquerdo e `REQ`
-- se a linha chegar com sobra de texto na área proibida, o agente deve recortar apenas a parte esquerda e preservar a `REQ` intacta
-
-Assim o agente vira a última barreira de segurança.
+Assim, mesmo se escapar algum `textoLivre` antigo, a impressão ainda sai com:
+- primeiro nome inteiro
+- último sobrenome inteiro
+- nomes do meio abreviados ou removidos
+- sem truncar o sobrenome final
 
 ## Resultado esperado
 
-Sem mexer no layout:
-- paciente não invade mais a `REQ`
-- médico continua usando a largura disponível
-- textos antigos salvos não reaparecem quebrados
-- impressão fica consistente com o preview
+No layout pequeno, a linha do prescritor vai sair no padrão obrigatório:
+- primeiro nome inteiro
+- último sobrenome inteiro
+- sobrenomes do meio abreviados
+- sem cortar o final do nome
+- sem mexer no restante do layout
 
 ## Arquivos envolvidos
 
-- `src/pages/Index.tsx`
 - `src/components/LabelTextEditor.tsx`
+- `src/pages/Index.tsx`
 - `agente_impressao.py`
 
 ## Detalhe técnico
 
-Hoje a restauração usa este critério:
-- se o `texto_livre` salvo tiver largura parecida com a do layout atual, ele é reaproveitado
+A correção precisa acontecer em **3 camadas ao mesmo tempo** porque o sistema reutiliza `textoLivre`:
+1. geração nova correta
+2. descarte do texto salvo antigo
+3. proteção final no agente
 
-Isso é insuficiente para o A.PAC.PEQ, porque um texto pode ter “41 colunas” e ainda assim estar fisicamente errado, já que:
-- a etiqueta total suporta 41 colunas
-- mas o espaço do **paciente antes da REQ** suporta só ~20 caracteres
-
-Então a próxima implementação deve validar **zona física por campo**, não só largura total da linha.
+Se eu mexer só em uma dessas partes, o problema pode continuar aparecendo.
