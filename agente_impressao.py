@@ -123,6 +123,32 @@ def get_dims_by_layout(layout_tipo, fallback_impressora=None):
     return PRINTER_CONFIGS['PEQUEN']
 
 
+def _abbreviate_name(name: str, max_len: int) -> str:
+    """Abrevia nomes do meio mantendo primeiro e último nome inteiros.
+    Ex: 'KAROLINY ADRIANA VIEIRA' -> 'KAROLINY A. VIEIRA'"""
+    if len(name) <= max_len:
+        return name
+    parts = name.strip().split()
+    if len(parts) <= 1:
+        return name[:max_len]
+    first = parts[0]
+    last = parts[-1]
+    middle = parts[1:-1]
+    if middle:
+        # Tentar com iniciais espaçadas
+        attempt = ' '.join([first] + [p[0] + '.' for p in middle] + [last])
+        if len(attempt) <= max_len:
+            return attempt
+        # Tentar com iniciais compactas
+        attempt = first + ' ' + ''.join(p[0] + '.' for p in middle) + last
+        if len(attempt) <= max_len:
+            return attempt
+    # Primeiro + último apenas
+    attempt = first + ' ' + last
+    if len(attempt) <= max_len:
+        return attempt
+    return attempt[:max_len]
+
 # ============================================
 # Utilitários de Impressora
 # ============================================
