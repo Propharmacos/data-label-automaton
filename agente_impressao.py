@@ -123,6 +123,32 @@ def get_dims_by_layout(layout_tipo, fallback_impressora=None):
     return PRINTER_CONFIGS['PEQUEN']
 
 
+def _abbreviate_name(name: str, max_len: int) -> str:
+    """Abrevia nomes do meio mantendo primeiro e último nome inteiros.
+    Ex: 'KAROLINY ADRIANA VIEIRA' -> 'KAROLINY A. VIEIRA'"""
+    if len(name) <= max_len:
+        return name
+    parts = name.strip().split()
+    if len(parts) <= 1:
+        return name[:max_len]
+    first = parts[0]
+    last = parts[-1]
+    middle = parts[1:-1]
+    if middle:
+        # Tentar com iniciais espaçadas
+        attempt = ' '.join([first] + [p[0] + '.' for p in middle] + [last])
+        if len(attempt) <= max_len:
+            return attempt
+        # Tentar com iniciais compactas
+        attempt = first + ' ' + ''.join(p[0] + '.' for p in middle) + last
+        if len(attempt) <= max_len:
+            return attempt
+    # Primeiro + último apenas
+    attempt = first + ' ' + last
+    if len(attempt) <= max_len:
+        return attempt
+    return attempt[:max_len]
+
 # ============================================
 # Utilitários de Impressora
 # ============================================
@@ -730,7 +756,10 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
     paciente = (rotulo.get('nomePaciente', '') or '')[:25].upper()
     nr_req = rotulo.get('nrRequisicao', '')
     nr_item = rotulo.get('nrItem', '1')
-    nome_medico = (rotulo.get('nomeMedico', '') or '').upper()[:20]
+    nome_medico_raw = (rotulo.get('nomeMedico', '') or '').upper()
+    crm = _crm_completo(rotulo)[:15]
+    # Abreviar médico: primeiro + último nome, meio vira inicial
+    nome_medico = _abbreviate_name(nome_medico_raw, 20)
     crm = _crm_completo(rotulo)[:15]
     registro = str(rotulo.get('numeroRegistro', '') or '')[:8]
 
