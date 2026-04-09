@@ -46,9 +46,10 @@ function truncateText(text: string, maxCols: number, maxLines: number): string {
 
 // ---- Abbreviate name to fit maxLen ----
 // Rules: never abbreviate first name, never abbreviate last name.
-// Only abbreviate middle names, and only when there are 3+ surnames (4+ parts total).
-// If 2 surnames or fewer (3 parts), keep the full name (truncate only as last resort).
-function abbreviateName(name: string, maxLen: number): string {
+// Abbreviate middle names, keeping first + last name intact.
+// forceAbbreviate=true: always abbreviate even with just 1 middle name (used for PEQ doctor).
+// forceAbbreviate=false (default): only abbreviate when 3+ surnames (4+ parts).
+function abbreviateName(name: string, maxLen: number, forceAbbreviate: boolean = false): string {
   if (name.length <= maxLen) return name;
   const parts = name.trim().split(/\s+/).filter(p => p.length > 0);
   if (parts.length <= 1) return name.substring(0, maxLen);
@@ -57,23 +58,30 @@ function abbreviateName(name: string, maxLen: number): string {
   const last = parts[parts.length - 1];
   const middle = parts.slice(1, -1);
 
-  // Only 2 surnames (3 parts total) or fewer: don't abbreviate, just truncate if needed
-  if (middle.length <= 1) {
+  // Without force: only abbreviate when 3+ surnames (4+ parts)
+  if (!forceAbbreviate && middle.length <= 1) {
     return name.substring(0, maxLen);
   }
 
-  // 3+ surnames (4+ parts): abbreviate middle names progressively (right to left, keeping last)
-  const attempts: string[] = [];
+  // If there are middle names, abbreviate them
+  if (middle.length > 0) {
+    const attempts: string[] = [];
+    // 1. First + middle initials (spaced) + Last: "KAROLINY A. V. VIEIRA"
+    attempts.push([first, ...middle.map(p => p[0] + '.'), last].join(' '));
+    // 2. First + middle initials (compact) + Last: "KAROLINY A.V.VIEIRA"
+    attempts.push(first + ' ' + middle.map(p => p[0] + '.').join('') + last);
+    // 3. First + Last only (drop middle entirely)
+    attempts.push(first + ' ' + last);
 
-  // 1. First + middle initials (spaced) + Last: "KAROLINY A. V. VIEIRA"
-  attempts.push([first, ...middle.map(p => p[0] + '.'), last].join(' '));
-  // 2. First + middle initials (compact) + Last: "KAROLINY A.V.VIEIRA"
-  attempts.push(first + ' ' + middle.map(p => p[0] + '.').join('') + last);
-
-  for (const attempt of attempts) {
-    if (attempt.length <= maxLen) return attempt;
+    for (const attempt of attempts) {
+      if (attempt.length <= maxLen) return attempt;
+    }
   }
-  return name.substring(0, maxLen);
+
+  // Fallback: first + last, truncated if needed
+  const firstLast = first + ' ' + last;
+  if (firstLast.length <= maxLen) return firstLast;
+  return firstLast.substring(0, maxLen);
 }
 
 // ---- Pad line utility: align left+right within fixed width ----
