@@ -44,8 +44,6 @@ function truncateText(text: string, maxCols: number, maxLines: number): string {
   return lines.map(line => line.substring(0, maxCols)).join('\n');
 }
 
-const padReqNumber = (value: string) => value.trim().padStart(6, '0');
-
 function isAmp10SavedTextValid(textoLivre: string, rotulo: RotuloItem): boolean {
   const lines = textoLivre
     .split('\n')
