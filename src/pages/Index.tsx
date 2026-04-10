@@ -168,6 +168,10 @@ const Index = () => {
           });
         }
       } catch { /* ignore */ }
+      if (layoutType === 'A_PAC_PEQ' || layoutType === 'A_PAC_GRAN') {
+        restoredRotulos = restoredRotulos.map((rotulo) => ({ ...rotulo, textoLivre: undefined }));
+      }
+
       setRotulos(restoredRotulos);
       setCurrentIndex(0);
       const hasSaved = restoredRotulos.some((r, i) => r.textoLivre !== result.data![i].textoLivre);
