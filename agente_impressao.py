@@ -823,14 +823,16 @@ def gerar_ppla_a_pac_gran(rotulo, farmacia, dims=None, calibracao=None):
     hmult = 1
     rot = 1
 
-    # Coordenadas — REQ e CRM/REG ancorados pela borda direita da etiqueta
-    CHAR_W = 8  # Font 1 ~8 dots por caractere
-    largura_dots = dims.get('largura_dots', 608)
+    # Coordenadas físicas seguras do A_PAC_GRAN (rot=1, 76x25mm)
+    # IMPORTANTE: NÃO usar largura_dots para ancorar campos à direita neste layout!
+    # Com rot=1, a faixa X imprimível é muito menor que largura_dots.
+    # Referência: pplaTemplates.ts — coordenadas FC validadas:
+    #   REQ em X=240, CRM em X=230, REG em X=300
     x_pac = 12
     x_med = 12
-    # x_req calculado dinamicamente abaixo
-    # x_crm e x_reg calculados dinamicamente abaixo
-    x_reg_fallback = 223
+    x_req = 240      # posição fixa FC para REQ na linha 1
+    x_crm = 230      # posição fixa FC para conselho na linha 2
+    x_reg = 300       # posição fixa FC para REG na linha 2
     y_positions = [89, 78, 67, 56, 45, 34, 23, 12]
 
     texto_livre = rotulo.get('textoLivre', '')
