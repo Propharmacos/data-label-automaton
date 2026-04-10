@@ -401,9 +401,10 @@ function generateTextPacGran(rotulo: RotuloItem, layoutConfig: LayoutConfig): st
     : "";
 
   const medico = rotulo.nomeMedico ? rotulo.nomeMedico.toUpperCase() : "";
+  // A_PAC_GRAN: não abreviar — usar nome completo, truncar apenas se necessário
   const medicoMax = LEFT_L2 - 5; // 5 = "DR(A)" prefix
-  const medicoAbrev = medico ? abbreviateName(medico, medicoMax) : "";
-  const drName = medicoAbrev ? `DR(A)${medicoAbrev}` : "";
+  const medicoTrunc = medico ? medico.substring(0, medicoMax) : "";
+  const drName = medicoTrunc ? `DR(A)${medicoTrunc}` : "";
 
   const regNum = String(rotulo.numeroRegistro || "");
   const regStr = regNum ? `REG:${regNum}` : "";
