@@ -155,10 +155,9 @@ const Index = () => {
             // Só restaurar se a largura máxima das linhas é compatível com o layout atual
             const maxLineLen = Math.max(...row.texto_livre.split('\n').map((l: string) => l.trimEnd().length));
             if (Math.abs(maxLineLen - currentCols) <= 5) {
-              // Validação extra para A_PAC_PEQ: SEMPRE descartar texto salvo
-              // para forçar regeneração com abbreviateNameStrict (paciente + médico)
-              if (layoutType === 'A_PAC_PEQ') {
-                return; // forçar regeneração completa com regras de abreviação atualizadas
+              // Validação extra: SEMPRE descartar texto salvo para layouts com regras de posicionamento específicas
+              if (layoutType === 'A_PAC_PEQ' || layoutType === 'A_PAC_GRAN') {
+                return; // forçar regeneração completa com regras atualizadas
               }
               savedMap[row.item_id] = row.texto_livre;
             }
@@ -240,7 +239,7 @@ const Index = () => {
     let result;
 
     // A_PAC_PEQ usa sempre Agente (textoLivre WYSIWYG não funciona em ROTUTX)
-    const effectiveModo = layoutType === 'A_PAC_PEQ' ? 'agente' : modoImpressao;
+    const effectiveModo = (layoutType === 'A_PAC_PEQ' || layoutType === 'A_PAC_GRAN') ? 'agente' : modoImpressao;
 
     // Modo ROTUTX: usar bytes do Fórmula Certa direto
     if (effectiveModo === 'rotutx' && agentConfig.enabled && agentUrl) {

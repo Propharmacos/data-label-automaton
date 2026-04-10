@@ -823,12 +823,14 @@ def gerar_ppla_a_pac_gran(rotulo, farmacia, dims=None, calibracao=None):
     hmult = 1
     rot = 1
 
-    # Coordenadas FC exatas capturadas do PPLA real
+    # Coordenadas — REQ e CRM/REG ancorados pela borda direita da etiqueta
+    CHAR_W = 8  # Font 1 ~8 dots por caractere
+    largura_dots = dims.get('largura_dots', 608)
     x_pac = 12
-    x_req = 172
     x_med = 12
-    x_crm = 159
-    x_reg = 223
+    # x_req calculado dinamicamente abaixo
+    # x_crm e x_reg calculados dinamicamente abaixo
+    x_reg_fallback = 223
     y_positions = [89, 78, 67, 56, 45, 34, 23, 12]
 
     texto_livre = rotulo.get('textoLivre', '')
