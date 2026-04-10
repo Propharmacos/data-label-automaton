@@ -473,34 +473,26 @@ function shouldRegeneratePacGranText(textoLivre: string, rotulo: RotuloItem): bo
   return false;
 }
 
-// ---- AMP10 specific generator — FIXED POSITION FIELD MAP ----
-// 65 cols, 10 lines. Anchored zones for predictable positioning.
+// ---- AMP10 specific generator — COMPACT INDENTED FIELD MAP ----
+// 65 cols, 10 lines. 3-space left indent to avoid physical left-edge clipping.
+// Right-side fields (REQ, Conselho, REG) use compact gap (not anchored far-right).
 function generateTextAmp10(rotulo: RotuloItem, layoutConfig: LayoutConfig, options?: { metaInline?: boolean }): string {
   const W = layoutConfig.colunasMax || 65;
+  const INDENT = '   '; // 3-space left indent (physical label margin)
+  const CW = W - INDENT.length; // content width after indent
 
-  // === Zone widths ===
-  const REQ_WIDTH = 18;
-  const CONSELHO_WIDTH = 20;
-  const APLICACAO_WIDTH = 25;
-  const REG_WIDTH = 18;
-
-  const LEFT_L1 = W - REQ_WIDTH;
-  const LEFT_L2 = W - CONSELHO_WIDTH;
-  const LEFT_USO = W - APLICACAO_WIDTH;
-  const LEFT_CONTEM = W - REG_WIDTH;
-
-  const fixedLine = (left: string, right: string, leftMax: number, rightMax: number): string => {
-    const l = (left || "").substring(0, leftMax);
-    const r = (right || "").substring(0, rightMax);
-    const gap = W - l.length - r.length;
-    if (gap <= 0) return (l + r).substring(0, W);
-    return l + ' '.repeat(gap) + r;
+  // Compact line: left + small gap + right, then indent prefix
+  const compactLine = (left: string, right: string, gapSize = 5): string => {
+    const r = (right || "").trim();
+    if (!r) return INDENT + (left || "").substring(0, CW);
+    const safeGap = ' '.repeat(Math.max(gapSize, 1));
+    const leftMax = Math.max(CW - r.length - safeGap.length, 0);
+    const l = (left || "").substring(0, leftMax).trimEnd();
+    return INDENT + `${l}${safeGap}${r}`.substring(0, CW);
   };
 
-  const fixedMetaLine = (ph: string, lote: string, fab: string, val: string): string => {
-    const zoneW = Math.floor(W / 4);
-    const zones = [ph, lote, fab, val];
-    return zones.map(z => (z || "").substring(0, zoneW).padEnd(zoneW)).join("").substring(0, W);
+  const indentLine = (text: string): string => {
+    return INDENT + (text || "").substring(0, CW);
   };
 
   const cleanName = cleanPatientName(rotulo.nomePaciente || "").toUpperCase();
@@ -512,15 +504,15 @@ function generateTextAmp10(rotulo: RotuloItem, layoutConfig: LayoutConfig, optio
   const isKit = rotulo.tipoItem === 'KIT' && rotulo.componentes && rotulo.componentes.length > 0;
   const lines: string[] = [];
 
-  // ── LINE 1: Paciente (left) | REQ (right) ──
-  lines.push(fixedLine(cleanName, reqStr, LEFT_L1, REQ_WIDTH));
+  // ── LINE 1: Paciente (left) | REQ (right) — compact gap ──
+  lines.push(compactLine(cleanName, reqStr, 5));
 
-  // ── LINE 2: DR(A)+Medico (left) | Conselho (right) ──
+  // ── LINE 2: DR(A)+Medico (left) | Conselho (right) — compact gap ──
   const medico = rotulo.nomeMedico ? rotulo.nomeMedico.toUpperCase() : "";
   const drName = medico ? `DR(A)${medico}` : "";
-  lines.push(fixedLine(drName, conselhoStr, LEFT_L2, CONSELHO_WIDTH));
+  lines.push(compactLine(drName, conselhoStr, 3));
 
-  // ── LINES 3-5: Produto (left-anchored, up to 3 lines, word-wrap) ──
+  // ── LINES 3+: Produto/Componentes ──
   if (isKit && rotulo.componentes) {
     const componentesVisiveis = rotulo.componentes.filter(comp => {
       const nome = comp.nome?.toUpperCase() || '';
@@ -532,31 +524,31 @@ function generateTextAmp10(rotulo: RotuloItem, layoutConfig: LayoutConfig, optio
         : formatarNomeComponente(comp.nome);
       const meta: string[] = [];
       const compPhVal = comp.ph ? String(comp.ph).replace('.', ',') : '';
-      meta.push(`PH:${compPhVal}`);
+      meta.push(`pH:${compPhVal}`);
       if (comp.lote) meta.push(`L:${comp.lote}`);
       if (comp.fabricacao) meta.push(`F:${formatarDataCurta(comp.fabricacao)}`);
       if (comp.validade) meta.push(`V:${formatarDataCurta(comp.validade)}`);
-      const metaStr = meta.join("  ");
+      const metaStr = meta.join(" ");
       if (options?.metaInline && metaStr) {
-        const maxNome = W - metaStr.length - 2;
-        lines.push(`${nomeExibicao.substring(0, maxNome)}  ${metaStr}`.substring(0, W));
+        const maxNome = CW - metaStr.length - 2;
+        lines.push(indentLine(`${nomeExibicao.substring(0, maxNome)}  ${metaStr}`));
       } else {
-        lines.push(nomeExibicao.substring(0, W));
-        if (metaStr) lines.push(metaStr.substring(0, W));
+        lines.push(indentLine(nomeExibicao));
+        if (metaStr) lines.push(indentLine(metaStr));
       }
     });
   } else {
     const mescla = isValidComposicao(rotulo.composicao || "");
     if (mescla) {
-      wrapText(rotulo.composicao!.toUpperCase(), W, 3).split('\n').forEach(l => lines.push(l));
+      wrapText(rotulo.composicao!.toUpperCase(), CW, 3).split('\n').forEach(l => lines.push(indentLine(l)));
     } else {
       const f = formatarFormula(rotulo.formula);
-      if (f) lines.push(f.substring(0, W));
+      if (f) lines.push(indentLine(f));
     }
   }
 
-  // ── LINE 6: pH | Lote | Fabricação | Validade (fixed 4-zone) ──
-  const phVal = rotulo.ph ? `PH:${String(rotulo.ph).replace('.', ',')}` : 'PH:';
+  // ── pH | Lote | Fabricação | Validade (inline compact) ──
+  const phVal = rotulo.ph ? `pH:${String(rotulo.ph).replace('.', ',')}` : 'pH:';
   let loteStr = '';
   if (rotulo.lote) {
     if (rotulo.lote.includes('/')) {
@@ -568,26 +560,21 @@ function generateTextAmp10(rotulo: RotuloItem, layoutConfig: LayoutConfig, optio
   }
   const fabStr = rotulo.dataFabricacao ? `F:${formatarDataCurta(rotulo.dataFabricacao)}` : '';
   const valStr = rotulo.dataValidade ? `V:${formatarDataCurta(rotulo.dataValidade)}` : '';
-  lines.push(fixedMetaLine(phVal, loteStr, fabStr, valStr));
+  const metaParts = [phVal, loteStr, fabStr, valStr].filter(Boolean);
+  lines.push(indentLine(metaParts.join(' ')));
 
-  // ── LINE 7: Uso (left) | AP:... (middle-right) | REG (right) ──
+  // ── USO | AP:... | REG: — compact 3-zone ──
   const posologia = rotulo.posologia?.toUpperCase() || "";
   const usoText = /^\d+$/.test(posologia) ? "" : posologia;
   const aplicacao = rotulo.aplicacao?.trim().toUpperCase() || "";
   const aplicacaoStr = aplicacao ? `AP:${aplicacao}` : "";
   const regStr = rotulo.numeroRegistro ? `REG:${rotulo.numeroRegistro}` : "REG:";
-  // Build 3-zone line: USO | AP:... | REG:
-  const regW = regStr.length;
-  const apW = aplicacaoStr.length;
-  const usoMax = W - regW - apW - 4; // 4 = minimum gaps
-  const usoTrimmed = usoText.substring(0, Math.max(usoMax, 0)).trimEnd();
-  const leftPart = usoTrimmed + (aplicacaoStr ? '  ' + aplicacaoStr : '');
-  const gap7 = W - leftPart.length - regW;
-  lines.push(gap7 > 0 ? leftPart + ' '.repeat(gap7) + regStr : (leftPart + '  ' + regStr).substring(0, W));
+  const leftPart = usoText + (aplicacaoStr ? '  ' + aplicacaoStr : '');
+  lines.push(compactLine(leftPart, regStr, 2));
 
-  // ── LINE 8: Contém (full line) ──
+  // ── CONTEM (full line) ──
   const contemStr = rotulo.contem?.trim() ? `CONTEM:${rotulo.contem.trim().toUpperCase()}` : "CONTEM:";
-  lines.push(contemStr.substring(0, W));
+  lines.push(indentLine(contemStr));
 
   return lines.join('\n');
 }
