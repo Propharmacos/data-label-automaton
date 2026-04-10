@@ -424,6 +424,40 @@ function generateTextPacGran(rotulo: RotuloItem, layoutConfig: LayoutConfig): st
   return lines.join('\n');
 }
 
+function getConselhoNome(prefixoCRM: string): string {
+  const codigo = (prefixoCRM || '1').toUpperCase().trim();
+  const tipo = tiposPrescritores[codigo] || { conselho: 'CRM' };
+  return tipo.conselho || 'CRM';
+}
+
+function shouldRegeneratePacGranText(textoLivre: string, rotulo: RotuloItem): boolean {
+  const nonEmptyLines = textoLivre
+    .split('\n')
+    .map(line => line.trimEnd())
+    .filter(line => line.trim().length > 0);
+
+  if (nonEmptyLines.length < 2) return true;
+
+  const [line1, line2, ...rest] = nonEmptyLines;
+  if (!line1.includes('REQ:')) return true;
+  if (!line2.includes('DR(A)')) return true;
+
+  if (rotulo.numeroRegistro && !line2.includes('REG:')) return true;
+
+  if (rotulo.numeroCRM) {
+    const conselhoNome = getConselhoNome(rotulo.prefixoCRM || '1');
+    if (
+      conselhoNome &&
+      !line2.includes(`${conselhoNome}-`) &&
+      !line2.includes(`${conselhoNome}.`)
+    ) {
+      return true;
+    }
+  }
+
+  return rest.some(line => /REQ:|REG:|CRM|CRBM|COREN|CRO|CRF|CRMV|CRN|CREFITO|CREF|CRP|CRFA/.test(line));
+}
+
 // ---- AMP10 specific generator — FIXED POSITION FIELD MAP ----
 // 65 cols, 10 lines. Anchored zones for predictable positioning.
 function generateTextAmp10(rotulo: RotuloItem, layoutConfig: LayoutConfig, options?: { metaInline?: boolean }): string {
@@ -910,6 +944,16 @@ const LabelTextEditor = ({
 
     // For A_PAC_PEQ with existing textoLivre: normalize DR(A) line to enforce abbreviation rules
     if (!layoutChanged && rotulo.textoLivre !== undefined) {
+      if (resolvedLayoutTipo === 'A_PAC_GRAN') {
+        if (shouldRegeneratePacGranText(rotulo.textoLivre, rotulo)) {
+          const freshGenerated = generateText(rotulo, layoutConfig, layoutType, amp10Opts);
+          if (freshGenerated !== rotulo.textoLivre) {
+            onTextChange(rotulo.id, freshGenerated);
+          }
+        }
+        return;
+      }
+
       if (resolvedLayoutTipo === 'A_PAC_PEQ') {
         const lines = rotulo.textoLivre.split('\n');
         if (lines[1] && lines[1].startsWith('DR(A)') && rotulo.nomeMedico) {

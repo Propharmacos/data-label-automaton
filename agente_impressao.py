@@ -824,15 +824,14 @@ def gerar_ppla_a_pac_gran(rotulo, farmacia, dims=None, calibracao=None):
     rot = 1
 
     # Coordenadas físicas seguras do A_PAC_GRAN (rot=1, 76x25mm)
-    # IMPORTANTE: NÃO usar largura_dots para ancorar campos à direita neste layout!
-    # Com rot=1, a faixa X imprimível é muito menor que largura_dots.
-    # Referência: pplaTemplates.ts — coordenadas FC validadas:
-    #   REQ em X=240, CRM em X=230, REG em X=300
+    # IMPORTANTE: NÃO usar largura_dots para ancorar campos à direita neste layout.
+    # Com rot=1, a faixa X útil é bem menor que os 608 dots totais.
+    # Usar as âncoras FC capturadas fisicamente evita jogar REQ/CRM/REG para fora da etiqueta.
     x_pac = 12
     x_med = 12
-    x_req = 240      # posição fixa FC para REQ na linha 1
-    x_crm = 230      # posição fixa FC para conselho na linha 2
-    x_reg = 300       # posição fixa FC para REG na linha 2
+    x_req = 172      # posição fixa FC para REQ na linha 1
+    x_crm = 159      # posição fixa FC para conselho na linha 2
+    x_reg = 223      # posição fixa FC para REG na linha 2
     y_positions = [89, 78, 67, 56, 45, 34, 23, 12]
 
     texto_livre = rotulo.get('textoLivre', '')
@@ -854,7 +853,7 @@ def gerar_ppla_a_pac_gran(rotulo, farmacia, dims=None, calibracao=None):
                 continue
             y = y_positions_calc[visible_idx] if visible_idx < len(y_positions_calc) else y_positions_calc[-1]
             if 'REQ:' in stripped:
-                # L1: Paciente + REQ — REQ em posição fixa FC
+                # L1: Paciente + REQ — REQ em posição fixa FC segura
                 req_match = re.search(r'(REQ:\S+)', stripped)
                 if req_match:
                     patient_part = stripped[:req_match.start()].strip()
@@ -865,7 +864,7 @@ def gerar_ppla_a_pac_gran(rotulo, farmacia, dims=None, calibracao=None):
                 else:
                     pplb_lines.append(ppla_text_dots(rot, font, wmult, hmult, y, x_pac, stripped[:cols]))
             elif 'DR(A)' in stripped or 'REG:' in stripped:
-                # L2: DR(A)+Medico + Conselho + REG — posições fixas FC
+                # L2: DR(A)+Medico + Conselho + REG — posições fixas FC seguras
                 reg_match = re.search(r'(REG:\S+)', stripped)
                 reg_part = reg_match.group(1) if reg_match else None
                 remainder = stripped[:reg_match.start()].rstrip() if reg_match else stripped
@@ -878,7 +877,7 @@ def gerar_ppla_a_pac_gran(rotulo, farmacia, dims=None, calibracao=None):
                 if dr_part:
                     pplb_lines.append(ppla_text_dots(rot, font, wmult, hmult, y, x_med, dr_part[:cols]))
                 
-                # Conselho e REG como comandos separados em posições fixas
+                # Conselho e REG como comandos separados em posições fixas seguras
                 if crm_part:
                     pplb_lines.append(ppla_text_dots(rot, font, wmult, hmult, y, x_crm, crm_part))
                 if reg_part:
@@ -902,11 +901,11 @@ def gerar_ppla_a_pac_gran(rotulo, farmacia, dims=None, calibracao=None):
 
     req_text = f"REQ:{nr_req}-{nr_item}"
 
-    # Y=89: Paciente (X=12) + REQ (posição fixa FC X=240)
+    # Y=89: Paciente (X=12) + REQ (posição fixa FC segura X=172)
     linhas.append(ppla_text_dots(rot, font, wmult, hmult, 89, x_pac, paciente[:cols]))
     linhas.append(ppla_text_dots(rot, font, wmult, hmult, 89, x_req, req_text))
 
-    # Y=78: DR(A)Medico (X=12) + CRM (X=230) + REG (X=300) — posições fixas FC
+    # Y=78: DR(A)Medico (X=12) + CRM (X=159) + REG (X=223) — posições fixas FC seguras
     linhas.append(ppla_text_dots(rot, font, wmult, hmult, 78, x_med, f"DR(A){nom_med}"[:cols]))
     if crm:
         linhas.append(ppla_text_dots(rot, font, wmult, hmult, 78, x_crm, crm))
