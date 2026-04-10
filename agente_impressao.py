@@ -384,6 +384,36 @@ def _gerar_from_texto_livre(texto_livre, y_positions, x_start, rot, font, cols, 
     return _build_label(pplb_lines, dims, cal, modo)
 
 
+def _gerar_from_texto_livre_dots(texto_livre, y_positions_dots, x_start_dots, rot, font, cols, dims, cal, build_label_fn, line_spacing_factor=1.0):
+    """Converte textoLivre para PPLA em layouts que já usam coordenadas DOTS nativas.
+    Evita reconverter dots→mm→dots, o que altera escala/posicionamento físico do layout.
+    """
+    linhas_texto = texto_livre.split('\n')
+    pplb_lines = []
+
+    y_positions_calc = list(y_positions_dots)
+    if line_spacing_factor != 1.0 and len(y_positions_calc) >= 2:
+        base_y = y_positions_calc[0]
+        step = y_positions_calc[1] - y_positions_calc[0]
+        for i in range(1, len(y_positions_calc)):
+            y_positions_calc[i] = base_y + int(step * line_spacing_factor * i)
+
+    if len(linhas_texto) > len(y_positions_calc) and len(y_positions_calc) >= 2:
+        step = y_positions_calc[-1] - y_positions_calc[-2]
+        while len(y_positions_calc) < len(linhas_texto):
+            y_positions_calc.append(y_positions_calc[-1] + step)
+
+    for i, line_text in enumerate(linhas_texto):
+        y = y_positions_calc[i]
+        if line_text.strip():
+            pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y, x_start_dots, line_text[:cols]))
+
+    if not pplb_lines:
+        pplb_lines.append(ppla_text_dots(rot, font, 1, 1, y_positions_calc[0], x_start_dots, 'SEM DADOS'))
+
+    return build_label_fn(pplb_lines, dims, cal)
+
+
 def _build_label_ampcx(linhas, dims, cal):
     """Build AMP_CX label — 109x25mm. Usa mesmos parâmetros do FC (f289, D11)."""
     contraste = cal.get('contraste', 14)
