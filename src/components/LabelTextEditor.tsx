@@ -438,7 +438,7 @@ function shouldRegeneratePacGranText(textoLivre: string, rotulo: RotuloItem): bo
 
   if (nonEmptyLines.length < 2) return true;
 
-  const [line1, line2, ...rest] = nonEmptyLines;
+  const [line1, line2] = nonEmptyLines;
   if (!line1.includes('REQ:')) return true;
   if (!line2.includes('DR(A)')) return true;
 
@@ -455,7 +455,10 @@ function shouldRegeneratePacGranText(textoLivre: string, rotulo: RotuloItem): bo
     }
   }
 
-  return rest.some(line => /REQ:|REG:|CRM|CRBM|COREN|CRO|CRF|CRMV|CRN|CREFITO|CREF|CRP|CRFA/.test(line));
+  // Invalidar se a linha 1 não tem 73 colunas (formatação antiga com 57)
+  if (line1.length < 70) return true;
+
+  return false;
 }
 
 // ---- AMP10 specific generator — FIXED POSITION FIELD MAP ----
