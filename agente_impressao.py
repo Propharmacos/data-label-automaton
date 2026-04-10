@@ -413,7 +413,7 @@ def gerar_ppla_ampcx(rotulo, farmacia, dims=None, calibracao=None):
     cal = calibracao or {}
     modo = 'dots'
     cols = dims['cols_max']
-    font = 1
+    font = 9
     rot = 1
 
     # Coordenadas Y em dots (203 DPI) para etiqueta 109x25mm
