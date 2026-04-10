@@ -901,24 +901,18 @@ def gerar_ppla_a_pac_gran(rotulo, farmacia, dims=None, calibracao=None):
     linhas = []
 
     req_text = f"REQ:{nr_req}-{nr_item}"
-    # Ancorar REQ pela borda direita da etiqueta
-    x_req_calc = largura_dots - (len(req_text) * CHAR_W) - 8  # 8 dots de padding direito
 
-    # Y=89: Paciente (X=12) + REQ (ancorado à direita)
+    # Y=89: Paciente (X=12) + REQ (posição fixa FC X=240)
     linhas.append(ppla_text_dots(rot, font, wmult, hmult, 89, x_pac, paciente[:cols]))
-    linhas.append(ppla_text_dots(rot, font, wmult, hmult, 89, x_req_calc, req_text))
+    linhas.append(ppla_text_dots(rot, font, wmult, hmult, 89, x_req, req_text))
 
-    # Y=78: DR(A)Medico (X=12) + CRM + REG (ancorados à direita)
+    # Y=78: DR(A)Medico (X=12) + CRM (X=230) + REG (X=300) — posições fixas FC
     linhas.append(ppla_text_dots(rot, font, wmult, hmult, 78, x_med, f"DR(A){nom_med}"[:cols]))
     if crm:
-        reg_text = f"REG:{registro}" if registro else ""
-        right_block = f"{crm} {reg_text}".strip() if reg_text else crm
-        x_right = largura_dots - (len(right_block) * CHAR_W) - 8
-        linhas.append(ppla_text_dots(rot, font, wmult, hmult, 78, x_right, right_block))
-    elif registro:
+        linhas.append(ppla_text_dots(rot, font, wmult, hmult, 78, x_crm, crm))
+    if registro:
         reg_text = f"REG:{registro}"
-        x_right = largura_dots - (len(reg_text) * CHAR_W) - 8
-        linhas.append(ppla_text_dots(rot, font, wmult, hmult, 78, x_right, reg_text))
+        linhas.append(ppla_text_dots(rot, font, wmult, hmult, 78, x_reg, reg_text))
 
     if not linhas:
         linhas.append(ppla_text_dots(rot, font, wmult, hmult, 89, x_pac, 'SEM DADOS'))
