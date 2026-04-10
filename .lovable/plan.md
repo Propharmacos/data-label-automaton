@@ -1,65 +1,44 @@
 
-Motivo do corte no front-end hoje:
 
-1. O editor mostra primeiro o `textoLivre` salvo, não o texto recém-gerado  
-   Em `src/components/LabelTextEditor.tsx`:
-   ```ts
-   const text = rotulo?.textoLivre ?? generateText(...)
-   ```
-   Então, se já existe um `textoLivre` antigo para esse rótulo, o preview usa esse texto antigo.
+## Problema
 
-2. A regra nova de abreviação está correta, mas só entra quando o texto é regenerado  
-   No `A_PAC_PEQ`, a geração atual já chama:
-   ```ts
-   abbreviateNameStrict(rotulo.nomeMedico.toUpperCase(), medicoMax)
-   ```
-   Ou seja: a lógica “primeiro nome + último sobrenome” já existe no gerador.
+A linha do **paciente** no A.PAC.PEQ está usando `abbreviateName` que, quando o nome não cabe em 20 caracteres, simplesmente **descarta todos os nomes do meio**, resultando em:
+```
+ADRIANA OLIVEIRA          REQ:9750-0
+```
 
-3. O problema é que o texto salvo antigo ainda passa na validação  
-   Em `src/pages/Index.tsx`, a invalidação do `saved_rotulos` para linha `DR(A)` só descarta quando:
-   - não há conselho visível, e
-   - a linha parece truncada pelo comprimento
+O usuário quer ver o mesmo padrão de abreviação com iniciais:
+```
+ADRIANA A.D.C. OLIVEIRA   REQ:9750-0
+```
 
-   Mas no seu caso a linha antiga continua com conselho, por exemplo:
-   ```text
-   DR(A)KAROLINY ADRIANA VIEI COREN-SC-59418
-   ```
-   Então ela ainda é considerada “válida”, mesmo estando errada visualmente.
+## Causa raiz
 
-4. Por isso o sobrenome continua cortado no preview  
-   O frontend não está “gerando errado” agora.  
-   Ele está reaproveitando um `textoLivre` antigo já truncado, e por isso você continua vendo:
-   - `VIEI`
-   em vez de
-   - `VIEIRA`
+- Linha 207-208 em `LabelTextEditor.tsx`: `pacienteMax = Math.min(..., 20)` e usa `abbreviateName` (que descarta middle names)
+- Linha 734 em `agente_impressao.py`: `MAX_PAT_CHARS = 20` e faz truncamento simples
 
-O que precisa ser ajustado:
+O limite de 20 chars é muito apertado para caber iniciais. "ADRIANA A.D.C. OLIVEIRA" = 23 chars. Precisa subir para ~25.
 
-### 1. Fortalecer a invalidação do `textoLivre` antigo no `A_PAC_PEQ`
-Em `src/pages/Index.tsx`, a validação da linha 2 precisa comparar o texto salvo com a regra esperada do layout pequeno:
-- detectar quando existe `DR(A)` + conselho
-- extrair o nome salvo
-- se o nome salvo não bater com o padrão abreviado esperado para “primeiro + último”, descartar o `textoLivre`
-- isso forçará a regeneração com a lógica nova
+## Ajustes
 
-### 2. Normalizar automaticamente a linha 2 ao abrir o rótulo
-Em `src/components/LabelTextEditor.tsx`, além de gerar corretamente, o ideal é:
-- quando layout for `A_PAC_PEQ`
-- e existir `textoLivre`
-- reescrever a linha `DR(A)` com a regra obrigatória antes de mostrar no textarea
+### 1. `src/components/LabelTextEditor.tsx` — Paciente com abreviação estrita
+- Linha 207: aumentar limite de `20` para `25`
+- Linha 208: trocar `abbreviateName` por `abbreviateNameStrict` para o paciente
+- Resultado: iniciais dos nomes do meio são preservadas em vez de descartadas
 
-Assim o preview deixa de depender de texto salvo quebrado.
+### 2. `agente_impressao.py` — Aumentar limite e aplicar abreviação no paciente
+- Linha 734: `MAX_PAT_CHARS = 20` → `MAX_PAT_CHARS = 25`
+- Aplicar `_abbreviate_name` no `patient_part` antes de imprimir (barreira final)
 
-### 3. Manter o agente como proteção final
-O agente já foi pensado para reforçar a regra, mas o problema que você está vendo agora é principalmente de preview/estado salvo no frontend.
-Então o conserto principal está em:
-- `src/pages/Index.tsx`
-- `src/components/LabelTextEditor.tsx`
+### 3. `src/pages/Index.tsx` — Invalidar textos salvos antigos
+- Ajustar a validação para descartar `textoLivre` salvo onde o paciente use o formato antigo (sem iniciais)
 
-Resultado esperado após esse ajuste:
-- no front-end, a linha do médico não aparecerá mais com o último sobrenome cortado
-- texto salvo antigo será descartado ou corrigido automaticamente
-- o preview vai refletir a regra combinada: primeiro nome inteiro + último sobrenome inteiro
+## Resultado esperado
+```
+ADRIANA A.D.C. OLIVEIRA   REQ:9750-0
+DR(A)ADRIANA A.D.C.OLIVEIRA CRM-RJ-4651
+                           REG:24206
+```
 
-Detalhe técnico importante:
-Hoje o sistema invalida muito bem a linha do paciente antes da `REQ`, mas ainda está permissivo demais para a linha do médico. Esse é o motivo real de você ainda enxergar o sobrenome cortado no front-end, mesmo depois das conversas anteriores.
+Primeiro e último nome inteiros, nomes do meio como iniciais, tanto no paciente quanto no médico.
+
