@@ -443,6 +443,37 @@ function getConselhoNome(prefixoCRM: string): string {
   const tipo = tiposPrescritores[codigo] || { conselho: 'CRM' };
   return tipo.conselho || 'CRM';
 }
+// Detecta formato antigo do AMP_CX (fixedLine com gaps enormes → precisa regenerar compacto)
+function shouldRegenerateAmpCxText(textoLivre: string): boolean {
+  const nonEmptyLines = textoLivre
+    .split('\n')
+    .map(line => line.trimEnd())
+    .filter(line => line.trim().length > 0);
+
+  if (nonEmptyLines.length < 2) return true;
+
+  const line1 = nonEmptyLines[0];
+  const reqIndex = line1.indexOf('REQ:');
+  if (reqIndex === -1) return true;
+
+  // No formato antigo, o nome do paciente termina e há um gap enorme antes do REQ.
+  // Detectar: se o texto antes de REQ tem mais de 10 espaços consecutivos, é formato antigo.
+  const beforeReq = line1.substring(0, reqIndex);
+  const trailingSpaces = beforeReq.length - beforeReq.trimEnd().length;
+  if (trailingSpaces > 10) return true;
+
+  // Detectar meta line com zonas fixas de 18 chars (formato antigo fixedMetaLine)
+  const metaLine = nonEmptyLines.find(l => l.startsWith('PH:') || l.startsWith('pH:'));
+  if (metaLine && metaLine.length >= 70) {
+    // Formato antigo: PH:               L:521/25          F:12/25              V:12/26
+    // Verifica se há blocos de 10+ espaços entre os campos
+    const gapMatch = metaLine.match(/\S\s{10,}\S/);
+    if (gapMatch) return true;
+  }
+
+  return false;
+}
+
 
 function shouldRegeneratePacGranText(textoLivre: string, rotulo: RotuloItem): boolean {
   const nonEmptyLines = textoLivre
@@ -970,9 +1001,16 @@ const LabelTextEditor = ({
     const resolvedLayoutTipo = resolveLayoutTipo(layoutConfig, layoutType);
     const isFixedGrid = resolvedLayoutTipo === 'A_PAC_PEQ' || resolvedLayoutTipo === 'A_PAC_GRAN' || resolvedLayoutTipo === 'AMP_CX';
 
-    // Se já tem textoLivre salvo e não houve troca de layout, preservar (WYSIWYG para todos os layouts)
+    // Se já tem textoLivre salvo e não houve troca de layout, verificar se precisa regenerar
     if (!layoutChanged && rotulo.textoLivre !== undefined) {
-      return;
+      // Para AMP_CX: detectar formato antigo (fixedLine com gaps enormes) e forçar regeneração
+      if (resolvedLayoutTipo === 'AMP_CX' && shouldRegenerateAmpCxText(rotulo.textoLivre)) {
+        // Cai para regeneração abaixo
+      } else if (resolvedLayoutTipo === 'A_PAC_GRAN' && shouldRegeneratePacGranText(rotulo.textoLivre, rotulo)) {
+        // Cai para regeneração abaixo
+      } else {
+        return;
+      }
     }
 
     let generated = generateText(rotulo, layoutConfig, layoutType, amp10Opts);
