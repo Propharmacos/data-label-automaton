@@ -185,7 +185,6 @@ const Index = () => {
           .eq('nr_requisicao', requisitionNumber);
         
         if (savedRows && savedRows.length > 0) {
-          const currentCols = layoutConfig.colunasMax || 57;
           const savedMap: Record<string, string> = {};
           const rotuloById = new Map(result.data.map((rotulo) => [rotulo.id, rotulo]));
           savedRows.forEach(row => {
