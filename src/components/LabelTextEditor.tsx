@@ -970,9 +970,16 @@ const LabelTextEditor = ({
     const resolvedLayoutTipo = resolveLayoutTipo(layoutConfig, layoutType);
     const isFixedGrid = resolvedLayoutTipo === 'A_PAC_PEQ' || resolvedLayoutTipo === 'A_PAC_GRAN' || resolvedLayoutTipo === 'AMP_CX';
 
-    // Se já tem textoLivre salvo e não houve troca de layout, preservar (WYSIWYG para todos os layouts)
+    // Se já tem textoLivre salvo e não houve troca de layout, verificar se precisa regenerar
     if (!layoutChanged && rotulo.textoLivre !== undefined) {
-      return;
+      // Para AMP_CX: detectar formato antigo (fixedLine com gaps enormes) e forçar regeneração
+      if (resolvedLayoutTipo === 'AMP_CX' && shouldRegenerateAmpCxText(rotulo.textoLivre)) {
+        // Cai para regeneração abaixo
+      } else if (resolvedLayoutTipo === 'A_PAC_GRAN' && shouldRegeneratePacGranText(rotulo.textoLivre, rotulo)) {
+        // Cai para regeneração abaixo
+      } else {
+        return;
+      }
     }
 
     let generated = generateText(rotulo, layoutConfig, layoutType, amp10Opts);
