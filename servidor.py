@@ -647,22 +647,22 @@ def componentes_do_kit(cursor, cdfrm):
             print(f"  [COMPONENTES_KIT] ERRO: Coluna de produto não encontrada na FC05100")
             return []
         
-        # Monta query
+        # Monta query — inclui DESCRPRD (Descrição2 do FC) que é o nome limpo sem volume
         nomred_col = "p.NOMRED" if tem_nomred else "NULL as NOMRED"
         query = f"""
-            SELECT k.{col_cdpro}, p.DESCR, {nomred_col}
+            SELECT k.{col_cdpro}, p.DESCR, {nomred_col}, p.DESCRPRD
             FROM FC05100 k
             LEFT JOIN FC03000 p ON p.CDPRO = k.{col_cdpro}
             WHERE k.CDFRM = ?
             ORDER BY p.DESCR
         """
-        
+
         print(f"  [COMPONENTES_KIT] Query: {query.strip()}")
-        
+
         # Tenta como fornecido
         cursor.execute(query, (cdfrm_val,))
         rows = cursor.fetchall()
-        
+
         # Se não encontrou, tenta converter tipo
         if not rows:
             try:
@@ -671,26 +671,31 @@ def componentes_do_kit(cursor, cdfrm):
                 rows = cursor.fetchall()
             except ValueError:
                 pass
-        
+
         print(f"  [COMPONENTES_KIT] {len(rows)} componentes encontrados")
-        
+
         for row in rows:
-            cdpro = row[0]
-            descr = row[1] or ""
-            nomred = row[2] or ""
-            
+            cdpro   = row[0]
+            descr   = row[1] or ""
+            nomred  = row[2] or ""
+            descrprd = row[3] or ""
+
             # Trata BLOB
-            if hasattr(descr, 'read'):
-                descr = descr.read().decode('latin-1')
-            if hasattr(nomred, 'read'):
-                nomred = nomred.read().decode('latin-1')
-            
+            for val in [descr, nomred, descrprd]:
+                pass  # blobs tratados abaixo individualmente
+            if hasattr(descr,    'read'): descr    = descr.read().decode('latin-1')
+            if hasattr(nomred,   'read'): nomred   = nomred.read().decode('latin-1')
+            if hasattr(descrprd, 'read'): descrprd = descrprd.read().decode('latin-1')
+
+            # Prioridade: DESCRPRD (Descrição2, nome limpo) > NOMRED > DESCR
+            nome_final = (descrprd.strip() or nomred.strip() or descr.strip() or "")
+
             componentes.append({
-                "cdpro": cdpro,
-                "descr": descr.strip() if descr else "",
-                "nomred": nomred.strip() if nomred else ""
+                "cdpro":   cdpro,
+                "descr":   nome_final,
+                "nomred":  nomred.strip() if nomred else ""
             })
-            print(f"    [COMP] CDPRO={cdpro}, DESCR={descr[:40] if descr else 'N/A'}")
+            print(f"    [COMP] CDPRO={cdpro}, DESCRPRD={descrprd[:40] if descrprd else 'N/A'}, DESCR={descr[:30] if descr else 'N/A'}")
         
         return componentes
         
@@ -3319,13 +3324,15 @@ def buscar_requisicao(nr_requisicao):
                 
                 order_clause = f"ORDER BY c.{col_ordem}" if col_ordem else ""
                 
-                # Monta SELECT dinâmico
+                # Monta SELECT dinâmico — inclui DESCRPRD (Descrição2, nome limpo)
                 select_cols = ["c.CDPRO", "c.CDPRIN", "c.QUANT", "c.UNIDADE", "c.TPCMP", "p.DESCR"]
-                
+
                 if tem_nomred:
                     select_cols.append("p.NOMRED")
                 else:
                     select_cols.append("NULL as NOMRED")
+
+                select_cols.append("p.DESCRPRD")
                 
                 if tem_nrlot:
                     select_cols.append("c.NRLOT")
@@ -3352,7 +3359,7 @@ def buscar_requisicao(nr_requisicao):
                 print(f"  [FC12111] {len(rows)} componentes encontrados")
                 
                 for row in rows:
-                    # Índices: 0=CDPRO, 1=CDPRIN, 2=QUANT, 3=UNIDADE, 4=TPCMP, 5=DESCR, 6=NOMRED, 7=NRLOT, 8=CTLOT
+                    # Índices: 0=CDPRO, 1=CDPRIN, 2=QUANT, 3=UNIDADE, 4=TPCMP, 5=DESCR, 6=NOMRED, 7=NRLOT, 8=CTLOT, 9=DESCRPRD
                     cdpro_comp = row[0]
                     cdprin_comp = row[1]
                     quant_comp = row[2]
@@ -3362,16 +3369,24 @@ def buscar_requisicao(nr_requisicao):
                     nomred = row[6] or ""
                     nrlot_fc12111 = row[7]
                     ctlot_fc12111 = row[8]
-                    
-                    # Nome: prioriza NOMRED, fallback DESCR
-                    nome_comp = (nomred.strip() or descr.strip() or f"COMP_{cdpro_comp}")
-                    
-                    # Remove prefixos do nome (AMP, KIT, FRS)
+                    descrprd = row[9] if len(row) > 9 else ""
+                    descrprd = descrprd or ""
+
+                    # Trata BLOBs
+                    if hasattr(descr,    'read'): descr    = descr.read().decode('latin-1')
+                    if hasattr(nomred,   'read'): nomred   = nomred.read().decode('latin-1')
+                    if hasattr(descrprd, 'read'): descrprd = descrprd.read().decode('latin-1')
+
+                    # Nome: prioriza DESCRPRD (Descrição2, nome limpo) > NOMRED > DESCR
+                    nome_comp = (descrprd.strip() or nomred.strip() or descr.strip() or f"COMP_{cdpro_comp}")
+
+                    # Remove prefixos apenas quando não veio do DESCRPRD
                     nome_limpo = nome_comp.upper().strip()
-                    for prefixo in ['AMP ', 'CX ', 'KIT ', 'FRS ']:
-                        if nome_limpo.startswith(prefixo):
-                            nome_limpo = nome_limpo[len(prefixo):]
-                            break
+                    if not descrprd.strip():
+                        for prefixo in ['AMP ', 'CX ', 'KIT ', 'FRS ']:
+                            if nome_limpo.startswith(prefixo):
+                                nome_limpo = nome_limpo[len(prefixo):]
+                                break
                     
                     # Determina lote a usar (prioriza FC12111)
                     lote_usar = None
