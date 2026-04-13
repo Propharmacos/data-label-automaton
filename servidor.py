@@ -93,7 +93,8 @@ def strip_acentos(txt) -> str:
     return ''.join(c for c in sem_diacritico if 0x20 <= ord(c) <= 0x7E or c in '\n\r')
 
 def strip_acentos_rotulo(rotulo: dict) -> dict:
-    """Aplica strip_acentos em todos os campos string de texto do rótulo."""
+    """Aplica strip_acentos em todos os campos string de texto do rótulo
+    e remove componentes que são acessórios/dispositivos médicos."""
     campos_texto = [
         'nomePaciente', 'nomeMedico', 'formula', 'composicao', 'aplicacao',
         'posologia', 'observacoes', 'observacoesFicha', 'tipoUso', 'descricaoProduto',
@@ -102,14 +103,33 @@ def strip_acentos_rotulo(rotulo: dict) -> dict:
     for campo in campos_texto:
         if campo in resultado and isinstance(resultado[campo], str):
             resultado[campo] = strip_acentos(resultado[campo])
-    # Componentes de KIT
+    # Componentes de KIT: normaliza + remove acessórios/dispositivos
     if 'componentes' in resultado and isinstance(resultado['componentes'], list):
-        resultado['componentes'] = [
-            {**c, 'nome': strip_acentos(c.get('nome', '')),
-                  'composicao': strip_acentos(c.get('composicao', ''))}
-            for c in resultado['componentes']
-        ]
+        componentes_norm = []
+        for c in resultado['componentes']:
+            nome_norm = strip_acentos(c.get('nome', ''))
+            if _e_acessorio_kit(nome_norm):
+                continue
+            componentes_norm.append({
+                **c,
+                'nome': nome_norm,
+                'composicao': strip_acentos(c.get('composicao', '')),
+            })
+        resultado['componentes'] = componentes_norm
     return resultado
+
+# Prefixos de acessórios/dispositivos médicos que não devem sair no rótulo
+_PREFIXOS_ACESSORIO = [
+    'TORNEIRA', 'MICROCANULA', 'CANULA', 'AGULHA', 'SERINGA',
+    'TAMPA', 'SELO ', 'FR AMBAR', 'FRASCO AMBAR',
+    'FLIP OFF', 'FLIPOFF', 'BLISTER', 'CAIXA MED',
+    'AMPOLA INJETAV',
+]
+
+def _e_acessorio_kit(nome: str) -> bool:
+    """Retorna True se o componente é um acessório que não deve aparecer no rótulo."""
+    n = nome.upper().strip()
+    return any(n.startswith(p) for p in _PREFIXOS_ACESSORIO)
 
 # Mapeamento de TPUSO (código numérico) para texto legível
 TIPO_USO_MAP = {
@@ -163,7 +183,8 @@ def is_embalagem_ou_obs(linha: str) -> bool:
         # Veículos/diluentes (não são ativos)
         'AGUA PARA INJETAVEIS', 'AGUA PARA INJECAO', 'AGUA ESTERIL',
         'SORO FISIOLOGICO', 'NACL 0,9',
-        # Acessórios
+        # Dispositivos médicos / acessórios de aplicação (não são fármacos)
+        'TORNEIRA', 'MICROCANULA', 'MICROCANULA', 'CANULA',
         'VALVULA', 'DOSADOR', 'CONTA-GOTAS', 'APLICADOR',
         # Identificação
         'ROTULO', 'ETIQUETA', 'EMBALAGEM',

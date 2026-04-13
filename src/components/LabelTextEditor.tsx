@@ -328,10 +328,7 @@ function generateTextAmpCx(rotulo: RotuloItem, layoutConfig: LayoutConfig): stri
 
   // ── LINES 3-4: Produto (left-anchored, up to 2 lines, word-wrap) ──
   if (isKit && rotulo.componentes) {
-    const componentesVisiveis = rotulo.componentes.filter(comp => {
-      const nome = comp.nome?.toUpperCase() || '';
-      return !nome.startsWith('BLISTER') && !nome.startsWith('CAIXA MED');
-    });
+    const componentesVisiveis = rotulo.componentes.filter(comp => !isAcessorio(comp.nome || ''));
     componentesVisiveis.forEach(comp => {
       const nomeExibicao = rotulo.eSinonimo
         ? (comp.composicao || formatarNomeComponente(comp.nome))
@@ -567,10 +564,7 @@ function generateTextAmp10(rotulo: RotuloItem, layoutConfig: LayoutConfig, optio
 
   // ── LINES 3+: Produto/Componentes ──
   if (isKit && rotulo.componentes) {
-    const componentesVisiveis = rotulo.componentes.filter(comp => {
-      const nome = comp.nome?.toUpperCase() || '';
-      return !nome.startsWith('BLISTER') && !nome.startsWith('CAIXA MED');
-    });
+    const componentesVisiveis = rotulo.componentes.filter(comp => !isAcessorio(comp.nome || ''));
     componentesVisiveis.forEach(comp => {
       const nomeExibicao = rotulo.eSinonimo
         ? (comp.composicao || formatarNomeComponente(comp.nome))
@@ -729,6 +723,18 @@ function resolveLayoutTipo(layoutConfig: LayoutConfig, layoutType?: LayoutType):
   if ((layoutConfig.colunasMax === 57 || layoutConfig.colunasMax === 73) && (layoutConfig.linhasMax === 5 || layoutConfig.linhasMax === 8)) return 'A_PAC_GRAN';
 
   return layoutConfig.tipo;
+}
+
+// Prefixos de acessórios/dispositivos médicos que NÃO devem aparecer no rótulo farmacêutico
+const PREFIXOS_ACESSORIO = [
+  'BLISTER', 'CAIXA MED', 'TORNEIRA', 'MICROCANULA', 'AGULHA',
+  'SERINGA', 'TAMPA', 'SELO ', 'FR AMBAR', 'FRASCO AMBAR',
+  'FLIP OFF', 'FLIPOFF', 'AMPOLA INJETAV',
+];
+
+function isAcessorio(nomeComp: string): boolean {
+  const n = nomeComp.toUpperCase().trim();
+  return PREFIXOS_ACESSORIO.some(p => n.startsWith(p));
 }
 
 // Remove acentos, cedilha e caracteres especiais (impressora térmica não suporta)
