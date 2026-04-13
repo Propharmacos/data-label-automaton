@@ -925,7 +925,17 @@ def gerar_ppla_a_pac_peq(rotulo, farmacia, dims=None, calibracao=None):
                 pplb_lines.append(ppla_text_dots(rot, font, wmult, hmult, y, x_reg, reg_part))
                 continue
 
-            # Linha normal (DR(A)... + conselho): imprimir literal em X=12
+            # Detectar conselho (CRM/COREN/CRF/CNE) ancorado à direita (X=116)
+            crm_match = _re.search(r'((?:CRM|COREN|CRF|CNE)\S+)', stripped)
+            if crm_match:
+                left_part = stripped[:crm_match.start()].rstrip()
+                crm_part = crm_match.group(1)
+                if left_part:
+                    pplb_lines.append(ppla_text_dots(rot, font, wmult, hmult, y, x_paciente, left_part[:25]))
+                pplb_lines.append(ppla_text_dots(rot, font, wmult, hmult, y, x_req, crm_part))
+                continue
+
+            # Linha normal: imprimir literal em X=12
             pplb_lines.append(ppla_text_dots(rot, font, wmult, hmult, y, x_paciente, stripped[:cols]))
 
         if not pplb_lines:
