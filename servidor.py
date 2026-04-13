@@ -849,17 +849,21 @@ def tenta_fc12111_componentes(cursor, nrrqu, cdfil, serier):
             select_cols.append("NULL as CTLOT")
         
         order_clause = "ORDER BY c.ORDCAP" if tem_ordcap else ""
-        
+
+        # Inclui DESCRPRD da FC03000 para usar Descrição2 (nome limpo, sem volume)
+        select_cols.append("p.DESCRPRD")
+
         query = f"""
             SELECT {', '.join(select_cols)}
             FROM FC12111 c
+            LEFT JOIN FC03000 p ON p.CDPRO = c.CDPRO
             WHERE c.NRRQU = ? AND c.SERIER = ? AND c.CDFIL = ?
             {order_clause}
         """
-        
+
         cursor.execute(query, (nrrqu_int, serier_int, cdfil_int))
         rows = cursor.fetchall()
-        
+
         if not rows:
             print(f"  [FC12111_CHECK] Nenhum componente encontrado")
             return []
@@ -867,27 +871,32 @@ def tenta_fc12111_componentes(cursor, nrrqu, cdfil, serier):
         print(f"  [FC12111_CHECK] {len(rows)} componentes encontrados via FC12111!")
         
         for row in rows:
-            cdpro = row[0]
-            descr = row[1] or ""
-            quant = row[2]
-            unidade = row[3] or ""
-            ordcap = row[4]
-            nrlot = row[5]
-            ctlot = row[6]
-            
-            # Trata BLOB
-            if hasattr(descr, 'read'):
-                descr = descr.read().decode('latin-1')
-            
+            cdpro    = row[0]
+            descr    = row[1] or ""
+            quant    = row[2]
+            unidade  = row[3] or ""
+            ordcap   = row[4]
+            nrlot    = row[5]
+            ctlot    = row[6]
+            descrprd = row[7] if len(row) > 7 else ""
+            descrprd = descrprd or ""
+
+            # Trata BLOBs
+            if hasattr(descr,    'read'): descr    = descr.read().decode('latin-1')
+            if hasattr(descrprd, 'read'): descrprd = descrprd.read().decode('latin-1')
+
+            # Prioriza DESCRPRD (Descrição2, nome limpo) sobre DESCR (Descrição1 com volume)
+            nome_final = descrprd.strip() or descr.strip()
+
             # DEBUG: mostra exatamente o que veio da FC12111
-            print(f"    [FC12111_ROW] CDPRO={cdpro}, NRLOT={nrlot}, CTLOT={ctlot}, DESCR={descr}")
-            
+            print(f"    [FC12111_ROW] CDPRO={cdpro}, NRLOT={nrlot}, CTLOT={ctlot}, DESCRPRD={descrprd}, DESCR={descr}")
+
             # Lote da requisição
             lote_req = str(nrlot or ctlot or "").strip()
-            
+
             componentes.append({
                 "cdpro": cdpro,
-                "descr": descr.strip() if descr else "",
+                "descr": nome_final,
                 "quant": str(quant) if quant else "",
                 "unida": unidade.strip() if unidade else "",
                 "ordcap": ordcap,
@@ -1223,25 +1232,29 @@ def montar_kit_expandido(cursor, cdpro, cdfil, nrrqu=None, serier=None, e_sinoni
         try:
             cursor.execute("""
                 SELECT I.CDPRO, I.DESCR, I.CTLOT, I.NRLOT, I.QUANT, I.UNIDA,
-                       L.DTFAB, L.DTVAL
+                       L.DTFAB, L.DTVAL, P.DESCRPRD
                 FROM FC12110 I
                 LEFT JOIN FC03140 L ON L.CDFIL = I.CDFIL
                                     AND L.CDPRO = I.CDPRO
                                     AND L.CTLOT = I.CTLOT
+                LEFT JOIN FC03000 P ON P.CDPRO = I.CDPRO
                 WHERE I.NRRQU = ? AND I.CDFIL = ? AND I.SERIER = ? AND I.TPCMP = 'F'
                 ORDER BY I.CDPRO
             """, (int(nrrqu), int(cdfil), int(serier)))
             rows_f = cursor.fetchall()
             for row in rows_f:
-                lote_f = str(row[3] or row[2] or "").strip()
-                fab_f  = row[6].strftime('%d/%m/%Y') if row[6] else ""
-                val_f  = row[7].strftime('%d/%m/%Y') if row[7] else ""
-                descr_f = row[1] or ""
-                if hasattr(descr_f, 'read'):
-                    descr_f = descr_f.read().decode('latin-1')
+                lote_f   = str(row[3] or row[2] or "").strip()
+                fab_f    = row[6].strftime('%d/%m/%Y') if row[6] else ""
+                val_f    = row[7].strftime('%d/%m/%Y') if row[7] else ""
+                descr_f  = row[1] or ""
+                descrprd_f = row[8] or ""
+                if hasattr(descr_f,    'read'): descr_f    = descr_f.read().decode('latin-1')
+                if hasattr(descrprd_f, 'read'): descrprd_f = descrprd_f.read().decode('latin-1')
+                # Prioriza Descrição2 (DESCRPRD) sobre Descrição1 (DESCR)
+                nome_f = descrprd_f.strip() or descr_f.strip()
                 componentes_fc12110_f.append({
                     "cdpro": row[0],
-                    "descr": descr_f.strip(),
+                    "descr": nome_f,
                     "ctlot": str(row[2] or ""),
                     "lote_req": lote_f,
                     "quant": str(row[4]) if row[4] else "",
