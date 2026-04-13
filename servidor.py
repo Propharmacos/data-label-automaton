@@ -3345,18 +3345,19 @@ def buscar_requisicao(nr_requisicao):
                 else:
                     select_cols.append("NULL as NOMRED")
 
-                select_cols.append("p.DESCRPRD")
-                
                 if tem_nrlot:
                     select_cols.append("c.NRLOT")
                 else:
                     select_cols.append("NULL as NRLOT")
-                    
+
                 if tem_ctlot:
                     select_cols.append("c.CTLOT")
                 else:
                     select_cols.append("NULL as CTLOT")
-                
+
+                # DESCRPRD no final — índice 9 (após NOMRED=6, NRLOT=7, CTLOT=8)
+                select_cols.append("p.DESCRPRD")
+
                 # Query para buscar componentes
                 query = f"""
                     SELECT {', '.join(select_cols)}
@@ -3367,10 +3368,10 @@ def buscar_requisicao(nr_requisicao):
                 """
                 print(f"  [FC12111] Query: {query.strip()}")
                 cursor.execute(query, (nrrqu_int, serier_int, cdfil_int))
-                
+
                 rows = cursor.fetchall()
                 print(f"  [FC12111] {len(rows)} componentes encontrados")
-                
+
                 for row in rows:
                     # Índices: 0=CDPRO, 1=CDPRIN, 2=QUANT, 3=UNIDADE, 4=TPCMP, 5=DESCR, 6=NOMRED, 7=NRLOT, 8=CTLOT, 9=DESCRPRD
                     cdpro_comp = row[0]
