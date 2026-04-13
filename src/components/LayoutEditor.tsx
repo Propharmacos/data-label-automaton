@@ -8,6 +8,7 @@ import { LayoutConfig, LabelFieldId, FieldConfig, LineConfig, RotuloItem, Pharma
 import { fieldLabels, saveLayout, resetLayout } from "@/config/layouts";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SystemConfigService } from "@/services/systemConfigService";
 
 // Dimensões fixas do preview
 const PREVIEW_WIDTH = 380;
@@ -209,8 +210,9 @@ const LayoutEditor = ({
     return allFieldIds.filter(f => !usedFields.has(f));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     saveLayout(editedLayout);
+    await SystemConfigService.saveLabelLayouts(localStorage.getItem("label_layouts_v4") ? JSON.parse(localStorage.getItem("label_layouts_v4") as string) : {});
     onSave(editedLayout);
     toast({
       title: "Layout salvo!",
