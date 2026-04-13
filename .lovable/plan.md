@@ -1,49 +1,54 @@
 
 
-# Fix: Texto salvo não restaura nos outros PCs (AMP10)
+# Tornar A.PAC.PEQ WYSIWYG (igual ao AMP10)
 
-## Causa raiz
+## Problema
 
-O texto está sendo salvo corretamente no Supabase (confirmei nos dados — req 10106, 9859, etc. estão todos lá). O problema é que ao restaurar, existe uma validação de largura de coluna (linha 196-197 de `Index.tsx`) que descarta o texto salvo:
+Quando você edita o texto no layout A.PAC.PEQ e imprime, o agente **re-processa** o texto: re-abrevia nomes, re-posiciona REQ/REG em coordenadas fixas. Isso faz com que a etiqueta impressa saia diferente do que você vê na tela.
 
-```typescript
-const maxLineLen = Math.max(...row.texto_livre.split('\n').map(...));
-if (Math.abs(maxLineLen - currentCols) <= 5) { // ← rejeita se diferença > 5
-```
-
-Para AMP10, `colunasMax = 65`, mas as linhas reais do editor raramente chegam a 65 caracteres (tipicamente 40-55). A diferença ultrapassa 5, e o texto é descartado silenciosamente. O outro PC busca a requisição, o texto salvo é encontrado no banco, mas falha nessa validação e nunca chega ao editor.
+Os outros layouts (A_PAC_GRAN, AMP_CX, TIRZ) já imprimem literalmente — o problema é só no A_PAC_PEQ.
 
 ## Correção
 
-### `src/pages/Index.tsx` — Pular validação de largura para AMP10
+### `agente_impressao.py` — Substituir o handler de textoLivre do A_PAC_PEQ
 
-No bloco de restauração (linhas 191-204), para o layout AMP10, adicionar o texto salvo ao `savedMap` diretamente, sem passar pela checagem de `maxLineLen`:
+Linhas 898-958: trocar a lógica que re-parseia REQ/DR(A)/REG por impressão literal linha-a-linha (igual ao A_PAC_GRAN faz nas linhas 1034-1047):
 
-```typescript
-savedRows.forEach(row => {
-  const rotulo = rotuloById.get(row.item_id);
-  if (!rotulo) return;
+```python
+texto_livre = rotulo.get('textoLivre', '')
+if texto_livre:
+    lsf = float(rotulo.get('lineSpacingFactor', 1.0) or 1.0)
+    linhas_texto = texto_livre.split('\n')
+    pplb_lines = []
+    y_positions_calc = list(y_positions)
+    if lsf != 1.0 and len(y_positions_calc) >= 2:
+        base_y = y_positions_calc[0]
+        step = y_positions_calc[1] - y_positions_calc[0]
+        for i in range(1, len(y_positions_calc)):
+            y_positions_calc[i] = base_y + int(step * lsf * i)
 
-  // AMP10: confiança total no texto salvo (WYSIWYG)
-  if (layoutType === 'AMP10') {
-    savedMap[row.item_id] = row.texto_livre;
-    return;
-  }
-
-  // Outros layouts: manter validação de largura
-  if (layoutType === 'A_PAC_PEQ' || layoutType === 'A_PAC_GRAN') return;
-  const maxLineLen = Math.max(...row.texto_livre.split('\n').map(...));
-  if (Math.abs(maxLineLen - currentCols) <= 5) {
-    savedMap[row.item_id] = row.texto_livre;
-  }
-});
+    visible_idx = 0
+    for line_text in linhas_texto:
+        stripped = line_text.strip()
+        if not stripped:
+            continue
+        y = y_positions_calc[visible_idx] if visible_idx < len(y_positions_calc) else y_positions_calc[-1]
+        # WYSIWYG: imprimir literal, sem re-parsear/re-abreviar
+        pplb_lines.append(ppla_text_dots(rot, font, wmult, hmult, y, x_paciente, stripped[:cols]))
+        visible_idx += 1
+    if not pplb_lines:
+        pplb_lines.append(ppla_text_dots(rot, font, wmult, hmult, y_positions[0], x_paciente, 'SEM DADOS'))
+    return _build_label_ppla(pplb_lines, cal)
 ```
 
-### O que NÃO será alterado
-- Nenhum layout, coordenada ou fonte
-- A lógica de salvamento (upsert) permanece igual
-- Validação para A_PAC_PEQ e A_PAC_GRAN continua descartando (por design)
+Cada linha do editor será impressa exatamente como está, na posição X=12 (esquerda), sem re-parsear REQ:/DR(A)/REG: nem re-abreviar nomes.
 
-### Resultado esperado
-Ao buscar a mesma requisição no PC do Daniel ou da Edi, o texto editado e salvo em outro PC será restaurado corretamente.
+## O que NÃO muda
+- Coordenadas, fontes, dimensões do layout (tudo travado)
+- Geração estruturada (quando não há textoLivre) continua igual
+- Salvamento/restauração (já corrigido anteriormente)
+- Outros layouts (já são WYSIWYG)
+
+## Resultado esperado
+Ao editar o texto no A.PAC.PEQ e imprimir, a etiqueta sairá exatamente como aparece na tela — igual ao comportamento do AMP10.
 
