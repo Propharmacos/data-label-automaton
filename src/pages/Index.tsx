@@ -192,14 +192,20 @@ const Index = () => {
             const rotulo = rotuloById.get(row.item_id);
             if (!rotulo) return;
 
-            // Só restaurar se a largura máxima das linhas é compatível com o layout atual
+            // AMP10: confiança total no texto salvo (WYSIWYG — operador decide o conteúdo)
+            if (layoutType === 'AMP10') {
+              savedMap[row.item_id] = row.texto_livre;
+              return;
+            }
+
+            // Descartar texto salvo para layouts com regras de posicionamento específicas
+            if (layoutType === 'A_PAC_PEQ' || layoutType === 'A_PAC_GRAN') {
+              return; // forçar regeneração completa com regras atualizadas
+            }
+
+            // Outros layouts: só restaurar se a largura máxima das linhas é compatível
             const maxLineLen = Math.max(...row.texto_livre.split('\n').map((l: string) => l.trimEnd().length));
             if (Math.abs(maxLineLen - currentCols) <= 5) {
-              // Validação extra: SEMPRE descartar texto salvo para layouts com regras de posicionamento específicas
-              if (layoutType === 'A_PAC_PEQ' || layoutType === 'A_PAC_GRAN') {
-                return; // forçar regeneração completa com regras atualizadas
-              }
-              // AMP10: sempre restaurar texto salvo (WYSIWYG — operador decide o conteúdo)
               savedMap[row.item_id] = row.texto_livre;
             }
           });
