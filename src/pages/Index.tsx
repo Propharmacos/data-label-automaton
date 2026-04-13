@@ -180,17 +180,24 @@ const Index = () => {
       // Restaurar edições salvas do Supabase (somente se compatível com layout atual)
       let restoredRotulos = result.data;
       try {
+        console.log('[Restore] Buscando saved_rotulos para req:', requisitionNumber);
         const { data: savedRows } = await supabase
           .from('saved_rotulos')
           .select('item_id, texto_livre')
           .eq('nr_requisicao', requisitionNumber);
         
+        console.log('[Restore] savedRows encontrados:', savedRows?.length || 0, savedRows?.map(r => r.item_id));
+        console.log('[Restore] rotulo IDs do backend:', result.data!.map(r => r.id));
+
         if (savedRows && savedRows.length > 0) {
           const savedMap: Record<string, string> = {};
           const rotuloById = new Map(result.data.map((rotulo) => [rotulo.id, rotulo]));
           savedRows.forEach(row => {
             const rotulo = rotuloById.get(row.item_id);
-            if (!rotulo) return;
+            if (!rotulo) {
+              console.warn('[Restore] item_id NÃO encontrado nos rótulos:', row.item_id);
+              return;
+            }
 
             // Confiança total no texto salvo para todos os layouts (WYSIWYG — operador decide o conteúdo)
             savedMap[row.item_id] = row.texto_livre;
@@ -200,7 +207,9 @@ const Index = () => {
             return savedText ? { ...r, textoLivre: savedText } : r;
           });
         }
-      } catch { /* ignore */ }
+      } catch (err) {
+        console.error('[Restore] Erro ao restaurar saved_rotulos:', err);
+      }
 
       setRotulos(restoredRotulos);
       setCurrentIndex(0);
