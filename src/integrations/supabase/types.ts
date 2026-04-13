@@ -3099,6 +3099,47 @@ export type Database = {
         }
         Relationships: []
       }
+      planejamento_dfc: {
+        Row: {
+          ano: number
+          created_at: string | null
+          id: number
+          loja_id: number
+          meta_anual: number
+          redutor: number
+          trimestre: number
+          valor: number
+        }
+        Insert: {
+          ano: number
+          created_at?: string | null
+          id?: never
+          loja_id: number
+          meta_anual?: number
+          redutor?: number
+          trimestre: number
+          valor?: number
+        }
+        Update: {
+          ano?: number
+          created_at?: string | null
+          id?: never
+          loja_id?: number
+          meta_anual?: number
+          redutor?: number
+          trimestre?: number
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planejamento_dfc_loja_id_fkey"
+            columns: ["loja_id"]
+            isOneToOne: false
+            referencedRelation: "dim_loja"
+            referencedColumns: ["loja_id"]
+          },
+        ]
+      }
       planejamento_dre: {
         Row: {
           ano: number
