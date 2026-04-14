@@ -376,8 +376,7 @@ function generateTextAmpCx(rotulo: RotuloItem, layoutConfig: LayoutConfig): stri
   lines.push(metaParts.join('  ').substring(0, W));
 
   // ── LINE 6: Uso (left) | Aplicação (right) — compact gap ──
-  const posologia = rotulo.posologia?.toUpperCase() || "";
-  const usoText = /^\d+$/.test(posologia) ? "" : posologia;
+  const usoText = ""; // posologia removida do rótulo
   const aplicacao = rotulo.aplicacao?.trim().toUpperCase() || "";
   const aplicacaoStr = aplicacao ? `APLICACAO:${aplicacao}` : "";
   lines.push(compactLine(usoText, aplicacaoStr, 4));
@@ -616,8 +615,7 @@ function generateTextAmp10(rotulo: RotuloItem, layoutConfig: LayoutConfig, optio
   lines.push(indentLine(metaParts.join(' ')));
 
   // ── USO | AP:... (full line, no REG here) ──
-  const posologia = rotulo.posologia?.toUpperCase() || "";
-  const usoText = /^\d+$/.test(posologia) ? "" : posologia;
+  const usoText = ""; // posologia removida do rótulo
   const aplicacao = rotulo.aplicacao?.trim().toUpperCase() || "";
   const aplicacaoStr = aplicacao ? `AP:${aplicacao}` : "";
   const leftPart = usoText + (aplicacaoStr ? '  ' + aplicacaoStr : '');
@@ -681,10 +679,7 @@ function generateTextTirz(rotulo: RotuloItem, layoutConfig: LayoutConfig): strin
   const f = formatarFormula(rotulo.formula);
   if (f) lines.push(f.substring(0, W));
 
-  // ── LINE 4: Posologia (full width, 1 line) ──
-  const posologia = rotulo.posologia?.toUpperCase() || "";
-  const posologiaValida = /^\d+$/.test(posologia) ? "" : posologia;
-  if (posologiaValida) lines.push(posologiaValida.substring(0, W));
+  // ── LINE 4: Posologia removida do rótulo ──
 
   // ── LINE 5: pH | Lote | Fabricação | Validade (fixed 4-zone) ──
   const phVal = rotulo.ph ? `PH:${String(rotulo.ph).replace('.', ',')}` : 'PH:';
@@ -863,7 +858,7 @@ function generateText(rotulo: RotuloItem, layoutConfig: LayoutConfig, layoutType
     if (infoLine.length > 0) lines.push(infoLine.join('  '));
   }
   if (vis('tipoUso')) { const t = rotulo.tipoUso?.toUpperCase(); if (t && !/^\d+$/.test(t)) lines.push(t); }
-  if (vis('posologia') && rotulo.posologia) lines.push(`POS: ${rotulo.posologia.toUpperCase()}`);
+  // posologia removida do rótulo
   if (vis('observacoes')) {
     const obs = rotulo.observacoes?.replace(/APLIC(?:AÇÃO|ACAO)?[:\s]+[^\n,;]+[,;\s]*/gi, "").trim();
     if (obs) lines.push(`OBS: ${obs}`);
