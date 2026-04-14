@@ -1340,9 +1340,70 @@ def montar_kit_expandido(cursor, cdpro, cdfil, nrrqu=None, serier=None, e_sinoni
 
     componentes_final = []
 
-    if componentes_fc12110_f:
-        # ESTRATÉGIA 0: Usa TPCMP='F' da FC12110 — lotes exatos da inclusão do pedido
-        print(f"  [MONTAR_KIT] Usando {len(componentes_fc12110_f)} componentes FC12110 TPCMP=F")
+    # Lookup CDPRO → FC12110_F para lotes exatos (independente da estratégia de ordem)
+    lote_lookup_f = {str(c["cdpro"]): c for c in componentes_fc12110_f}
+
+    if componentes_fc12111:
+        # ESTRATÉGIA PRINCIPAL: FC12111 define a ORDEM CORRETA (ORDCAP = ordem do FormulaCerta)
+        # FC12110_F complementa com lotes exatos quando disponível
+        print(f"  [MONTAR_KIT] Usando FC12111 ({len(componentes_fc12111)}) ordem ORDCAP + FC12110_F lookup ({len(componentes_fc12110_f)})")
+        for comp in componentes_fc12111:
+            cdpro_comp = comp["cdpro"]
+            fc110 = lote_lookup_f.get(str(cdpro_comp))
+
+            if fc110:
+                # Lote exato do FC12110_F (já inclui datas calculadas)
+                lote_final = fc110.get("lote_req", "")
+                fab_str    = fc110.get("dtFab", "")
+                val_str    = fc110.get("dtVal", "")
+                descr_comp = fc110.get("descr", "") or comp.get("descr", "")
+            else:
+                # Sem FC12110_F → usa lote_req do FC12111, complementa com FC03140
+                descr_comp = comp.get("descr", "")
+                lote_req   = comp.get("lote_req", "")
+                if lote_req:
+                    cursor.execute("""
+                        SELECT FIRST 1 DTFAB, DTVAL
+                        FROM FC03140
+                        WHERE CDPRO = ? AND CDFIL = ?
+                          AND (CAST(NRLOT AS VARCHAR(50)) = ? OR CAST(CTLOT AS VARCHAR(50)) = ?)
+                        ORDER BY DTVAL DESC
+                    """, (int(cdpro_comp), int(cdfil), lote_req, lote_req))
+                    row = cursor.fetchone()
+                    if row:
+                        fab_str = row[0].strftime('%d/%m/%Y') if row[0] else ""
+                        val_str = row[1].strftime('%d/%m/%Y') if row[1] else ""
+                    else:
+                        fab_str = val_str = ""
+                    lote_final = lote_req
+                else:
+                    lote_data  = resolve_lote_componente(cursor, cdfil, cdpro_comp)
+                    lote_final = lote_data.get("lote", "")
+                    fab_str    = lote_data.get("dtFab", "")
+                    val_str    = lote_data.get("dtVal", "")
+
+            if e_sinonimo:
+                obsfic_data     = extrair_obsfic_componente(cursor, cdpro_comp)
+                composicao_comp = obsfic_data["composicao"]
+                aplicacao_comp  = obsfic_data["aplicacao"]
+            else:
+                composicao_comp = extrair_composicao_componente(cursor, cdpro_comp)
+                aplicacao_comp  = ""
+            ph_comp = buscar_ph_componente(cursor, cdpro_comp, cdfil)
+
+            componentes_final.append({
+                "cdpro":      cdpro_comp,
+                "descr":      descr_comp,
+                "lote":       lote_final,
+                "dtFab":      fab_str,
+                "dtVal":      val_str,
+                "composicao": composicao_comp,
+                "aplicacao":  aplicacao_comp,
+                "ph":         ph_comp,
+            })
+    elif componentes_fc12110_f:
+        # ESTRATÉGIA FALLBACK: Apenas FC12110_F disponível (FC12111 vazio/inexistente)
+        print(f"  [MONTAR_KIT] Usando {len(componentes_fc12110_f)} componentes FC12110 TPCMP=F (sem FC12111)")
         for comp in componentes_fc12110_f:
             cdpro_comp = comp["cdpro"]
             if e_sinonimo:
@@ -1362,62 +1423,6 @@ def montar_kit_expandido(cursor, cdpro, cdfil, nrrqu=None, serier=None, e_sinoni
                 "composicao": composicao_comp,
                 "aplicacao":  aplicacao_comp,
                 "ph":         ph_comp,
-            })
-    elif componentes_fc12111:
-        print(f"  [MONTAR_KIT] Usando {len(componentes_fc12111)} componentes da FC12111")
-
-        # Usa FC12111 como base, complementa lote com FC03140 se necessário
-        for comp in componentes_fc12111:
-            cdpro_comp = comp["cdpro"]
-            
-            # Se tiver lote da requisição, usa ele para buscar datas
-            lote_req = comp.get("lote_req", "")
-            
-            if lote_req:
-                # Busca datas específicas do lote
-                cursor.execute("""
-                    SELECT FIRST 1 DTFAB, DTVAL
-                    FROM FC03140 
-                    WHERE CDPRO = ? AND CDFIL = ?
-                      AND (CAST(NRLOT AS VARCHAR(50)) = ? OR CAST(CTLOT AS VARCHAR(50)) = ?)
-                    ORDER BY DTVAL DESC
-                """, (int(cdpro_comp), int(cdfil), lote_req, lote_req))
-                
-                row = cursor.fetchone()
-                if row:
-                    fab_str = row[0].strftime('%d/%m/%Y') if row[0] else ""
-                    val_str = row[1].strftime('%d/%m/%Y') if row[1] else ""
-                else:
-                    fab_str = ""
-                    val_str = ""
-                
-                lote_final = lote_req
-            else:
-                # Fallback: busca lote mais recente
-                lote_data = resolve_lote_componente(cursor, cdfil, cdpro_comp)
-                lote_final = lote_data.get("lote", "")
-                fab_str = lote_data.get("dtFab", "")
-                val_str = lote_data.get("dtVal", "")
-            
-            # Busca composição: OBSFIC para sinônimo, ativos para kit normal
-            if e_sinonimo:
-                obsfic_data = extrair_obsfic_componente(cursor, cdpro_comp)
-                composicao_comp = obsfic_data["composicao"]
-                aplicacao_comp = obsfic_data["aplicacao"]
-            else:
-                composicao_comp = extrair_composicao_componente(cursor, cdpro_comp)
-                aplicacao_comp = ""
-            ph_comp = buscar_ph_componente(cursor, cdpro_comp, cdfil)
-            
-            componentes_final.append({
-                "cdpro": cdpro_comp,
-                "descr": comp.get("descr", ""),
-                "lote": lote_final,
-                "dtFab": fab_str,
-                "dtVal": val_str,
-                "composicao": composicao_comp,
-                "aplicacao": aplicacao_comp,
-                "ph": ph_comp
             })
     else:
         # FALLBACK: Busca componentes via FC05100
