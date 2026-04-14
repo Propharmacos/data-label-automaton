@@ -1,25 +1,25 @@
 
 
-# Remover texto de posologia dos rótulos
+# Restaurar `tipoUso` (ex: "USO EM CONSULTORIO") nos rótulos
 
-## O que muda
-O campo `posologia` (que traz textos como "USO SOMENTE TRATAMENTO ALOPECIA") será ignorado na geração do texto dos rótulos. A linha de uso passará a mostrar **apenas a aplicação** (`AP:ID/SC`) quando houver.
+## Problema
+Ao remover a `posologia`, o `tipoUso` também foi perdido porque ambos compartilhavam a mesma variável `usoText`. O campo `tipoUso` (ex: "USO EM CONSULTORIO") deve continuar aparecendo.
 
-## Alteração técnica
+## Alteração
 
 **Arquivo**: `src/components/LabelTextEditor.tsx`
 
-Em cada gerador de layout, onde hoje faz:
+Nas 2 linhas onde `usoText` foi zerado (AMP_CX linha 379 e AMP10 linha 618), restaurar usando `rotulo.tipoUso` em vez de `rotulo.posologia`:
+
 ```typescript
-const posologia = rotulo.posologia?.toUpperCase() || "";
-const usoText = /^\d+$/.test(posologia) ? "" : posologia;
-```
-Passará a ser:
-```typescript
-const usoText = ""; // posologia removida do rótulo
+// Antes (errado — removeu tudo):
+const usoText = "";
+
+// Depois (correto — usa tipoUso, ignora posologia):
+const usoText = rotulo.tipoUso?.toUpperCase() || "";
 ```
 
-Isso será aplicado em todos os layouts: **AMP10**, **AMP_CX**, **TIRZ** e **A_PAC** (genérico).
+O layout TIRZ (linha 702) e o genérico A_PAC (linha 860) já estão corretos — ambos usam `rotulo.tipoUso`.
 
-A aplicação (`AP:XX` / `APLICACAO:XX`) continua aparecendo normalmente, pois vem do campo `rotulo.aplicacao`, não da posologia.
+Resultado: "USO EM CONSULTORIO" volta a aparecer; "USO SOMENTE TRATAMENTO ALOPECIA" (posologia) continua removido.
 
