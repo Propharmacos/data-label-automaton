@@ -1,37 +1,43 @@
 
 
-# Ajustar layout TIRZ — compactar e incluir posologia
+# Corrigir layout TIRZ — compactar e alinhar à esquerda
 
-## O que muda
-O layout TIRZ precisa incluir a posologia (que foi removida dos outros layouts) e ter espaçamento entre linhas mais compactado para caber no rótulo pequeno da impressora da Edi.
+## Problema
+O layout TIRZ usa `fixedLine` com zonas largas (REQ=18, CONSELHO=20 colunas) que empurram o texto para a direita, criando espaço vazio à esquerda e cortando informações. A foto de referência mostra que o estilo correto é compacto (como AMP_CX), com gap pequeno entre os campos esquerdo e direito.
+
+Além disso, a UI limita o `lineSpacing` mínimo a `1.0`, mas o TIRZ precisa de `0.85` — o que significa que se o usuário mexer no controle, não consegue voltar abaixo de 1.0.
 
 ## Alterações técnicas
 
-### 1. `src/components/LabelTextEditor.tsx` — função `generateTextTirz`
+**Arquivo**: `src/components/LabelTextEditor.tsx`
 
-**Restaurar posologia no TIRZ** (exceção à política de supressão dos outros layouts):
+### 1. Trocar `fixedLine` por `compactLine` no `generateTextTirz` (linhas 652-733)
 
-- Linha 698-702: Em vez de pular a posologia, incluí-la após o produto com wrap por largura de coluna
-- O produto e a posologia fluem juntos nas linhas 3-5, quebrando naturalmente pelo `W` (73 colunas)
+Reescrever `generateTextTirz` para usar o mesmo padrão `compactLine` do AMP_CX em vez de zonas fixas:
 
-```typescript
-// LINE 3+: Fórmula/Produto + Posologia (wrapping)
-const produto = formatarFormula(rotulo.formula) || "";
-const posologia = rotulo.posologia?.toUpperCase().trim() || "";
-const produtoCompleto = posologia ? `${produto}   ${posologia}` : produto;
-wrapText(produtoCompleto, W, 0).split('\n').forEach(l => lines.push(l.substring(0, W)));
+- **Linha 1 (Paciente + REQ)**: `compactLine(cleanName, reqStr, 4)` em vez de `fixedLine(..., LEFT_L1, REQ_WIDTH)`
+- **Linha 2 (DR(A) + Conselho)**: `compactLine(drName, conselhoStr, 3)`
+- **Linha 3+ (Produto + Posologia)**: mantém `wrapText` atual (já funciona)
+- **Linha meta (pH/L/F/V)**: usar `metaParts.join(' ')` compacto em vez de zonas de 1/4
+- **Linha uso**: `compactLine(usoText, "AP:" + aplicacao, 3)` — usar `AP:` curto como no AMP_CX
+- **Linha contém/REG**: `compactLine(contemStr, regStr, 3)`
+
+### 2. Permitir lineSpacing menor que 1.0 para TIRZ (linha 1152)
+
+Alterar o `Math.max(1.0, ...)` para `Math.max(0.7, ...)` quando o layout for TIRZ, permitindo compactação real via controle de UI.
+
+### 3. Resultado esperado (conforme foto referência)
+
+```text
+VALDIR JOSE CALABRO    REQ:010337-0
+DR(A)MARCO ANTONIO   CRM.SP-141260
+TIRZEPATIDA 60MG/2,4ML   APLICAR
+APLICAR 0,2ML VIA SC 1X POR SEMANA
+DURANTE 12 SEMANAS
+PH:7,5 L:521/25 F:12/25 V:12/26
+USO EM CONSULTORIO   AP:SC
+CONTEM:   REG:25538
 ```
 
-### 2. `src/components/LabelTextEditor.tsx` — `lineSpacingFactor` padrão para TIRZ
-
-Na função principal de renderização, quando o layout é TIRZ e o usuário não definiu um `lineSpacingFactor` customizado, usar um fator reduzido (ex: `0.85`) para compactar o espaçamento entre linhas no preview e na impressão.
-
-### 3. Atualizar a política de supressão de posologia
-
-**Arquivo**: `mem://business-logic/data-extraction/posologia-suppression-policy`
-
-Registrar que TIRZ é a exceção: posologia aparece no TIRZ porque é informação essencial de aplicação (ex: "APLICAR 0,2ML VIA SC 1X POR SEMANA DURANTE 12 SEMANAS").
-
-## Resultado esperado
-O rótulo TIRZ sairá com 7-8 linhas compactadas, incluindo a posologia completa, idêntico ao padrão Formula Certa da foto de referência.
+Texto alinhado à esquerda, gap mínimo entre campos, sem desperdício de espaço.
 
