@@ -1,47 +1,37 @@
 
 
-# Corrigir formatação de mesclas no AMP10
+# Ajustar layout TIRZ — compactar e incluir posologia
 
-## Problema
-No layout AMP10, mesclas estão sendo formatadas como kits — cada ingrediente numa linha separada. Isso faz o rótulo "estourar" as linhas disponíveis e perder informações como a linha de fórmula/descrição do produto.
+## O que muda
+O layout TIRZ precisa incluir a posologia (que foi removida dos outros layouts) e ter espaçamento entre linhas mais compactado para caber no rótulo pequeno da impressora da Edi.
 
-O comportamento correto (conforme seu exemplo) é:
-- **Composição**: ingredientes fluem numa string contínua, quebrando em novas linhas apenas quando excedem a largura da coluna
-- **Fórmula + volume**: aparece após a composição (ex: `AUMENTO DA MASSA MAGRA + BCAA - 4ML`)
+## Alterações técnicas
 
-## Causa raiz
-Linha 607-608 do `generateTextAmp10`: cada ingrediente separado por `,` é colocado numa linha independente (`partes.forEach(p => lines.push(indentLine(p)))`). Além disso, quando é mescla, a linha de fórmula é totalmente omitida.
+### 1. `src/components/LabelTextEditor.tsx` — função `generateTextTirz`
 
-## Alteração técnica
+**Restaurar posologia no TIRZ** (exceção à política de supressão dos outros layouts):
 
-**Arquivo**: `src/components/LabelTextEditor.tsx` — função `generateTextAmp10`, bloco mescla (linhas ~603-613)
+- Linha 698-702: Em vez de pular a posologia, incluí-la após o produto com wrap por largura de coluna
+- O produto e a posologia fluem juntos nas linhas 3-5, quebrando naturalmente pelo `W` (73 colunas)
 
-**De**:
 ```typescript
-const partes = rotulo.composicao!.toUpperCase().split(', ').map(p => p.trim()).filter(Boolean);
-partes.forEach(p => lines.push(indentLine(p)));
+// LINE 3+: Fórmula/Produto + Posologia (wrapping)
+const produto = formatarFormula(rotulo.formula) || "";
+const posologia = rotulo.posologia?.toUpperCase().trim() || "";
+const produtoCompleto = posologia ? `${produto}   ${posologia}` : produto;
+wrapText(produtoCompleto, W, 0).split('\n').forEach(l => lines.push(l.substring(0, W)));
 ```
 
-**Para**:
-```typescript
-// Composição como texto contínuo, quebrada por largura de coluna
-const compText = rotulo.composicao!.toUpperCase();
-wrapText(compText, CW, 3).split('\n').forEach(l => lines.push(indentLine(l)));
+### 2. `src/components/LabelTextEditor.tsx` — `lineSpacingFactor` padrão para TIRZ
 
-// Fórmula/descrição com volume (sem limpar sufixo ML)
-const formulaRaw = (rotulo.formula || "").toUpperCase();
-if (formulaRaw) lines.push(indentLine(formulaRaw));
-```
+Na função principal de renderização, quando o layout é TIRZ e o usuário não definiu um `lineSpacingFactor` customizado, usar um fator reduzido (ex: `0.85`) para compactar o espaçamento entre linhas no preview e na impressão.
 
-Isso produz:
-```
-   L VALINA 24MG,L LEUCINA 24MG
-   ISOLEUCINA 10MG,L ORNITINA 150MG, L CARNITINA 150MG,TAURINA 10%
-   AUMENTO DA MASSA MAGRA + BCAA - 4ML
-```
+### 3. Atualizar a política de supressão de posologia
 
-A mesma correção será aplicada ao bloco mescla do **AMP_CX** (linhas ~364-367) para manter consistência entre layouts de ampola.
+**Arquivo**: `mem://business-logic/data-extraction/posologia-suppression-policy`
 
-## Resultado
-Mesclas no AMP10 terão a composição fluindo naturalmente nas linhas disponíveis, seguida da descrição do produto com volume, idêntico ao padrão Formula Certa.
+Registrar que TIRZ é a exceção: posologia aparece no TIRZ porque é informação essencial de aplicação (ex: "APLICAR 0,2ML VIA SC 1X POR SEMANA DURANTE 12 SEMANAS").
+
+## Resultado esperado
+O rótulo TIRZ sairá com 7-8 linhas compactadas, incluindo a posologia completa, idêntico ao padrão Formula Certa da foto de referência.
 
