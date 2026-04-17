@@ -1186,10 +1186,19 @@ const LabelTextEditor = ({
 
     if (error) {
       setSaveStatus('error');
+      console.error('[performSave] Supabase error:', {
+        code: (error as any).code,
+        message: error.message,
+        details: (error as any).details,
+        hint: (error as any).hint,
+      });
       if (!isAutosave) {
+        const isRlsError = (error as any).code === '42501' || /row-level security/i.test(error.message);
         toast({
-          title: "Erro ao salvar",
-          description: error.message,
+          title: isRlsError ? "Sem permissão para salvar" : "Erro ao salvar",
+          description: isRlsError
+            ? "Sua conta não tem permissão para salvar rótulos. Avise o admin para liberar a role."
+            : error.message,
           variant: "destructive",
         });
       }
