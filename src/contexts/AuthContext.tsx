@@ -66,14 +66,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(currentSession?.user ?? null);
 
         if (currentSession?.user) {
-          // Usar setTimeout para evitar deadlock com Supabase
+          // Evita liberar a UI antes de carregar as roles
           setTimeout(async () => {
             await fetchUserRole(currentSession.user.id);
-            // Sincronizar configs do Supabase → localStorage
             await SystemConfigService.syncToLocalStorage();
+            setIsLoading(false);
           }, 0);
+          return;
         } else {
           setRole(null);
+          setRoles([]);
         }
 
         if (event === "SIGNED_OUT") {
