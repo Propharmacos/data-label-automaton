@@ -1,58 +1,69 @@
 
 
-# Diagnóstico — Nome da mescla aparecendo abaixo dos ativos
+# Navegação direta entre barras/itens da requisição
 
-## Causa raiz
-Nos layouts **AMP_CX** (`generateTextAmpCaixa`, linha 622) e **AMP10** (`generateTextAmp10`, linha 374), quando o item é uma **mescla** o código:
-1. Imprime os ativos (composição). ✓
-2. Imprime também a `formula` se for diferente da composição.
+## Contexto atual
+Hoje, ao pesquisar uma requisição (ex: `10436`), o sistema retorna todas as fórmulas/barras daquele pedido (ex: `10436-1`, `10436-2`, `10436-3`, …) e o usuário navega **uma a uma** via setas "próximo/anterior". Não há atalho para pular direto para uma barra específica (ex: ir do item 1 para o item 7 sem passar pelos intermediários).
 
-O problema do passo 2: em mesclas, `rotulo.formula` é o **nome reduzido da mescla** que vem da tabela `FC03000.DESCRPRD` — ex.:
-- Req `10436-7` → `M. DIM. QUEDA E PREV. FIOS`
-- Req `10436-8` → `ALOPECIA MASCULINA/FEMININ`
-- Req `10474-0` → `LAC CORPORAL (SUG 3) 10ML`
+## Solução proposta: Seletor de Barras (lista clicável)
 
-Esse nome reduzido **não deve sair no rótulo** — é só a "etiqueta interna" da mescla no FC. O usuário quer ver apenas os ativos (composição).
+Adicionar um **seletor visual de barras** no topo do editor de rótulos, mostrando todos os itens da requisição de uma vez. O usuário clica no item desejado e o editor salta direto para ele.
 
-A correção anterior (deduplicação) resolveu o caso do **produto único** (DUTASTERIDA), mas não tocou nesse caso porque os textos são genuinamente diferentes.
+### Visual (no topo do editor, acima dos botões de navegação existentes)
+```text
+Requisição 10436  —  8 barras
 
-## Como diferenciar "mescla" de "produto único"
-Já existe a função `isValidComposicao(composicao)` no arquivo, que retorna `true` quando a composição tem múltiplos ativos / formato de mescla. Hoje ela é usada só para escolher entre o ramo `mescla` e o ramo `produto único`.
+[1: DUTASTERIDA 0,1%]  [2: FINASTERIDA 1MG]  [3: MINOXIDIL 5%]  
+[4: BIOTINA 10MG]      [5: M.DIM.QUEDA]      [6: ALOPECIA MASC]  
+[7: LAC CORPORAL]      [8: CAPIXYL 2%]
 
-A regra correta passa a ser:
-- **Mescla** (`isValidComposicao === true`) → imprime **só a composição**, **nunca** a formula.
-- **Produto único** (`isValidComposicao === false`) → imprime a formula (comportamento atual já preservado pelo `else`).
-
-A deduplicação `composicao vs formula` deixa de ser necessária — o ramo "mescla" simplesmente não imprime mais a formula.
-
-## Correção proposta
-
-### Em `generateTextAmpCaixa` (AMP_CX, linhas 611–622)
-Remover o bloco que imprime `formulaRaw` dentro do ramo `if (mescla)`. Resultado: mesclas mostram só os ativos (composição quebrada em linhas).
-
-### Em `generateTextAmp10` (AMP10, linhas 363–374)
-Mesma remoção dentro do `if (mescla)`.
-
-Pseudocódigo final do ramo mescla:
-```ts
-if (mescla) {
-  const compText = (rotulo.composicao || "").toUpperCase();
-  wrapText(compText, CW, 3).split('\n').forEach(l => lines.push(indentLine(l)));
-  // Não imprime mais o nome reduzido da mescla
-}
+               ▲ item atual destacado (borda/cor primária)
 ```
 
-## O que NÃO muda
-- **Produto único** (DUTASTERIDA, etc.) — continua imprimindo a formula no ramo `else`. Sem regressão.
-- **Kits** — ramo separado (`if (isKit)`), intocado.
-- **Backend (`servidor.py`)** — continua devolvendo `composicao` e `formula`. Aditividade preservada.
-- **Layouts A_PAC_PEQ, A_PAC_GRAN, TIRZ** — não usam essa lógica composicao/formula. Não regridem.
-- **Textos salvos no Supabase** — intocados.
+Cada "chip" mostra:
+- **Número da barra** (`nrItem` — 1, 2, 3…)
+- **Nome curto do produto** (primeiro ativo da composição ou `formula` truncado em ~20 chars)
+- **Destaque visual** no item atualmente em edição (borda colorida / fundo primary)
+- **Indicador de edição salva** (bolinha verde se já tem `saved_rotulo` no Supabase para aquele item)
+
+### Interação
+- **Clique no chip** → salta direto para aquele item no editor.
+- **Se houver alterações não salvas** no item atual → abre o `UnsavedChangesDialog` já existente antes de trocar.
+- **Setas ← → / Home End** no teclado também funcionam para navegar entre chips (acessibilidade).
+- **Scroll horizontal** se houver muitos itens (ex: 20+ barras), sem quebrar o layout.
+
+## Alterações técnicas
+
+### Arquivo único: `src/pages/Index.tsx` (ou onde está o editor principal)
+Investigar primeiro para confirmar, mas pela estrutura do projeto o estado `currentIndex` + array de `rotulos` já existe. A mudança é:
+
+1. **Novo componente** `src/components/RequisitionItemSelector.tsx`:
+   - Props: `rotulos: RotuloItem[]`, `currentIndex: number`, `onSelect: (index: number) => void`, `savedMap: Record<string, boolean>` (qual item já tem texto salvo).
+   - Renderiza chips horizontais com Tailwind (`flex flex-wrap gap-2` ou `flex overflow-x-auto`).
+   - Usa `Button` variant `outline`/`default` do shadcn.
+
+2. **Integração em `Index.tsx`**:
+   - Renderizar `<RequisitionItemSelector>` acima do editor.
+   - Ligar `onSelect` ao mesmo handler que hoje as setas "próximo/anterior" usam, aproveitando a proteção do `UnsavedChangesDialog`.
+   - Calcular `savedMap` consultando o Supabase (ou reusar o estado que já faz isso para mostrar o badge "Salvo").
+
+### O que NÃO muda
+- Backend (`servidor.py`) — nenhuma alteração, os dados já vêm todos na mesma resposta.
+- Lógica de geração de texto (`LabelTextEditor.tsx`) — intocada.
+- Persistência no Supabase — intocada.
+- Setas "próximo/anterior" atuais — continuam funcionando lado a lado com os chips.
+- Fluxo de impressão — intocado.
 
 ## Validação
-1. Req `10436-7` (mescla PROHAIRIN/CAPIXYL/D-PANTENOL/COPPER) → some o `M. DIM. QUEDA E PREV. FIOS`. Restam só os ativos.
-2. Req `10436-8` (mescla D PANTENOL/BIOTINA/IGF/BFGF/COPPER/KGF) → some o `ALOPECIA MASCULINA/FEMININ`.
-3. Req `10474-0` (mescla ELASTINA/ÁCIDO ALFA LIPOICO/etc.) → some o `LAC CORPORAL (SUG 3) 10ML`.
-4. Req `10436-4` (DUTASTERIDA — produto único) → continua mostrando uma linha só (DUTASTERIDA 0,1%).
-5. Mesma checagem no layout AMP10.
+1. Pesquisar req `10436` (8 barras) → aparecem 8 chips numerados.
+2. Clicar no chip "7" → editor salta direto para o item 7, sem passar por 2,3,4,5,6.
+3. Item atual fica destacado (borda primary).
+4. Editar item 3, clicar no chip 5 sem salvar → abre `UnsavedChangesDialog` (salvar/descartar/cancelar).
+5. Chips de itens já salvos no Supabase mostram bolinha verde.
+6. Requisição com 1 item só → seletor esconde (não faz sentido).
+7. Requisição com 20+ itens → scroll horizontal funciona.
+
+## Extensão futura (fora deste plano, só anotando)
+- Busca textual dentro do seletor ("filtrar por nome do ativo").
+- Atalhos numéricos (apertar `1`–`9` no teclado para saltar).
 
