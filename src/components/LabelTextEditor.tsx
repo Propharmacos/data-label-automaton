@@ -240,6 +240,55 @@ const isValidComposicao = (texto: string): boolean => {
   return true;
 };
 
+/**
+ * Remove o nome reduzido (formula) da string de composição.
+ * Em mesclas, o backend às vezes inclui o próprio nome reduzido como um dos
+ * "ativos" da composição (ex: "...IDP2 1%, ESTRIAS BRANCAS CHANELL"). Esse nome
+ * é interno do FC e não deve aparecer no rótulo físico.
+ */
+const removeNomeReduzidoDaComposicao = (composicao: string, formula?: string): string => {
+  if (!composicao) return "";
+  if (!formula?.trim()) return composicao;
+
+  const norm = (s: string) =>
+    s
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toUpperCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+
+  const formulaNorm = norm(limparNomeProduto(formula));
+  if (!formulaNorm) return composicao;
+
+  // Tokens significativos do nome reduzido (palavras > 3 chars, sem números puros)
+  const formulaTokens = formulaNorm
+    .split(/[\s,/]+/)
+    .filter(t => t.length > 3 && !/^\d+(MG|ML|G|%)?$/i.test(t));
+
+  const partes = composicao.split(',').map(p => p.trim()).filter(Boolean);
+  const filtradas = partes.filter(parte => {
+    const parteNorm = norm(parte);
+    if (!parteNorm) return false;
+    // Match exato com o nome reduzido
+    if (parteNorm === formulaNorm) return false;
+    // Match por contenção bidirecional
+    if (formulaNorm.includes(parteNorm) && parteNorm.length > 8) return false;
+    if (parteNorm.includes(formulaNorm) && formulaNorm.length > 8) return false;
+    // Match por sobreposição forte de tokens (>=2 tokens significativos compartilhados
+    // E a parte não tem números/percentuais — ativos reais quase sempre têm dose)
+    if (formulaTokens.length >= 2) {
+      const parteTokens = parteNorm.split(/[\s,/]+/).filter(t => t.length > 3);
+      const compartilhados = formulaTokens.filter(t => parteTokens.includes(t));
+      const temDose = /\d+\s*(MG|ML|G|%|UI|MCG)/i.test(parte);
+      if (compartilhados.length >= 2 && !temDose) return false;
+    }
+    return true;
+  });
+
+  return filtradas.join(', ');
+};
+
 const tiposPrescritores: Record<string, { conselho: string }> = {
   '1': { conselho: 'CRM' }, '2': { conselho: 'CRO' }, '3': { conselho: 'CRMV' },
   '4': { conselho: 'CNE.GR' }, '5': { conselho: 'CRP' }, '6': { conselho: 'CRF' },
