@@ -7,6 +7,7 @@ import { RotuloItem, PharmacyConfig, LayoutConfig, LayoutType } from "@/types/re
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import UnsavedChangesDialog from "@/components/UnsavedChangesDialog";
+import RequisitionItemSelector from "@/components/RequisitionItemSelector";
 
 // ---- Tipos de uso válidos (mesmos do backend servidor.py) ----
 const TIPOS_USO_VALIDOS = [
