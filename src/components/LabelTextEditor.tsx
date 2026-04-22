@@ -304,7 +304,7 @@ const tiposPrescritores: Record<string, { conselho: string }> = {
   '7': { conselho: 'CRBM' }, '8': { conselho: 'CRFA' }, '9': { conselho: 'CRN' },
   'A': { conselho: 'CREFITO' }, 'B': { conselho: 'CREFITO' }, 'C': { conselho: 'COREN' },
   'D': { conselho: 'RMS' }, 'E': { conselho: 'CRBio' }, 'F': { conselho: 'CRO' },
-  'G': { conselho: 'CRM' },
+  'G': { conselho: 'CNE.GR' }, // Esteticista Graduada (Fórmula Certa: prefixo "G")
 };
 
 // ---- A_PAC_PEQ specific generator (compact fixed grid, distinct from GRAN) ----
