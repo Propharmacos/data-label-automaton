@@ -4506,9 +4506,12 @@ def buscar_requisicao(nr_requisicao):
                 
                 # =====================================================
                 # 4. VALIDA SE É ATIVO REAL usando is_ativo_mescla()
+                # exigir_dose=True: descarta nomes de fórmulas/
+                # referências cruzadas no FC03300 sem indicador de dose
+                # (ex: "ESTRIAS BRANCAS CHANELL", "FORMULA REVITALIZE").
                 # =====================================================
-                if not is_ativo_mescla(texto_limpo):
-                    print(f"      -> IGNORADO (não é ativo de mescla)")
+                if not is_ativo_mescla(texto_limpo, exigir_dose=True):
+                    print(f"      -> IGNORADO (não é ativo de mescla — sem dose)")
                     continue
                 
                 # Chegou até aqui = é ativo real válido
