@@ -10,5 +10,5 @@ echo.
 echo [INFO] Iniciando tunel ngrok...
 echo [INFO] Pressione Ctrl+C para encerrar.
 echo.
-ngrok http --config="%USERPROFILE%\ngrok-vitae.yml" --domain=authentic-unworried-ounce.ngrok-free.dev 5001
+"C:\Users\Administrador.PROCARAIBAS\Desktop\ngrok.exe" http --config="C:\Users\Administrador.PROCARAIBAS\ngrok-vitae.yml" --domain=authentic-unworried-ounce.ngrok-free.dev 5001
 pause
