@@ -16,11 +16,20 @@ const TIPOS_USO_VALIDOS = [
   'USO NASAL', 'USO ORAL'
 ];
 
-function extrairTipoUso(posologia: string | undefined, tipoUso: string | undefined): string {
+function extrairTipoUso(posologia: string | undefined, tipoUso: string | undefined, formula?: string): string {
   const pos = posologia?.toUpperCase().trim() || "";
   if (TIPOS_USO_VALIDOS.includes(pos)) return pos;
-  return tipoUso?.toUpperCase() || "";
+  
+  const uso = tipoUso?.toUpperCase() || "";
+  
+  // Regra de segurança para Tirzepatida: nunca deixar sair como NASAL
+  if (uso === "USO NASAL" && formula?.toUpperCase().includes("TIRZEPATIDA")) {
+    return "USO EM CONSULTORIO";
+  }
+  
+  return uso;
 }
+
 
 // ---- Word-wrap utility ----
 function wrapText(text: string, maxCols: number, maxLines: number): string {
