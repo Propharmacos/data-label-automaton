@@ -21,6 +21,7 @@ import fdb
 import traceback
 import unicodedata
 import re
+import datetime
 
 app = Flask(__name__)
 CORS(app)
@@ -40,11 +41,23 @@ def get_db():
     )
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+def serialize(v):
+    """Converte tipos do Firebird para JSON-safe."""
+    if isinstance(v, str):
+        return v.strip()
+    if isinstance(v, datetime.time):
+        return v.strftime('%H:%M:%S')
+    if isinstance(v, datetime.datetime):
+        return v.isoformat()
+    if isinstance(v, datetime.date):
+        return v.isoformat()
+    return v
+
 def strip(v):
     return v.strip() if isinstance(v, str) else v
 
 def row_to_dict(cursor, row):
-    return {cursor.description[i][0]: strip(row[i]) for i in range(len(row))}
+    return {cursor.description[i][0]: serialize(row[i]) for i in range(len(row))}
 
 def rows_to_list(cursor, rows):
     return [row_to_dict(cursor, r) for r in rows]
@@ -95,9 +108,10 @@ def buscar_clientes():
                 SELECT FIRST 20
                     c.CDCLI, c.NOMECLI, c.NRCNPJ, c.EMAIL, c.TPCLI,
                     c.DTNAS, c.DTCAD,
-                    e.NRDDD, e.NRTEL, e.NRDDD2, e.NRTEL2
+                    e.NRDDD, e.NRTEL, e.NRDDD2, e.NRTEL2,
+                    e.ENDER, e.ENDNR, e.ENDCP, e.BAIRR, e.MUNIC, e.UNFED, e.NRCEP, e.OBSENTREGA
                 FROM FC07000 c
-                LEFT JOIN FC07200 e ON e.CDCLI = c.CDCLI AND e.OCENDER = '1'
+                LEFT JOIN FC07200 e ON e.CDCLI = c.CDCLI AND e.OCENDER = c.OCENDCOR
                 WHERE c.NRCNPJ STARTING WITH ?
                 ORDER BY c.NOMECLI
             """, (digits,))
@@ -106,21 +120,31 @@ def buscar_clientes():
                 SELECT FIRST 20
                     c.CDCLI, c.NOMECLI, c.NRCNPJ, c.EMAIL, c.TPCLI,
                     c.DTNAS, c.DTCAD,
-                    e.NRDDD, e.NRTEL, e.NRDDD2, e.NRTEL2
+                    e.NRDDD, e.NRTEL, e.NRDDD2, e.NRTEL2,
+                    e.ENDER, e.ENDNR, e.ENDCP, e.BAIRR, e.MUNIC, e.UNFED, e.NRCEP, e.OBSENTREGA
                 FROM FC07000 c
-                LEFT JOIN FC07200 e ON e.CDCLI = c.CDCLI AND e.OCENDER = '1'
+                LEFT JOIN FC07200 e ON e.CDCLI = c.CDCLI AND e.OCENDER = c.OCENDCOR
                 WHERE UPPER(c.NOMECLI) CONTAINING UPPER(?)
                 ORDER BY c.NOMECLI
             """, (q,))
 
         clientes = []
         for row in cursor.fetchall():
-            cdcli, nomecli, nrcnpj, email, tpcli, dtnas, dtcad, ddd1, tel1, ddd2, tel2 = row
+            (cdcli, nomecli, nrcnpj, email, tpcli, dtnas, dtcad,
+             ddd1, tel1, ddd2, tel2,
+             ender, endnr, endcp, bairr, munic, unfed, nrcep, obsent) = row
             telefone = ''
             if ddd1 and tel1:
                 telefone = f'({strip(ddd1)}) {strip(tel1)}'
             elif ddd2 and tel2:
                 telefone = f'({strip(ddd2)}) {strip(tel2)}'
+            partes = [p for p in [
+                strip(ender), strip(endnr), strip(endcp),
+                strip(bairr), strip(munic), strip(unfed),
+            ] if p]
+            endereco = ', '.join(partes)
+            if nrcep: endereco += f' — CEP {strip(nrcep)}'
+            if obsent: endereco += f' ({strip(obsent)})'
             clientes.append({
                 'id': cdcli,
                 'formulaCode': f'FC-{cdcli:05d}',
@@ -131,6 +155,7 @@ def buscar_clientes():
                 'tipo': 'PJ' if strip(tpcli) == '2' else 'PF',
                 'nascimento': str(dtnas) if dtnas else '',
                 'cadastro': str(dtcad) if dtcad else '',
+                'endereco': endereco,
             })
 
         cursor.close()
@@ -466,16 +491,14 @@ def query_livre():
 
 
 # ── REQUISIÇÕES (MANIPULADOS) ────────────────────────────────────────────────
-#
-# ATENÇÃO: os nomes das tabelas abaixo (FC01000, FC01100) são suposições
-# baseadas na convenção do FormulaCerta. Se retornar erro 500, use
-# GET /api/tabelas para listar as tabelas reais e ajuste aqui.
-#
+# FC12000 = cabeçalho (NRRQU, CDCLI, DTENTR, VRRQU, CDFUN)
+# FC12100 = itens (NRRQU, SERIER, PRCOBR, QTFOR, PFCRM, NRCRM, UFCRM)
+# Preços em FC12100 já em R$ como DOUBLE — sem divisão por 10000.
 @app.route('/api/requisicoes/buscar', methods=['GET', 'OPTIONS'])
 def buscar_requisicoes():
     """
     Busca requisições no FC.
-    ?q=<número>      — busca pelo número exato da REQ
+    ?q=<número>      — busca pelo número exato da REQ (FC12000.NRRQU)
     ?cdcli=<código>  — busca pelo código do cliente
     """
     if request.method == 'OPTIONS':
@@ -492,7 +515,7 @@ def buscar_requisicoes():
         params = []
 
         if q and q.isdigit():
-            where.append('r.NRREQ = ?')
+            where.append('r.NRRQU = ?')
             params.append(int(q))
         elif q:
             where.append('UPPER(c.NOMECLI) CONTAINING UPPER(?)')
@@ -507,23 +530,26 @@ def buscar_requisicoes():
 
         sql = f"""
             SELECT FIRST 20
-                r.NRREQ, r.CDCLI, r.DTREQ, r.SITUA, c.NOMECLI
-            FROM FC01000 r
+                r.NRRQU, r.CDCLI, r.DTENTR, r.VRRQU,
+                c.NOMECLI, f.NOMEFUN
+            FROM FC12000 r
             LEFT JOIN FC07000 c ON c.CDCLI = r.CDCLI
+            LEFT JOIN FC08000 f ON f.CDFUN = r.CDFUN
             WHERE {' AND '.join(where)}
-            ORDER BY r.NRREQ DESC
+            ORDER BY r.NRRQU DESC
         """
         cursor.execute(sql, params)
 
         requisicoes = []
         for row in cursor.fetchall():
-            nrreq, cdcli_v, dtreq, situa, nomecli = row
+            nrrqu, cdcli_v, dtentr, vrrqu, nomecli, nomefun = row
             requisicoes.append({
-                'nrreq':    nrreq,
-                'cdcli':    cdcli_v,
-                'cliente':  strip(nomecli) or '',
-                'data':     str(dtreq) if dtreq else '',
-                'situacao': strip(situa) or '',
+                'nrreq':      nrrqu,
+                'cdcli':      cdcli_v,
+                'cliente':    strip(nomecli) or '',
+                'data':       str(dtentr) if dtentr else '',
+                'atendente':  strip(nomefun) or '',
+                'valorTotal': round(float(vrrqu or 0), 2),
             })
 
         cursor.close()
@@ -539,10 +565,8 @@ def buscar_requisicoes():
 def get_requisicao(nrreq):
     """
     Retorna dados completos de uma requisição pelo número.
-    Cabeçalho: FC01000 | Itens: FC01100
-
-    Campos de preço (VLVEND, VLSUB) são divididos por 10000 para chegar ao R$.
-    Se os valores saírem errados, verificar o divisor — pode ser 100 ou 1.
+    Cabeçalho: FC12000 | Itens: FC12100
+    Preços PRCOBR já em R$ (DOUBLE) — sem divisão.
     """
     try:
         conn   = get_db()
@@ -551,11 +575,12 @@ def get_requisicao(nrreq):
         # ── Cabeçalho ──
         cursor.execute("""
             SELECT FIRST 1
-                r.NRREQ, r.CDCLI, r.DTREQ, r.SITUA,
-                c.NOMECLI, r.NRATEND
-            FROM FC01000 r
+                r.NRRQU, r.CDCLI, r.DTENTR, r.VRRQU, r.CDFUN,
+                c.NOMECLI, f.NOMEFUN
+            FROM FC12000 r
             LEFT JOIN FC07000 c ON c.CDCLI = r.CDCLI
-            WHERE r.NRREQ = ?
+            LEFT JOIN FC08000 f ON f.CDFUN = r.CDFUN
+            WHERE r.NRRQU = ?
         """, (int(nrreq),))
 
         row = cursor.fetchone()
@@ -564,46 +589,83 @@ def get_requisicao(nrreq):
             conn.close()
             return jsonify({'erro': f'Requisição {nrreq} não encontrada'}), 404
 
-        nrreq_v, cdcli, dtreq, situa, nomecli, nratend = row
+        nrrqu, cdcli, dtentr, vrrqu, cdfun, nomecli, nomefun = row
 
-        # ── Itens ──
+        # ── Itens — colunas explícitas para evitar campo TIME do FC12100 ──
         cursor.execute("""
             SELECT
-                i.NRITEM, i.CDPRO, i.DESCR,
-                i.QTPRD, i.VLVEND, i.VLSUB
-            FROM FC01100 i
-            WHERE i.NRREQ = ?
-            ORDER BY i.NRITEM
+                i.SERIER, i.PRCOBR, i.QTFOR,
+                i.PFCRM, i.NRCRM, i.UFCRM,
+                p.DESCR
+            FROM FC12100 i
+            LEFT JOIN FC03000 p ON p.CDPRO = i.CDPRODAV
+            WHERE i.NRRQU = ?
+            ORDER BY i.SERIER
         """, (int(nrreq),))
 
         itens = []
         for r in cursor.fetchall():
-            nritem, cdpro, descr, qtprd, vlvend, vlsub = r
+            serier, prcobr, qtfor, pfcrm, nrcrm, ufcrm, descr = r
+            preco = round(float(prcobr or 0), 2)
+            qtd   = float(qtfor or 1)
             itens.append({
-                'item':       nritem,
-                'cdpro':      cdpro,
-                'descricao':  strip(descr) or '',
-                'quantidade': float(qtprd or 0),
-                'precoUnit':  round(float(vlvend or 0) / 10000, 2),
-                'subtotal':   round(float(vlsub or 0) / 10000, 2),
+                'item':       serier,
+                'descricao':  strip(descr) or f'Item {serier}',
+                'quantidade': qtd,
+                'precoUnit':  preco,
+                'subtotal':   round(preco * qtd, 2),
+                'prescritor': f'{strip(pfcrm) or "CRM"} {strip(nrcrm) or ""}/{strip(ufcrm) or ""}'.strip(),
             })
 
         cursor.close()
         conn.close()
 
         return jsonify({
-            'nrreq':     nrreq_v,
-            'cdcli':     cdcli,
-            'cliente':   strip(nomecli) or '',
-            'data':      str(dtreq) if dtreq else '',
-            'situacao':  strip(situa) or '',
-            'atendente': strip(nratend) or '',
-            'itens':     itens,
+            'nrreq':      nrrqu,
+            'cdcli':      cdcli,
+            'cliente':    strip(nomecli) or '',
+            'data':       str(dtentr) if dtentr else '',
+            'valorTotal': round(float(vrrqu or 0), 2),
+            'atendente':  strip(nomefun) or '',
+            'itens':      itens,
         })
 
     except Exception as e:
         traceback.print_exc()
         return jsonify({'erro': str(e)}), 500
+
+
+# ── ATENDENTES ───────────────────────────────────────────────────────────────
+@app.route('/api/atendentes', methods=['GET', 'OPTIONS'])
+def listar_atendentes():
+    """Lista funcionários ativos do FC08000 para uso como atendentes."""
+    if request.method == 'OPTIONS':
+        return '', 204
+    try:
+        conn   = get_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT CDFUN, NOMEFUN, USERID
+            FROM FC08000
+            WHERE FUNATIVO = 'S' AND NOMEFUN IS NOT NULL
+            ORDER BY NOMEFUN
+        """)
+        atendentes = []
+        for row in cursor.fetchall():
+            cdfun, nomefun, userid = row
+            nome = strip(nomefun) or ''
+            if nome and nome != '.':
+                atendentes.append({
+                    'id':     cdfun,
+                    'nome':   nome,
+                    'userid': strip(userid) or '',
+                })
+        cursor.close()
+        conn.close()
+        return jsonify({'atendentes': atendentes, 'total': len(atendentes)})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'atendentes': [], 'total': 0, 'erro': str(e)}), 500
 
 
 # ── START ────────────────────────────────────────────────────────────────────
@@ -621,6 +683,7 @@ if __name__ == '__main__':
     print('  GET  /api/prescritores/buscar?q=<nome_ou_crm>')
     print('  GET  /api/requisicoes/buscar?q=<nrreq>')
     print('  GET  /api/requisicoes/<nrreq>')
+    print('  GET  /api/atendentes')
     print('  GET  /api/tabelas')
     print('  GET  /api/tabelas/<nome>/colunas')
     print('  POST /api/query  { sql, params }')
