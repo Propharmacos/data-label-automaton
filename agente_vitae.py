@@ -671,22 +671,29 @@ def listar_atendentes():
     try:
         conn   = get_db()
         cursor = conn.cursor()
+        # Apenas funcionários com login ativo (USERID preenchido)
         cursor.execute("""
             SELECT CDFUN, NOMEFUN, USERID
             FROM FC08000
-            WHERE FUNATIVO = 'S' AND NOMEFUN IS NOT NULL
+            WHERE FUNATIVO = 'S'
+              AND USERID IS NOT NULL
+              AND TRIM(USERID) <> ''
+              AND NOMEFUN IS NOT NULL
             ORDER BY NOMEFUN
         """)
-        atendentes = []
+        # Deduplica por CDFUN: mantém o registro com nome mais longo (mais completo)
+        por_cdfun = {}
         for row in cursor.fetchall():
             cdfun, nomefun, userid = row
             nome = strip(nomefun) or ''
-            if nome and nome != '.':
-                atendentes.append({
-                    'id':     cdfun,
-                    'nome':   nome,
-                    'userid': strip(userid) or '',
-                })
+            uid  = strip(userid) or ''
+            if not nome or nome == '.':
+                continue
+            existente = por_cdfun.get(cdfun)
+            if existente is None or len(nome) > len(existente['nome']):
+                por_cdfun[cdfun] = {'id': cdfun, 'nome': nome, 'userid': uid}
+
+        atendentes = sorted(por_cdfun.values(), key=lambda x: x['nome'])
         cursor.close()
         conn.close()
         return jsonify({'atendentes': atendentes, 'total': len(atendentes)})
