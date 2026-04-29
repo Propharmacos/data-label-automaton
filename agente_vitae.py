@@ -241,8 +241,13 @@ def buscar_produtos():
         conn = get_db()
         cursor = conn.cursor()
 
-        where = ["UPPER(DESCR) CONTAINING UPPER(?)"]
-        params = [q]
+        # Busca por código numérico (CDPRO) ou por nome (DESCR)
+        if q.isdigit():
+            where  = ["CDPRO = ?"]
+            params = [int(q)]
+        else:
+            where  = ["UPPER(DESCR) CONTAINING UPPER(?)"]
+            params = [q]
 
         if ativos_apenas:
             where.append("SITUA = 'A'")
