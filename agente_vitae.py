@@ -591,26 +591,48 @@ def get_requisicao(nrreq):
 
         nrrqu, cdcli, dtentr, vrrqu, cdfun, nomecli, nomefun = row
 
-        # ── Itens — colunas explícitas para evitar campo TIME do FC12100 ──
+        # ── Itens (FC12100) — colunas explícitas para evitar campo TIME ──
         cursor.execute("""
-            SELECT
-                i.SERIER, i.PRCOBR, i.QTFOR,
-                i.PFCRM, i.NRCRM, i.UFCRM,
-                p.DESCR
+            SELECT i.SERIER, i.PRCOBR, i.QTFOR,
+                   i.PFCRM, i.NRCRM, i.UFCRM,
+                   i.NOMEPA, i.POSOL
             FROM FC12100 i
-            LEFT JOIN FC03000 p ON p.CDPRO = i.CDPRODAV
             WHERE i.NRRQU = ?
             ORDER BY i.SERIER
         """, (int(nrreq),))
+        rows_itens = cursor.fetchall()
+
+        # ── Composição (FC12110) — apenas ativos (TPCMP='C') ──
+        cursor.execute("""
+            SELECT SERIER, DESCR, QUANT, UNIDA
+            FROM FC12110
+            WHERE NRRQU = ? AND TPCMP = 'C'
+            ORDER BY SERIER, ITEMID
+        """, (int(nrreq),))
+        composicao = {}
+        for r in cursor.fetchall():
+            ser, descr, quant, unida = r
+            s = (strip(ser) or '0')
+            if s not in composicao:
+                composicao[s] = []
+            parte = strip(descr) or ''
+            if quant is not None and unida:
+                parte += f' {quant:g}{strip(unida)}'
+            composicao[s].append(parte)
 
         itens = []
-        for r in cursor.fetchall():
-            serier, prcobr, qtfor, pfcrm, nrcrm, ufcrm, descr = r
+        for r in rows_itens:
+            serier, prcobr, qtfor, pfcrm, nrcrm, ufcrm, nomepa, posol = r
+            s = strip(serier) or '0'
+            ingredientes = composicao.get(s, [])
+            descricao = ' + '.join(ingredientes) if ingredientes else (strip(posol) or f'Fórmula {s}')
             preco = round(float(prcobr or 0), 2)
             qtd   = float(qtfor or 1)
             itens.append({
-                'item':       serier,
-                'descricao':  strip(descr) or f'Item {serier}',
+                'item':       s,
+                'descricao':  descricao,
+                'paciente':   strip(nomepa) or '',
+                'posologia':  strip(posol) or '',
                 'quantidade': qtd,
                 'precoUnit':  preco,
                 'subtotal':   round(preco * qtd, 2),
