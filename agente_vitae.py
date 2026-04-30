@@ -829,6 +829,70 @@ def get_composicao_produto(cdpro):
         return jsonify({'ativos': [], 'composicao': '', 'erro': str(e)}), 500
 
 
+@app.route('/api/produtos/kits_composicoes', methods=['GET', 'OPTIONS'])
+def get_kits_composicoes():
+    """
+    Retorna todos kits/mesclas ativos com suas composições para cache no frontend.
+    Inclui produtos com KIT, MESCLA, TRIO, COMPLEXO, PROTOCOLO, BLEND, POOL, BOOSTER no nome.
+    """
+    if request.method == 'OPTIONS':
+        return '', 204
+    try:
+        conn   = get_db()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT p.CDPRO, p.DESCR, p.DESCRPRD, k.DESCR as ATIVO, k.ITEMID
+            FROM FC03000 p
+            LEFT JOIN FC05000 f ON CAST(p.CDPRO AS VARCHAR(10)) = f.CDSAC
+            LEFT JOIN FC05100 k ON k.CDFRM = f.CDFRM AND k.TPCMP = 'C'
+            WHERE p.STPRO = 'A'
+            AND (
+                UPPER(p.DESCR) CONTAINING 'KIT'      OR
+                UPPER(p.DESCR) CONTAINING 'MESCLA'   OR
+                UPPER(p.DESCR) CONTAINING 'TRIO'      OR
+                UPPER(p.DESCR) CONTAINING 'COMPLEXO'  OR
+                UPPER(p.DESCR) CONTAINING 'PROTOCOLO' OR
+                UPPER(p.DESCR) CONTAINING 'BLEND'     OR
+                UPPER(p.DESCR) CONTAINING 'POOL'      OR
+                UPPER(p.DESCR) CONTAINING 'BOOSTER'
+            )
+            ORDER BY p.CDPRO, k.ITEMID
+        """)
+
+        kits = {}
+        for row in cursor.fetchall():
+            cdpro, descr, descrprd, ativo, itemid = row
+            nome     = strip(descr)    or ''
+            nome_red = strip(descrprd) or ''
+            ativo_str = strip(ativo) if ativo else None
+
+            if cdpro not in kits:
+                kits[cdpro] = {'id': cdpro, 'nome': nome, 'nome_red': nome_red, 'ativos': []}
+
+            if ativo_str and not _e_excipiente(ativo_str) and ativo_str not in kits[cdpro]['ativos']:
+                kits[cdpro]['ativos'].append(ativo_str)
+
+        resultado = []
+        for kit in kits.values():
+            ativos = kit['ativos']
+            if not ativos:
+                # Fallback: usa DESCRPRD se diferente do nome completo
+                nr = kit['nome_red']
+                if nr and nr.upper() != kit['nome'].upper():
+                    ativos = [nr]
+            if ativos:
+                resultado.append({'id': kit['id'], 'nome': kit['nome'], 'ativos': ativos})
+
+        cursor.close()
+        conn.close()
+        return jsonify({'kits': resultado, 'total': len(resultado)})
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'kits': [], 'total': 0, 'erro': str(e)}), 500
+
+
 # ── START ────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     print('=' * 55)
