@@ -111,7 +111,7 @@ def buscar_clientes():
                     e.NRDDD, e.NRTEL, e.NRDDD2, e.NRTEL2,
                     e.ENDER, e.ENDNR, e.ENDCP, e.BAIRR, e.MUNIC, e.UNFED, e.NRCEP, e.OBSENTREGA
                 FROM FC07000 c
-                LEFT JOIN FC07200 e ON e.CDCLI = c.CDCLI AND e.OCENDER = c.OCENDCOR
+                LEFT JOIN FC07200 e ON e.CDCLI = c.CDCLI AND e.OCENDER = COALESCE(c.OCENDCOR, '1')
                 WHERE c.NRCNPJ STARTING WITH ?
                 ORDER BY c.NOMECLI
             """, (digits,))
@@ -123,7 +123,7 @@ def buscar_clientes():
                     e.NRDDD, e.NRTEL, e.NRDDD2, e.NRTEL2,
                     e.ENDER, e.ENDNR, e.ENDCP, e.BAIRR, e.MUNIC, e.UNFED, e.NRCEP, e.OBSENTREGA
                 FROM FC07000 c
-                LEFT JOIN FC07200 e ON e.CDCLI = c.CDCLI AND e.OCENDER = c.OCENDCOR
+                LEFT JOIN FC07200 e ON e.CDCLI = c.CDCLI AND e.OCENDER = COALESCE(c.OCENDCOR, '1')
                 WHERE UPPER(c.NOMECLI) CONTAINING UPPER(?)
                 ORDER BY c.NOMECLI
             """, (q,))
