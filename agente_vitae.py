@@ -374,31 +374,37 @@ def buscar_prescritores():
         if q.isdigit():
             cursor.execute("""
                 SELECT FIRST 20
-                    CDPRF, NMPRF, PFCRM, NRCRM, UFCRM, ESPECIAL
+                    NRCRM, NOMEMED, PFCRM, NRCRM, UFCRM
                 FROM FC04000
                 WHERE NRCRM STARTING WITH ?
-                ORDER BY NMPRF
+                  AND NOMEMED IS NOT NULL
+                ORDER BY NOMEMED
             """, (q,))
         else:
             cursor.execute("""
                 SELECT FIRST 20
-                    CDPRF, NMPRF, PFCRM, NRCRM, UFCRM, ESPECIAL
+                    NRCRM, NOMEMED, PFCRM, NRCRM, UFCRM
                 FROM FC04000
-                WHERE UPPER(NMPRF) CONTAINING UPPER(?)
-                ORDER BY NMPRF
+                WHERE UPPER(NOMEMED) CONTAINING UPPER(?)
+                  AND NOMEMED IS NOT NULL
+                ORDER BY NOMEMED
             """, (q,))
 
         prescritores = []
         for row in cursor.fetchall():
-            cdprf, nmprf, pfcrm, nrcrm, ufcrm, especial = row
+            nrcrm_id, nomemed, pfcrm, nrcrm, ufcrm = row
+            nome = strip(nomemed) or ''
+            conselho = strip(pfcrm) or 'CRM'
+            numero = strip(nrcrm) or ''
+            uf = strip(ufcrm) or ''
             prescritores.append({
-                'id': cdprf,
-                'nome': strip(nmprf) or '',
-                'conselho': strip(pfcrm) or 'CRM',
-                'numero': strip(nrcrm) or '',
-                'uf': strip(ufcrm) or '',
-                'especialidade': strip(especial) or '',
-                'crm': f'{strip(pfcrm) or "CRM"} {strip(nrcrm) or ""}/{strip(ufcrm) or ""}'.strip(),
+                'id': numero,
+                'nome': nome,
+                'conselho': conselho,
+                'numero': numero,
+                'uf': uf,
+                'especialidade': '',
+                'crm': f'{conselho} {numero}/{uf}'.strip(),
             })
 
         cursor.close()
