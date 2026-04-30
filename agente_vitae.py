@@ -246,7 +246,7 @@ def buscar_produtos():
             where  = ["CDPRO = ?"]
             params = [int(q)]
         else:
-            # Quebra em palavras e exige que cada palavra apareça em DESCR ou DESCRPRD
+            params = []
             palavras = [p for p in q.split() if len(p) >= 2]
             word_clauses = []
             for p in palavras:
