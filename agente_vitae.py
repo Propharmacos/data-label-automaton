@@ -702,6 +702,84 @@ def listar_atendentes():
         return jsonify({'atendentes': [], 'total': 0, 'erro': str(e)}), 500
 
 
+# ── COMPOSIÇÃO DE KIT / MESCLA ───────────────────────────────────────────────
+
+_EXCIPIENTE_KW = [
+    'FRASCO', 'AMBAR', 'FR AMBAR', 'AMPOLA', 'SERINGA', 'AGULHA', 'TUBO',
+    'BISNAGA', 'POTE', 'GARRAFA', 'SACHE', 'ENVELOPE',
+    'SELO', 'TAMPA', 'BORRACHA', 'LACRE', 'ROLHA', 'ALUMINIO',
+    'EMBALAGEM', 'ROTULO', 'ETIQUETA',
+    'AGUA PARA INJECAO', 'AGUA PARA INJETAVEIS', 'AGUA ESTERIL', 'AGUA DESTILADA',
+    'AGUA PURIFICADA', 'SORO FISIOLOGICO', 'SOLUCAO FISIOLOGICA', 'NACL',
+    'ALCOOL BENZILICO', 'ALCOOL ETILICO', 'PROPILENO GLICOL',
+    'GLICERINA', 'METILPARABENO', 'PROPILPARABENO', 'NIPAGIN',
+]
+
+def _e_excipiente(nome: str) -> bool:
+    n = unicodedata.normalize('NFD', (nome or '').upper())
+    n = ''.join(c for c in n if unicodedata.category(c) != 'Mn')
+    return any(kw in n for kw in _EXCIPIENTE_KW)
+
+
+@app.route('/api/produtos/<int:cdpro>/composicao', methods=['GET', 'OPTIONS'])
+def get_composicao_produto(cdpro):
+    """
+    Retorna ativos/componentes de um kit ou mescla pelo CDPRO.
+    1) Se DESCRPRD != DESCR, usa DESCRPRD como composição (dados já cadastrados).
+    2) Caso contrário, busca a fórmula em FC05000 → FC05100 e filtra excipientes.
+    """
+    if request.method == 'OPTIONS':
+        return '', 204
+    try:
+        conn   = get_db()
+        cursor = conn.cursor()
+
+        # 1. Verifica se DESCRPRD já tem a composição
+        cursor.execute("SELECT DESCR, DESCRPRD FROM FC03000 WHERE CDPRO = ?", (cdpro,))
+        row = cursor.fetchone()
+        if not row:
+            cursor.close(); conn.close()
+            return jsonify({'ativos': [], 'composicao': ''})
+
+        nome, nome_red = strip(row[0]) or '', strip(row[1]) or ''
+        if nome_red and nome_red.upper() != nome.upper():
+            cursor.close(); conn.close()
+            return jsonify({'ativos': [nome_red], 'composicao': nome_red})
+
+        # 2. Busca fórmula em FC05000
+        cursor.execute("SELECT FIRST 1 CDFRM FROM FC05000 WHERE CDSAC = ?", (str(cdpro),))
+        row = cursor.fetchone()
+        if not row:
+            cursor.close(); conn.close()
+            return jsonify({'ativos': [], 'composicao': ''})
+
+        cdfrm = row[0]
+
+        # 3. Componentes da fórmula (FC05100) — apenas tipo 'C' (componente)
+        cursor.execute("""
+            SELECT k.DESCR, k.QUANT, k.UNIDA
+            FROM FC05100 k
+            WHERE k.CDFRM = ? AND k.TPCMP = 'C'
+            ORDER BY k.ITEMID
+        """, (cdfrm,))
+
+        ativos = []
+        for r in cursor.fetchall():
+            descr, quant, unida = r
+            nome_comp = strip(descr) or ''
+            if not nome_comp or _e_excipiente(nome_comp):
+                continue
+            ativos.append(nome_comp)
+
+        cursor.close()
+        conn.close()
+        return jsonify({'ativos': ativos, 'composicao': ', '.join(ativos)})
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'ativos': [], 'composicao': '', 'erro': str(e)}), 500
+
+
 # ── START ────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     print('=' * 55)
@@ -714,6 +792,7 @@ if __name__ == '__main__':
     print('  GET  /api/clientes/<cdcli>')
     print('  GET  /api/produtos/buscar?q=<texto>')
     print('  GET  /api/produtos/<cdpro>')
+    print('  GET  /api/produtos/<cdpro>/composicao')
     print('  GET  /api/prescritores/buscar?q=<nome_ou_crm>')
     print('  GET  /api/requisicoes/buscar?q=<nrreq>')
     print('  GET  /api/requisicoes/<nrreq>')
