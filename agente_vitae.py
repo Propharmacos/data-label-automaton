@@ -949,28 +949,29 @@ def criar_orcamento():
             )
         """, (cdfil, nrrqu, cdcli, cdfil, hoje, vrtotal, vrdsc, cdfun))
 
-        # ── Itens FC12100 + componentes FC12110 ───────────────────────────
+        # ── Itens FC12100 + componente FC12110 ───────────────────────────
         for seq, item in enumerate(itens, start=1):
             raw_nomepa = str(item.get('nomepa', '')).strip()
-            nomepa  = (raw_nomepa or nomecli)[:50]
-            volume  = int(item.get('volume', 0)) or 1
-            univol  = str(item.get('univol', 'ML'))[:3]
-            qtfor   = int(item.get('qtfor', 1))
-            prcobr  = float(item.get('prcobr', 0.0))
-            tpforma = int(item.get('tpforma', 14))
-            cdpro   = item.get('cdpro')   # int ou None
-            ativos  = item.get('ativos', [])   # lista de strings
+            nomepa     = (raw_nomepa or nomecli)[:50]
+            volume     = int(item.get('volume', 0)) or 1
+            univol     = str(item.get('univol', 'AMP'))[:3]
+            qtfor      = int(item.get('qtfor', 1))
+            prcobr     = float(item.get('prcobr', 0.0))
+            tpforma    = int(item.get('tpforma', 14))
+            cdpro      = item.get('cdpro')  # int ou None
             descr_item = str(item.get('descr', nomepa))[:50]
+
+            # TPUSO: '7' = uso em consultório/injetável (padrão ampolas TPFORMAFARMA=14)
+            tpuso = '7' if tpforma == 14 else 'I'
 
             row = dict(tmpl)
             row.update({
                 'CDFIL':        cdfil,
                 'NRRQU':        nrrqu,
-                'SERIER':       seq,
+                'SERIER':       str(seq),
                 'NRORC':        nrrqu,
                 'SERIEO':       'A',
                 'CDCLI':        cdcli,
-                'CDPAC':        cdcli,
                 'DTENTR':       hoje,
                 'DTCAD':        hoje,
                 'DTVAL':        dtval,
@@ -979,7 +980,7 @@ def criar_orcamento():
                 'NRCRM':        nrcrm,
                 'UFCRM':        ufcrm,
                 'POSOL':        posol,
-                'TPUSO':        'I',
+                'TPUSO':        tpuso,
                 'VOLUME':       volume,
                 'UNIVOL':       univol,
                 'QTFOR':        qtfor,
@@ -995,67 +996,36 @@ def criar_orcamento():
                 'FLAGROT':      'N',
                 'FLAGRQU':      'N',
             })
-            # Remove colunas que não existem no schema real
             row = {k: v for k, v in row.items() if k in insertable_cols}
 
             cols    = list(row.keys())
             vals    = [row[c] for c in cols]
             marks   = ', '.join(['?'] * len(cols))
-            col_sql = ', '.join(cols)
-            cursor.execute(f"INSERT INTO FC12100 ({col_sql}) VALUES ({marks})", vals)
+            cursor.execute(f"INSERT INTO FC12100 ({', '.join(cols)}) VALUES ({marks})", vals)
 
-            # ── Componentes FC12110 ───────────────────────────────────────
-            componentes = []  # lista de (descr, quant, unida, cdpro_comp)
-
-            if cdpro:
-                # Busca fórmula em FC05000 → FC05100
-                cursor.execute(
-                    "SELECT FIRST 1 CDFRM FROM FC05000 WHERE CDSAC = ?", (str(cdpro),)
-                )
-                row_frm = cursor.fetchone()
-                if row_frm:
-                    cursor.execute("""
-                        SELECT k.DESCR, k.QUANT, k.UNIDA, k.CDPRO
-                        FROM FC05100 k
-                        WHERE k.CDFRM = ? AND k.TPCMP = 'C'
-                        ORDER BY k.ITEMID
-                    """, (row_frm[0],))
-                    for r in cursor.fetchall():
-                        d, q, u, cp = r
-                        d = strip(d) or ''
-                        if d and not _e_excipiente(d):
-                            componentes.append((d[:50], float(q or 1), strip(u) or 'G', cp))
-
-            if not componentes and ativos:
-                for ativo in ativos:
-                    a = str(ativo).strip()[:50]
-                    if a:
-                        componentes.append((a, float(volume), univol, None))
-
-            if not componentes:
-                componentes.append((descr_item, float(volume), univol, cdpro))
-
-            for itemid, (comp_descr, comp_quant, comp_unida, comp_cdpro) in enumerate(componentes, start=1):
-                r110 = dict(tmpl110)
-                r110.update({
-                    'CDFIL':   cdfil,
-                    'NRRQU':   nrrqu,
-                    'SERIER':  seq,
-                    'ITEMID':  itemid,
-                    'TPCMP':   'C',
-                    'DESCR':   comp_descr,
-                    'QUANT':   comp_quant,
-                    'UNIDA':   comp_unida,
-                })
-                if comp_cdpro:
-                    r110['CDPRO'] = comp_cdpro
-                r110 = {k: v for k, v in r110.items() if k in ins_cols_110}
-                c110 = list(r110.keys())
-                v110 = [r110[c] for c in c110]
-                m110 = ', '.join(['?'] * len(c110))
-                cursor.execute(
-                    f"INSERT INTO FC12110 ({', '.join(c110)}) VALUES ({m110})", v110
-                )
+            # ── FC12110: um componente por item (o produto em si, pré-fabricado) ──
+            # Padrão confirmado nas requisições aprovadas: TPCMP='C', CDPRO do produto,
+            # DESCR = nome do produto, QUANT = volume, UNIDA = univol.
+            # NÃO decompor em matérias-primas (causaria códigos sem lote).
+            r110 = dict(tmpl110)
+            r110.update({
+                'CDFIL':    cdfil,
+                'NRRQU':    nrrqu,
+                'SERIER':   str(seq),
+                'ITEMID':   1,
+                'TPCMP':    'C',
+                'CDPRO':    cdpro,          # None = NULL (se produto sem código FC)
+                'DESCR':    descr_item,
+                'QUANT':    float(volume),
+                'UNIDA':    univol,
+                'CTLOT':    0,              # NOT NULL
+                'QUANTHP':  0.0,            # NOT NULL
+            })
+            r110 = {k: v for k, v in r110.items() if k in ins_cols_110}
+            c110 = list(r110.keys())
+            v110 = [r110[c] for c in c110]
+            m110 = ', '.join(['?'] * len(c110))
+            cursor.execute(f"INSERT INTO FC12110 ({', '.join(c110)}) VALUES ({m110})", v110)
 
         conn.commit()
         cursor.close()
