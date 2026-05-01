@@ -881,6 +881,14 @@ def criar_orcamento():
         hoje = datetime.date.today()
         dtval = hoje + datetime.timedelta(days=180)  # validade padrão 6 meses
 
+        # GRUPOTERAP é NOT NULL em FC12100 — busca valor existente na filial como default
+        cursor.execute(
+            "SELECT FIRST 1 GRUPOTERAP FROM FC12100 WHERE CDFIL = ? AND GRUPOTERAP IS NOT NULL",
+            (cdfil,)
+        )
+        row_gtp = cursor.fetchone()
+        grupoterap = row_gtp[0] if row_gtp else 0
+
         # ── Cabeçalho FC12000 ──────────────────────────────────────────────
         cursor.execute("""
             INSERT INTO FC12000 (
@@ -916,6 +924,7 @@ def criar_orcamento():
                     PRCOBR, PRREAL, PRCUSTO,
                     TPFORMAFARMA,
                     VRDSC, PTDSC,
+                    GRUPOTERAP,
                     FLAGENV, FLAGFIC, FLAGROT, FLAGRQU
                 ) VALUES (
                     ?, ?, 'A', ?, 'A',
@@ -927,6 +936,7 @@ def criar_orcamento():
                     ?, ?, 0.0,
                     ?,
                     0.0, 0,
+                    ?,
                     'N', 'N', 'N', 'N'
                 )
             """, (
@@ -938,6 +948,7 @@ def criar_orcamento():
                 qtfor,
                 prcobr, prcobr,
                 tpforma,
+                grupoterap,
             ))
 
         conn.commit()
