@@ -936,7 +936,7 @@ def criar_orcamento():
             row.update({
                 'CDFIL':       cdfil,
                 'NRRQU':       nrrqu,
-                'SERIER':      'A',
+                'SERIER':      seq,
                 'NRORC':       nrrqu,
                 'SERIEO':      'A',
                 'CDCLI':       cdcli,
