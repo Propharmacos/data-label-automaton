@@ -873,15 +873,34 @@ def criar_orcamento():
     conn = get_db()
     cursor = conn.cursor()
     try:
-        # Próximo NRRQU pelo generator da filial
+        # ── Nome do cliente para NOMEPA padrão ────────────────────────────
+        cursor.execute("SELECT FIRST 1 NOMECLI FROM FC07000 WHERE CDCLI = ?", (cdcli,))
+        row_cli = cursor.fetchone()
+        nomecli = strip(row_cli[0]) if row_cli else ''
+
+        # ── Prescritor: se não informado, tenta pelo nome do cliente ──────
+        if nrcrm == 0 and nomecli:
+            primeiro_nome = nomecli.split()[0]
+            cursor.execute("""
+                SELECT FIRST 1 NRCRM, PFCRM, UFCRM FROM FC04000
+                WHERE UPPER(NOMEMED) CONTAINING UPPER(?)
+                  AND NRCRM IS NOT NULL
+            """, (primeiro_nome,))
+            row_med = cursor.fetchone()
+            if row_med:
+                nrcrm = int(row_med[0] or 0)
+                pfcrm = str(row_med[1] or '1').strip()
+                ufcrm = str(row_med[2] or 'SP').strip()[:2]
+
+        # ── Próximo NRRQU pelo generator da filial ────────────────────────
         gen_name = f'GN_REQUISICAO{cdfil:04d}'
         cursor.execute(f'SELECT GEN_ID({gen_name}, 1) FROM RDB$DATABASE')
         nrrqu = cursor.fetchone()[0]
 
         hoje = datetime.date.today()
-        dtval = hoje + datetime.timedelta(days=180)  # validade padrão 6 meses
+        dtval = hoje + datetime.timedelta(days=180)
 
-        # ── Colunas inseríveis de FC12100 (exclui computadas via schema Firebird) ──
+        # ── Template FC12100: colunas inseríveis (sem computadas) ─────────
         cursor.execute("""
             SELECT TRIM(rf.RDB$FIELD_NAME)
             FROM RDB$RELATION_FIELDS rf
@@ -891,19 +910,33 @@ def criar_orcamento():
             ORDER BY rf.RDB$FIELD_POSITION
         """)
         insertable_cols = [r[0].strip() for r in cursor.fetchall()]
-
-        # Busca linha existente como template para NOT NULL sem default
         col_list = ', '.join(insertable_cols)
-        cursor.execute(
-            f"SELECT FIRST 1 {col_list} FROM FC12100 WHERE CDFIL = ?", (cdfil,)
-        )
+        cursor.execute(f"SELECT FIRST 1 {col_list} FROM FC12100 WHERE CDFIL = ?", (cdfil,))
         tmpl_row = cursor.fetchone()
         if tmpl_row is None:
             cursor.execute(f"SELECT FIRST 1 {col_list} FROM FC12100")
             tmpl_row = cursor.fetchone()
         tmpl = dict(zip(insertable_cols, tmpl_row)) if tmpl_row else {}
 
-        # ── Cabeçalho FC12000 ──────────────────────────────────────────────
+        # ── Template FC12110: colunas inseríveis ──────────────────────────
+        cursor.execute("""
+            SELECT TRIM(rf.RDB$FIELD_NAME)
+            FROM RDB$RELATION_FIELDS rf
+            LEFT JOIN RDB$FIELDS f ON f.RDB$FIELD_NAME = rf.RDB$FIELD_SOURCE
+            WHERE rf.RDB$RELATION_NAME = 'FC12110'
+              AND (f.RDB$COMPUTED_BLR IS NULL)
+            ORDER BY rf.RDB$FIELD_POSITION
+        """)
+        ins_cols_110 = [r[0].strip() for r in cursor.fetchall()]
+        col_list_110 = ', '.join(ins_cols_110)
+        cursor.execute(f"SELECT FIRST 1 {col_list_110} FROM FC12110 WHERE CDFIL = ?", (cdfil,))
+        tmpl_row_110 = cursor.fetchone()
+        if tmpl_row_110 is None:
+            cursor.execute(f"SELECT FIRST 1 {col_list_110} FROM FC12110")
+            tmpl_row_110 = cursor.fetchone()
+        tmpl110 = dict(zip(ins_cols_110, tmpl_row_110)) if tmpl_row_110 else {}
+
+        # ── Cabeçalho FC12000 ─────────────────────────────────────────────
         cursor.execute("""
             INSERT INTO FC12000 (
                 CDFIL, NRRQU, CDCLI, CDFILD,
@@ -914,65 +947,115 @@ def criar_orcamento():
                 ?, ?, ?, 0.0,
                 'N', ?
             )
-        """, (cdfil, nrrqu, cdcli, cdfil,
-              hoje, vrtotal, vrdsc,
-              cdfun))
+        """, (cdfil, nrrqu, cdcli, cdfil, hoje, vrtotal, vrdsc, cdfun))
 
-        # ── Itens FC12100 (um por produto do carrinho) ─────────────────────
-        # Colunas a inserir: todas do template + as nossas sobreposições
-        # Estratégia: monta dict com valores do template, sobrescreve os nossos
-        skip_cols = {'NRRQU', 'SERIER', 'NRORC', 'SERIEO'}  # gerados por nós
-
+        # ── Itens FC12100 + componentes FC12110 ───────────────────────────
         for seq, item in enumerate(itens, start=1):
-            nomepa  = str(item.get('nomepa', ''))[:50]
-            volume  = int(item.get('volume', 0))
+            raw_nomepa = str(item.get('nomepa', '')).strip()
+            nomepa  = (raw_nomepa or nomecli)[:50]
+            volume  = int(item.get('volume', 0)) or 1
             univol  = str(item.get('univol', 'ML'))[:3]
             qtfor   = int(item.get('qtfor', 1))
             prcobr  = float(item.get('prcobr', 0.0))
             tpforma = int(item.get('tpforma', 14))
+            cdpro   = item.get('cdpro')   # int ou None
+            ativos  = item.get('ativos', [])   # lista de strings
+            descr_item = str(item.get('descr', nomepa))[:50]
 
-            # Começa com o template e sobrescreve campo a campo
             row = dict(tmpl)
             row.update({
-                'CDFIL':       cdfil,
-                'NRRQU':       nrrqu,
-                'SERIER':      seq,
-                'NRORC':       nrrqu,
-                'SERIEO':      'A',
-                'CDCLI':       cdcli,
-                'DTENTR':      hoje,
-                'DTCAD':       hoje,
-                'DTVAL':       dtval,
-                'NOMEPA':      nomepa,
-                'PFCRM':       pfcrm,
-                'NRCRM':       nrcrm,
-                'UFCRM':       ufcrm,
-                'POSOL':       posol,
-                'TPUSO':       'I',
-                'VOLUME':      volume,
-                'UNIVOL':      univol,
-                'QTFOR':       qtfor,
-                'QTCONT':      1,
-                'PRCOBR':      prcobr,
-                'PRREAL':      prcobr,
-                'PRCUSTO':     0.0,
+                'CDFIL':        cdfil,
+                'NRRQU':        nrrqu,
+                'SERIER':       seq,
+                'NRORC':        nrrqu,
+                'SERIEO':       'A',
+                'CDCLI':        cdcli,
+                'CDPAC':        cdcli,
+                'DTENTR':       hoje,
+                'DTCAD':        hoje,
+                'DTVAL':        dtval,
+                'NOMEPA':       nomepa,
+                'PFCRM':        pfcrm,
+                'NRCRM':        nrcrm,
+                'UFCRM':        ufcrm,
+                'POSOL':        posol,
+                'TPUSO':        'I',
+                'VOLUME':       volume,
+                'UNIVOL':       univol,
+                'QTFOR':        qtfor,
+                'QTCONT':       1,
+                'PRCOBR':       prcobr,
+                'PRREAL':       prcobr,
+                'PRCUSTO':      0.0,
                 'TPFORMAFARMA': tpforma,
-                'VRDSC':       0.0,
-                'PTDSC':       0,
-                'FLAGENV':     'N',
-                'FLAGFIC':     'N',
-                'FLAGROT':     'N',
-                'FLAGRQU':     'N',
+                'VRDSC':        0.0,
+                'PTDSC':        0,
+                'FLAGENV':      'N',
+                'FLAGFIC':      'N',
+                'FLAGROT':      'N',
+                'FLAGRQU':      'N',
             })
+            # Remove colunas que não existem no schema real
+            row = {k: v for k, v in row.items() if k in insertable_cols}
 
-            cols   = list(row.keys())
-            vals   = [row[c] for c in cols]
-            marks  = ', '.join(['?'] * len(cols))
+            cols    = list(row.keys())
+            vals    = [row[c] for c in cols]
+            marks   = ', '.join(['?'] * len(cols))
             col_sql = ', '.join(cols)
-            cursor.execute(
-                f"INSERT INTO FC12100 ({col_sql}) VALUES ({marks})",
-                vals
-            )
+            cursor.execute(f"INSERT INTO FC12100 ({col_sql}) VALUES ({marks})", vals)
+
+            # ── Componentes FC12110 ───────────────────────────────────────
+            componentes = []  # lista de (descr, quant, unida, cdpro_comp)
+
+            if cdpro:
+                # Busca fórmula em FC05000 → FC05100
+                cursor.execute(
+                    "SELECT FIRST 1 CDFRM FROM FC05000 WHERE CDSAC = ?", (str(cdpro),)
+                )
+                row_frm = cursor.fetchone()
+                if row_frm:
+                    cursor.execute("""
+                        SELECT k.DESCR, k.QUANT, k.UNIDA, k.CDPRO
+                        FROM FC05100 k
+                        WHERE k.CDFRM = ? AND k.TPCMP = 'C'
+                        ORDER BY k.ITEMID
+                    """, (row_frm[0],))
+                    for r in cursor.fetchall():
+                        d, q, u, cp = r
+                        d = strip(d) or ''
+                        if d and not _e_excipiente(d):
+                            componentes.append((d[:50], float(q or 1), strip(u) or 'G', cp))
+
+            if not componentes and ativos:
+                for ativo in ativos:
+                    a = str(ativo).strip()[:50]
+                    if a:
+                        componentes.append((a, float(volume), univol, None))
+
+            if not componentes:
+                componentes.append((descr_item, float(volume), univol, cdpro))
+
+            for itemid, (comp_descr, comp_quant, comp_unida, comp_cdpro) in enumerate(componentes, start=1):
+                r110 = dict(tmpl110)
+                r110.update({
+                    'CDFIL':   cdfil,
+                    'NRRQU':   nrrqu,
+                    'SERIER':  seq,
+                    'ITEMID':  itemid,
+                    'TPCMP':   'C',
+                    'DESCR':   comp_descr,
+                    'QUANT':   comp_quant,
+                    'UNIDA':   comp_unida,
+                })
+                if comp_cdpro:
+                    r110['CDPRO'] = comp_cdpro
+                r110 = {k: v for k, v in r110.items() if k in ins_cols_110}
+                c110 = list(r110.keys())
+                v110 = [r110[c] for c in c110]
+                m110 = ', '.join(['?'] * len(c110))
+                cursor.execute(
+                    f"INSERT INTO FC12110 ({', '.join(c110)}) VALUES ({m110})", v110
+                )
 
         conn.commit()
         cursor.close()
