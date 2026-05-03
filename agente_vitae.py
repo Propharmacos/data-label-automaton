@@ -22,6 +22,7 @@ import traceback
 import unicodedata
 import re
 import datetime
+import math
 
 app = Flask(__name__)
 CORS(app)
@@ -55,6 +56,56 @@ def serialize(v):
 
 def strip(v):
     return v.strip() if isinstance(v, str) else v
+
+def _format_serier(n: int) -> str:
+    """SERIER: '0'-'9' para 0-9, depois 'A','B',... para 10+"""
+    return str(n) if n < 10 else chr(ord('A') + n - 10)
+
+_BOX_DESCR = {
+    91064: 'CAIXA BRANCA/PRATA 5AMP 2ML',
+    91073: 'CAIXA BRANCA/PRATA 10AMP 2ML',
+    91074: 'CAIXA BRANCA/PRATA 5AMP 10ML',
+    85104: 'CAIXA MED. ESTEREIS CINZA PEQ.',
+    89751: 'CAIXA HIDROXIAPATITA',
+}
+_CDPRO_FR_AMBAR_10ML = 78731  # FR AMBAR 10ML — detecta produtos de 10mL
+
+def _buscar_formula(cursor, cdpro):
+    """
+    Busca a fórmula de um produto (FC05000 → FC05100).
+    Retorna (is_10ml, is_kit, componentes).
+    componentes = lista de dicts {tpcmp, cdpro, descr, quant, unida}
+    """
+    if not cdpro:
+        return False, False, []
+    cursor.execute("SELECT FIRST 1 CDFRM FROM FC05000 WHERE CDSAC = ?", (str(cdpro),))
+    row = cursor.fetchone()
+    if not row:
+        return False, False, []
+    cdfrm = row[0]
+    cursor.execute("""
+        SELECT TPCMP, CDPRO, DESCR, QUANT, UNIDA
+        FROM FC05100
+        WHERE CDFRM = ?
+        ORDER BY ITEMID
+    """, (cdfrm,))
+    comps = []
+    is_10ml = False
+    is_kit = False
+    for tpcmp_r, cdpro_c, descr_c, quant_c, unida_c in cursor.fetchall():
+        t = (strip(tpcmp_r) or 'C').strip()
+        if t == 'S':
+            is_kit = True
+        if cdpro_c == _CDPRO_FR_AMBAR_10ML:
+            is_10ml = True
+        comps.append({
+            'tpcmp': t,
+            'cdpro': cdpro_c,
+            'descr': strip(descr_c) or '',
+            'quant': float(quant_c or 0),
+            'unida': strip(unida_c) or '',
+        })
+    return is_10ml, is_kit, comps
 
 def row_to_dict(cursor, row):
     return {cursor.description[i][0]: serialize(row[i]) for i in range(len(row))}
@@ -949,83 +1000,159 @@ def criar_orcamento():
             )
         """, (cdfil, nrrqu, cdcli, cdfil, hoje, vrtotal, vrdsc, cdfun))
 
-        # ── Itens FC12100 + componente FC12110 ───────────────────────────
-        for seq, item in enumerate(itens, start=1):
+        # ── Itens FC12100 + componentes FC12110 ──────────────────────────
+        serier_counter = 0
+        for item in itens:
             raw_nomepa = str(item.get('nomepa', '')).strip()
             nomepa     = (raw_nomepa or nomecli)[:50]
-            volume     = int(item.get('volume', 0)) or 1
+            volume     = max(1, int(item.get('volume', 0)) or 1)
             univol     = str(item.get('univol', 'AMP'))[:3]
-            qtfor      = int(item.get('qtfor', 1))
             prcobr     = float(item.get('prcobr', 0.0))
             tpforma    = int(item.get('tpforma', 14))
             cdpro      = item.get('cdpro')  # int ou None
             descr_item = str(item.get('descr', nomepa))[:50]
+            tpuso      = '7' if tpforma == 14 else 'I'
 
-            # TPUSO: '7' = uso em consultório/injetável (padrão ampolas TPFORMAFARMA=14)
-            tpuso = '7' if tpforma == 14 else 'I'
+            # Busca fórmula no FC para determinar tipo/estrutura/componentes
+            is_10ml, is_kit, formula_comps = _buscar_formula(cursor, cdpro)
 
-            row = dict(tmpl)
-            row.update({
-                'CDFIL':        cdfil,
-                'NRRQU':        nrrqu,
-                'SERIER':       str(seq),
-                'NRORC':        nrrqu,
-                'SERIEO':       'A',
-                'CDCLI':        cdcli,
-                'DTENTR':       hoje,
-                'DTCAD':        hoje,
-                'DTVAL':        dtval,
-                'NOMEPA':       nomepa,
-                'PFCRM':        pfcrm,
-                'NRCRM':        nrcrm,
-                'UFCRM':        ufcrm,
-                'POSOL':        posol,
-                'TPUSO':        tpuso,
-                'VOLUME':       volume,
-                'UNIVOL':       univol,
-                'QTFOR':        qtfor,
-                'QTCONT':       1,
-                'PRCOBR':       prcobr,
-                'PRREAL':       prcobr,
-                'PRCUSTO':      0.0,
-                'TPFORMAFARMA': tpforma,
-                'VRDSC':        0.0,
-                'PTDSC':        0,
-                'FLAGENV':      'N',
-                'FLAGFIC':      'N',
-                'FLAGROT':      'N',
-                'FLAGRQU':      'N',
-            })
-            row = {k: v for k, v in row.items() if k in insertable_cols}
+            # Monta lista de séries: (volume_série, qtfor, cdpro_caixa ou None)
+            if is_kit:
+                box = 89751 if 'HIDROXI' in descr_item.upper() else 85104
+                series_list = [(1, volume, box)]
+            elif is_10ml:
+                series_list = [(5, math.ceil(volume / 5), 91074)]
+            elif univol == 'AMP':
+                if volume <= 5:
+                    series_list = [(volume, 1, 91064)]
+                elif 6 <= volume <= 9:
+                    series_list = [(5, 1, 91064), (volume - 5, 1, 91064)]
+                elif volume == 10:
+                    series_list = [(10, 1, 91073)]
+                else:
+                    parts = []
+                    remaining = volume
+                    while remaining > 0:
+                        batch = min(10, remaining)
+                        parts.append((batch, 1, 91073 if batch == 10 else 91064))
+                        remaining -= batch
+                    series_list = parts
+            else:
+                series_list = [(volume, 1, None)]
 
-            cols    = list(row.keys())
-            vals    = [row[c] for c in cols]
-            marks   = ', '.join(['?'] * len(cols))
-            cursor.execute(f"INSERT INTO FC12100 ({', '.join(cols)}) VALUES ({marks})", vals)
+            total_vol_ser = sum(s[0] for s in series_list)
 
-            # ── FC12110: um componente por item (o produto em si, pré-fabricado) ──
-            # Padrão confirmado nas requisições aprovadas: TPCMP='C', CDPRO do produto,
-            # DESCR = nome do produto, QUANT = volume, UNIDA = univol.
-            # NÃO decompor em matérias-primas (causaria códigos sem lote).
-            r110 = dict(tmpl110)
-            r110.update({
-                'CDFIL':    cdfil,
-                'NRRQU':    nrrqu,
-                'SERIER':   str(seq),
-                'ITEMID':   1,
-                'TPCMP':    'C',
-                'CDPRO':    cdpro,          # None = NULL (se produto sem código FC)
-                'DESCR':    descr_item,
-                'QUANT':    float(volume),
-                'UNIDA':    univol,
-                'CTLOT':    0,              # NOT NULL
-                'QUANTHP':  0.0,            # NOT NULL
-            })
-            r110 = {k: v for k, v in r110.items() if k in ins_cols_110}
-            c110 = list(r110.keys())
-            v110 = [r110[c] for c in c110]
-            m110 = ', '.join(['?'] * len(c110))
-            cursor.execute(f"INSERT INTO FC12110 ({', '.join(c110)}) VALUES ({m110})", v110)
+            for vol_ser, qtfor_ser, box_cdpro in series_list:
+                serier_str = _format_serier(serier_counter)
+                serier_counter += 1
+
+                prcobr_ser = round(prcobr * vol_ser / total_vol_ser, 4) if total_vol_ser > 0 else prcobr
+
+                # ── FC12100 ────────────────────────────────────────────────
+                row = dict(tmpl)
+                row.update({
+                    'CDFIL':        cdfil,
+                    'NRRQU':        nrrqu,
+                    'SERIER':       serier_str,
+                    'NRORC':        nrrqu,
+                    'SERIEO':       'A',
+                    'CDCLI':        cdcli,
+                    'DTENTR':       hoje,
+                    'DTCAD':        hoje,
+                    'DTVAL':        dtval,
+                    'NOMEPA':       nomepa,
+                    'PFCRM':        pfcrm,
+                    'NRCRM':        nrcrm,
+                    'UFCRM':        ufcrm,
+                    'POSOL':        posol,
+                    'TPUSO':        tpuso,
+                    'VOLUME':       vol_ser,
+                    'UNIVOL':       univol,
+                    'QTFOR':        qtfor_ser,
+                    'QTCONT':       0,
+                    'PRCOBR':       prcobr_ser,
+                    'PRREAL':       prcobr_ser,
+                    'PRCUSTO':      0.0,
+                    'TPFORMAFARMA': tpforma,
+                    'VRDSC':        0.0,
+                    'PTDSC':        0,
+                    'FLAGENV':      'N',
+                    'FLAGFIC':      'N',
+                    'FLAGROT':      'N',
+                    'FLAGRQU':      'N',
+                })
+                row = {k: v for k, v in row.items() if k in insertable_cols}
+                cols = list(row.keys())
+                vals = [row[c] for c in cols]
+                cursor.execute(
+                    f"INSERT INTO FC12100 ({', '.join(cols)}) VALUES ({', '.join(['?']*len(cols))})",
+                    vals
+                )
+
+                # ── FC12110 ────────────────────────────────────────────────
+                if formula_comps:
+                    for item_id, comp in enumerate(formula_comps, start=1):
+                        t       = comp['tpcmp']
+                        c_cdpro = comp['cdpro']
+                        c_descr = comp['descr']
+                        c_quant = comp['quant']
+                        c_unida = comp['unida']
+
+                        if t in ('C', 'S'):
+                            c_quant = float(vol_ser)
+                        elif t == 'R':
+                            c_quant = comp['quant'] * vol_ser
+                        elif t == 'E' and box_cdpro is not None:
+                            c_cdpro = box_cdpro
+                            c_descr = _BOX_DESCR.get(box_cdpro, comp['descr'])
+                            c_quant = 2.0 if box_cdpro == 91073 else 1.0
+                        elif t == 'F':
+                            c_quant = 2.0 if box_cdpro == 91073 else 1.0
+
+                        r110 = dict(tmpl110)
+                        r110.update({
+                            'CDFIL':   cdfil,
+                            'NRRQU':   nrrqu,
+                            'SERIER':  serier_str,
+                            'ITEMID':  item_id,
+                            'TPCMP':   t,
+                            'CDPRO':   c_cdpro,
+                            'DESCR':   (c_descr or '')[:50],
+                            'QUANT':   float(c_quant),
+                            'UNIDA':   c_unida,
+                            'CTLOT':   0,
+                            'QUANTHP': 0.0,
+                        })
+                        r110 = {k: v for k, v in r110.items() if k in ins_cols_110}
+                        c110 = list(r110.keys())
+                        v110 = [r110[c] for c in c110]
+                        cursor.execute(
+                            f"INSERT INTO FC12110 ({', '.join(c110)}) VALUES ({', '.join(['?']*len(c110))})",
+                            v110
+                        )
+                else:
+                    # Sem fórmula no FC: insere componente único 'C'
+                    r110 = dict(tmpl110)
+                    r110.update({
+                        'CDFIL':   cdfil,
+                        'NRRQU':   nrrqu,
+                        'SERIER':  serier_str,
+                        'ITEMID':  1,
+                        'TPCMP':   'C',
+                        'CDPRO':   cdpro,
+                        'DESCR':   descr_item[:50],
+                        'QUANT':   float(vol_ser),
+                        'UNIDA':   univol,
+                        'CTLOT':   0,
+                        'QUANTHP': 0.0,
+                    })
+                    r110 = {k: v for k, v in r110.items() if k in ins_cols_110}
+                    c110 = list(r110.keys())
+                    v110 = [r110[c] for c in c110]
+                    cursor.execute(
+                        f"INSERT INTO FC12110 ({', '.join(c110)}) VALUES ({', '.join(['?']*len(c110))})",
+                        v110
+                    )
 
         conn.commit()
         cursor.close()
