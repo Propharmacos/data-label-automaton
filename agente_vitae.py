@@ -1081,6 +1081,8 @@ def criar_orcamento():
                     'FLAGROT':      'N',
                     'FLAGRQU':      'N',
                 })
+                if box_cdpro is not None and 'EMBALAGEM' in insertable_cols:
+                    row['EMBALAGEM'] = box_cdpro
                 row = {k: v for k, v in row.items() if k in insertable_cols}
                 cols = list(row.keys())
                 vals = [row[c] for c in cols]
