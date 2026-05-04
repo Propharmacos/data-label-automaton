@@ -1060,8 +1060,8 @@ def criar_orcamento():
                     'DTENTR':       hoje,
                     'DTCAD':        hoje,
                     'DTVAL':        dtval,
-                    'DTPRE':        hoje,
-                    'DTRETI':       None,
+                    'DTPRESCR':     None,   # Data Prescrição em branco (nova req)
+                    'DTRET':        None,   # Retirada em branco (nova req)
                     'NOMEPA':       nomepa,
                     'PFCRM':        pfcrm,
                     'NRCRM':        nrcrm,
@@ -1071,7 +1071,7 @@ def criar_orcamento():
                     'VOLUME':       vol_ser,
                     'UNIVOL':       univol,
                     'QTFOR':        qtfor_ser,
-                    'QTCONT':       0,
+                    'QTCONT':       1,
                     'PRCOBR':       prcobr_ser,
                     'PRREAL':       prcobr_ser,
                     'PRCUSTO':      0.0,
@@ -1083,8 +1083,8 @@ def criar_orcamento():
                     'FLAGROT':      'N',
                     'FLAGRQU':      'N',
                 })
-                if box_cdpro is not None and 'EMBALAGEM' in insertable_cols:
-                    row['EMBALAGEM'] = box_cdpro
+                if box_cdpro is not None:
+                    row['CDEMB'] = box_cdpro   # nome correto da coluna de embalagem
                 row = {k: v for k, v in row.items() if k in insertable_cols}
                 cols = list(row.keys())
                 vals = [row[c] for c in cols]
