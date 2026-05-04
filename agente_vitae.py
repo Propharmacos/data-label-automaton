@@ -1156,30 +1156,12 @@ def criar_orcamento():
                         [r[c] for c in c110]
                     )
 
-                if formula_comps:
-                    for item_id, comp in enumerate(formula_comps, start=1):
-                        t       = comp['tpcmp']
-                        c_cdpro = comp['cdpro']
-                        c_descr = comp['descr']
-                        c_quant = comp['quant']
-                        c_unida = comp['unida']
-                        if t in ('C', 'S'):
-                            c_quant = float(vol_ser)
-                        elif t == 'R':
-                            c_quant = comp['quant'] * vol_ser
-                        elif t == 'E' and box_cdpro is not None:
-                            c_cdpro = box_cdpro
-                            c_descr = _BOX_DESCR.get(box_cdpro, comp['descr'])
-                            c_quant = 2.0 if box_cdpro == 91073 else 1.0
-                        elif t == 'F':
-                            c_quant = 2.0 if box_cdpro == 91073 else 1.0
-                        _ins110(item_id, t, c_cdpro, c_descr, c_quant, c_unida)
-                else:
-                    _ins110(1, 'C', cdpro, descr_item, float(vol_ser), univol)
-                    if box_cdpro is not None:
-                        _ins110(2, 'E', box_cdpro,
-                                (_BOX_DESCR.get(box_cdpro, '') or '')[:50],
-                                2.0 if box_cdpro == 91073 else 1.0, 'UN')
+                # FC15110: produto acabado (C) + embalagem (E) — igual ao padrão manual
+                _ins110(1, 'C', cdpro, descr_item, float(vol_ser), univol)
+                if box_cdpro is not None:
+                    _ins110(2, 'E', box_cdpro,
+                            (_BOX_DESCR.get(box_cdpro, '') or '')[:50],
+                            2.0 if box_cdpro == 91073 else 1.0, 'UN')
 
         conn.commit()
         cursor.close()
