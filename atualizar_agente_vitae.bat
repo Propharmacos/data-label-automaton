@@ -3,8 +3,15 @@ title Atualizar Agente Vitae
 color 0B
 cd /d C:\ServidorRotulos
 
-:: Token GitHub — necessario para repositorio privado
-set GH_TOKEN=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
+:: ─── TOKEN GITHUB ─────────────────────────────────────────────────────────
+:: O token é lido do arquivo gh_token.txt (nunca commitar o token direto aqui)
+if not exist "C:\ServidorRotulos\gh_token.txt" (
+    echo [ERRO] Arquivo gh_token.txt nao encontrado em C:\ServidorRotulos\
+    echo Crie o arquivo com o token GitHub na primeira linha.
+    pause
+    exit /b 1
+)
+set /p GH_TOKEN=<"C:\ServidorRotulos\gh_token.txt"
 
 echo =========================================
 echo   Atualizando agente_vitae.py
@@ -25,7 +32,7 @@ if errorlevel 1 (
 
 for %%A in (agente_vitae.py.tmp) do set TAMANHO=%%~zA
 if %TAMANHO% LSS 1000 (
-    echo [ERRO] Arquivo invalido ^(tamanho: %TAMANHO% bytes^). Token expirado?
+    echo [ERRO] Arquivo invalido. Token expirado?
     del agente_vitae.py.tmp >nul 2>&1
     pause
     exit /b 1

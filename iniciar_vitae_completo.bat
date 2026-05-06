@@ -3,9 +3,15 @@ title Agente Vitae - Inicializacao
 color 0A
 cd /d C:\ServidorRotulos
 
-:: ─── TOKEN GITHUB (repositorio privado) ───────────────────────────────────
-:: Cole seu token aqui (Settings > Developer Settings > Personal Access Tokens)
-set GH_TOKEN=SEU_TOKEN_AQUI
+:: ─── TOKEN GITHUB ─────────────────────────────────────────────────────────
+:: Lido do arquivo gh_token.txt — nunca commitar o token direto aqui
+if not exist "C:\ServidorRotulos\gh_token.txt" (
+    echo [ERRO] gh_token.txt nao encontrado em C:\ServidorRotulos\
+    echo Crie o arquivo com seu token GitHub na primeira linha e rode novamente.
+    pause
+    exit /b 1
+)
+set /p GH_TOKEN=<"C:\ServidorRotulos\gh_token.txt"
 
 :: ─── CAMINHOS ──────────────────────────────────────────────────────────────
 set NGROK_EXE=C:\Users\Administrador.PROCARAIBAS\Desktop\ngrok.exe
