@@ -962,6 +962,43 @@ def listar_atendentes():
         return jsonify({'atendentes': [], 'total': 0, 'erro': str(e)}), 500
 
 
+@app.route('/api/debug/funcionarios', methods=['GET'])
+def debug_funcionarios():
+    """Diagnóstico: lista TODOS os registros de FC08000 sem filtro.
+    ?q=Bruno  → filtra por nome (CONTAINING).
+    """
+    try:
+        conn   = get_db()
+        cursor = conn.cursor()
+        q = request.args.get('q', '').strip()
+        if q:
+            cursor.execute("""
+                SELECT CDFUN, NOMEFUN, USERID, FUNATIVO
+                FROM FC08000
+                WHERE UPPER(NOMEFUN) CONTAINING UPPER(?)
+                ORDER BY NOMEFUN
+            """, (q,))
+        else:
+            cursor.execute("""
+                SELECT CDFUN, NOMEFUN, USERID, FUNATIVO
+                FROM FC08000
+                ORDER BY NOMEFUN
+            """)
+        rows = []
+        for cdfun, nomefun, userid, funativo in cursor.fetchall():
+            rows.append({
+                'cdfun':    cdfun,
+                'nomefun':  strip(nomefun),
+                'userid':   strip(userid),
+                'funativo': strip(funativo),
+            })
+        cursor.close(); conn.close()
+        return jsonify({'total': len(rows), 'funcionarios': rows})
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'erro': str(e)}), 500
+
+
 # ── COMPOSIÇÃO DE KIT / MESCLA ───────────────────────────────────────────────
 
 _EXCIPIENTE_KW = [
