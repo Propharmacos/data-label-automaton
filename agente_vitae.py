@@ -339,32 +339,60 @@ def buscar_produtos():
         conn = get_db()
         cursor = conn.cursor()
 
-        # Busca por código numérico (CDPRO) ou por nome (DESCR + DESCRPRD)
+        # Busca por código numérico (CDPRO) ou por nome (DESCR + DESCRPRD + sinônimos FC03100)
         if q.isdigit():
             where  = ["CDPRO = ?"]
             params = [int(q)]
+            sinonimo_params = []
+            sinonimo_clauses = []
         else:
             params = []
+            sinonimo_params = []
             palavras = [p for p in q.split() if len(p) >= 2]
             word_clauses = []
+            sinonimo_clauses = []
             for p in palavras:
                 word_clauses.append(
                     "(UPPER(DESCR) CONTAINING UPPER(?) OR UPPER(DESCRPRD) CONTAINING UPPER(?))"
                 )
                 params += [p, p]
+                sinonimo_clauses.append("UPPER(s.DESCR) CONTAINING UPPER(?)")
+                sinonimo_params.append(p)
             where = word_clauses if word_clauses else ["UPPER(DESCR) CONTAINING UPPER(?)"]
             if not word_clauses:
                 params = [q]
+                sinonimo_params = [q]
+                sinonimo_clauses = ["UPPER(s.DESCR) CONTAINING UPPER(?)"]
 
+        filtros_extras = []
+        filtros_params = []
         if ativos_apenas:
-            where.append("SITUA = 'A'")
-            where.append("INDDEL = 'N'")
+            filtros_extras.append("SITUA = 'A'")
+            filtros_extras.append("INDDEL = 'N'")
         if grupo:
-            where.append("GRUPO = ?")
-            params.append(grupo)
+            filtros_extras.append("GRUPO = ?")
+            filtros_params.append(grupo)
         if setor:
-            where.append("SETOR = ?")
-            params.append(setor)
+            filtros_extras.append("SETOR = ?")
+            filtros_params.append(setor)
+
+        where += filtros_extras
+        all_params = params + filtros_params
+
+        # Subquery de sinônimos: CDPROs que batem pelo sinônimo
+        sinonimo_cdpros = set()
+        if sinonimo_clauses:
+            sin_where = ' AND '.join(sinonimo_clauses)
+            sin_sql = f"""
+                SELECT DISTINCT s.CDPRO
+                FROM FC03100 s
+                WHERE {sin_where}
+            """
+            try:
+                cursor.execute(sin_sql, sinonimo_params)
+                sinonimo_cdpros = {row[0] for row in cursor.fetchall()}
+            except Exception:
+                pass
 
         sql = f"""
             SELECT FIRST 30
@@ -374,13 +402,39 @@ def buscar_produtos():
             WHERE {' AND '.join(where)}
             ORDER BY DESCR
         """
-        cursor.execute(sql, params)
+        cursor.execute(sql, all_params)
+
+        # Busca também por sinônimo se não encontrou resultados suficientes
+        resultado_direto = cursor.fetchall()
+        ids_diretos = {row[0] for row in resultado_direto}
+
+        # CDPROs extras via sinônimo que não vieram na busca direta
+        ids_sinonimo_extra = sinonimo_cdpros - ids_diretos
+        rows_sinonimo = []
+        if ids_sinonimo_extra:
+            placeholders = ','.join('?' * len(ids_sinonimo_extra))
+            sin_extra_sql = f"""
+                SELECT FIRST 10
+                    CDPRO, DESCR, DESCRPRD, SITUA, INDDEL,
+                    PRVEN, PRCOM, GRUPO, SETOR, DIASVAL, CDDCI
+                FROM FC03000
+                WHERE CDPRO IN ({placeholders})
+                {"AND SITUA = 'A' AND INDDEL = 'N'" if ativos_apenas else ""}
+                ORDER BY DESCR
+            """
+            try:
+                cursor.execute(sin_extra_sql, list(ids_sinonimo_extra))
+                rows_sinonimo = cursor.fetchall()
+            except Exception:
+                pass
+
+        all_rows = list(resultado_direto) + rows_sinonimo
 
         produtos = []
-        for row in cursor.fetchall():
+        for row in all_rows:
             cdpro, descr, descrprd, situa, inddel, prven, prcom, grupo_v, setor_v, diasval, cddci = row
-            preco_venda  = round((prven or 0) / 10000, 2)
-            preco_compra = round((prcom or 0) / 10000, 2)
+            preco_venda  = round(float(prven or 0), 2)
+            preco_compra = round(float(prcom or 0), 2)
             produtos.append({
                 'id': cdpro,
                 'nome': strip(descr) or '',
@@ -434,8 +488,8 @@ def get_produto(cdpro):
             'nomeReduzido': strip(descrprd) or '',
             'ativo': strip(situa) == 'A',
             'deletado': strip(inddel) == 'S',
-            'precoVenda': round((prven or 0) / 10000, 2),
-            'precoCompra': round((prcom or 0) / 10000, 2),
+            'precoVenda': round(float(prven or 0), 2),
+            'precoCompra': round(float(prcom or 0), 2),
             'grupo': strip(grupo) or '',
             'setor': strip(setor) or '',
             'diasValidade': diasval or 0,
@@ -1243,6 +1297,137 @@ def get_kits_composicoes():
         return jsonify({'kits': [], 'total': 0, 'erro': str(e)}), 500
 
 
+# ── HISTÓRICO DE ORÇAMENTOS ──────────────────────────────────────────────────
+# FC15000 = orçamentos (cabeçalho)  FC12000 = requisições efetivadas
+@app.route('/api/historico', methods=['GET', 'OPTIONS'])
+def get_historico():
+    """
+    Retorna histórico combinado de orçamentos (FC15000) e requisições (FC12000).
+    ?tipo=orcamentos|requisicoes|todos  (default: todos)
+    ?cdfil=392           (default: 392)
+    ?de=DD/MM/AAAA       — data inicial
+    ?ate=DD/MM/AAAA      — data final
+    ?cliente=<texto>     — filtra por nome do cliente
+    ?atendente=<texto>   — filtra por nome do atendente/funcionário
+    ?limit=50            (default: 50)
+    """
+    if request.method == 'OPTIONS':
+        return '', 204
+
+    tipo      = (request.args.get('tipo') or 'todos').strip().lower()
+    cdfil     = int(request.args.get('cdfil') or 392)
+    de_str    = (request.args.get('de') or '').strip()
+    ate_str   = (request.args.get('ate') or '').strip()
+    cliente_q = (request.args.get('cliente') or '').strip()
+    atend_q   = (request.args.get('atendente') or '').strip()
+    limit     = min(int(request.args.get('limit') or 50), 200)
+
+    def parse_date(s):
+        try:
+            d, m, a = s.split('/')
+            return datetime.date(int(a), int(m), int(d))
+        except Exception:
+            return None
+
+    dt_de  = parse_date(de_str)
+    dt_ate = parse_date(ate_str)
+
+    try:
+        conn   = get_db()
+        cursor = conn.cursor()
+        resultado = []
+
+        # ── Orçamentos (FC15000) ──────────────────────────────────────────
+        if tipo in ('orcamentos', 'todos'):
+            w = ['o.CDFIL = ?']
+            p = [cdfil]
+            if dt_de:
+                w.append('o.DTENTR >= ?'); p.append(dt_de)
+            if dt_ate:
+                w.append('o.DTENTR <= ?'); p.append(dt_ate)
+            if cliente_q:
+                w.append('UPPER(c.NOMECLI) CONTAINING UPPER(?)'); p.append(cliente_q)
+            if atend_q:
+                w.append('UPPER(f.NOMEFUN) CONTAINING UPPER(?)'); p.append(atend_q)
+
+            sql_orc = f"""
+                SELECT FIRST {limit}
+                    o.NRORC, o.CDCLI, o.DTENTR, o.VRRQU, o.VRDSC,
+                    o.CDFUN, o.FLAGENV,
+                    c.NOMECLI, f.NOMEFUN
+                FROM FC15000 o
+                LEFT JOIN FC07000 c ON c.CDCLI = o.CDCLI
+                LEFT JOIN FC08000 f ON f.CDFUN = o.CDFUN
+                WHERE {' AND '.join(w)}
+                ORDER BY o.DTENTR DESC, o.NRORC DESC
+            """
+            cursor.execute(sql_orc, p)
+            for row in cursor.fetchall():
+                nrorc, cdcli_v, dtentr, vrrqu, vrdsc, cdfun, flagenv, nomecli, nomefun = row
+                resultado.append({
+                    'tipo':       'orcamento',
+                    'numero':     nrorc,
+                    'cdcli':      cdcli_v,
+                    'cliente':    strip(nomecli) or '',
+                    'data':       str(dtentr)[:10] if dtentr else '',
+                    'valorTotal': round(float(vrrqu or 0), 2),
+                    'desconto':   round(float(vrdsc or 0), 2),
+                    'atendente':  strip(nomefun) or '',
+                    'flagEnv':    strip(flagenv) or 'N',
+                    'status':     'Aprovado' if strip(flagenv) == 'S' else 'Aguardando',
+                })
+
+        # ── Requisições (FC12000) ─────────────────────────────────────────
+        if tipo in ('requisicoes', 'todos'):
+            w = ['r.CDFIL = ?']
+            p = [cdfil]
+            if dt_de:
+                w.append('r.DTENTR >= ?'); p.append(dt_de)
+            if dt_ate:
+                w.append('r.DTENTR <= ?'); p.append(dt_ate)
+            if cliente_q:
+                w.append('UPPER(c.NOMECLI) CONTAINING UPPER(?)'); p.append(cliente_q)
+            if atend_q:
+                w.append('UPPER(f.NOMEFUN) CONTAINING UPPER(?)'); p.append(atend_q)
+
+            sql_req = f"""
+                SELECT FIRST {limit}
+                    r.NRRQU, r.CDCLI, r.DTENTR, r.VRRQU, r.VRDSC,
+                    r.CDFUN,
+                    c.NOMECLI, f.NOMEFUN
+                FROM FC12000 r
+                LEFT JOIN FC07000 c ON c.CDCLI = r.CDCLI
+                LEFT JOIN FC08000 f ON f.CDFUN = r.CDFUN
+                WHERE {' AND '.join(w)}
+                ORDER BY r.DTENTR DESC, r.NRRQU DESC
+            """
+            cursor.execute(sql_req, p)
+            for row in cursor.fetchall():
+                nrrqu, cdcli_v, dtentr, vrrqu, vrdsc, cdfun, nomecli, nomefun = row
+                resultado.append({
+                    'tipo':       'requisicao',
+                    'numero':     nrrqu,
+                    'cdcli':      cdcli_v,
+                    'cliente':    strip(nomecli) or '',
+                    'data':       str(dtentr)[:10] if dtentr else '',
+                    'valorTotal': round(float(vrrqu or 0), 2),
+                    'desconto':   round(float(vrdsc or 0), 2),
+                    'atendente':  strip(nomefun) or '',
+                    'flagEnv':    'S',
+                    'status':     'Aprovado',
+                })
+
+        cursor.close()
+        conn.close()
+
+        resultado.sort(key=lambda x: x['data'], reverse=True)
+        return jsonify({'historico': resultado[:limit], 'total': len(resultado)})
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'historico': [], 'total': 0, 'erro': str(e)}), 500
+
+
 # ── START ────────────────────────────────────────────────────────────────────
 if __name__ == '__main__':
     print('=' * 55)
@@ -1259,6 +1444,7 @@ if __name__ == '__main__':
     print('  GET  /api/prescritores/buscar?q=<nome_ou_crm>')
     print('  GET  /api/requisicoes/buscar?q=<nrreq>')
     print('  GET  /api/requisicoes/<nrreq>')
+    print('  GET  /api/historico?tipo=todos&cdfil=392&de=&ate=&cliente=&atendente=')
     print('  GET  /api/atendentes')
     print('  GET  /api/tabelas')
     print('  GET  /api/tabelas/<nome>/colunas')
