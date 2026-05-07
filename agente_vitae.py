@@ -1009,8 +1009,9 @@ def debug_funcionarios():
                 SELECT CDFUN, NOMEFUN, USERID, FUNATIVO
                 FROM FC08000
                 WHERE UPPER(NOMEFUN) CONTAINING UPPER(?)
+                   OR UPPER(USERID)   CONTAINING UPPER(?)
                 ORDER BY NOMEFUN
-            """, (q,))
+            """, (q, q))
         else:
             cursor.execute("""
                 SELECT CDFUN, NOMEFUN, USERID, FUNATIVO
