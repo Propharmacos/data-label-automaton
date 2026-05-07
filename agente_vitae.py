@@ -932,48 +932,95 @@ def listar_atendentes():
     try:
         conn   = get_db()
         cursor = conn.cursor()
-        # Inclui qualquer registro com NOMEFUN ou USERID preenchido
-        # Admins FC podem ter NOMEFUN nulo — usa USERID como nome de exibição
-        cursor.execute("""
-            SELECT CDFUN, NOMEFUN, USERID
-            FROM FC08000
-            WHERE (NOMEFUN IS NOT NULL AND TRIM(NOMEFUN) <> '')
-               OR (USERID  IS NOT NULL AND TRIM(USERID)  <> '')
-            ORDER BY NOMEFUN NULLS LAST, USERID
-        """)
-        # Deduplica por CDFUN: mantém o registro com nome mais longo.
-        # Guarda também o melhor USERID visto para aquele CDFUN.
-        por_cdfun = {}
-        for row in cursor.fetchall():
-            cdfun, nomefun, userid = row
-            nome = strip(nomefun) or ''
-            uid  = strip(userid)  or ''
-            if nome in ('.', '..'):
-                nome = ''
-            display = nome or uid
-            if not display:
-                continue
-            existente = por_cdfun.get(cdfun)
-            if existente is None:
-                por_cdfun[cdfun] = {'id': cdfun, 'nome': display, 'userid': uid}
-            else:
-                # Atualiza nome se for mais longo
-                if len(display) > len(existente['nome']):
-                    existente['nome'] = display
-                # Atualiza USERID se o atual está vazio e este não está
-                if not existente['userid'] and uid:
-                    existente['userid'] = uid
+        # Tenta filtrar por CDFIL das filiais ativas para evitar colisão
+        # de CDFUN entre filiais diferentes. Se FC08000 não tiver CDFIL, usa fallback.
+        try:
+            cursor.execute("""
+                SELECT CDFUN, NOMEFUN, USERID
+                FROM FC08000
+                WHERE CDFIL IN (392, 279)
+                  AND ((NOMEFUN IS NOT NULL AND TRIM(NOMEFUN) <> '')
+                       OR (USERID IS NOT NULL AND TRIM(USERID) <> ''))
+                ORDER BY NOMEFUN NULLS LAST, USERID
+            """)
+            todas = list(cursor.fetchall())
+            # Admins podem estar em CDFIL diferente — inclui pela USERID
+            cursor.execute("""
+                SELECT CDFUN, NOMEFUN, USERID
+                FROM FC08000
+                WHERE USERID IS NOT NULL AND TRIM(USERID) <> ''
+                  AND CDFIL NOT IN (392, 279)
+                  AND ((NOMEFUN IS NOT NULL AND TRIM(NOMEFUN) <> '')
+                       OR (USERID IS NOT NULL AND TRIM(USERID) <> ''))
+                ORDER BY NOMEFUN NULLS LAST
+            """)
+            todas += list(cursor.fetchall())
+        except Exception:
+            # FC08000 sem coluna CDFIL — sem filtro de filial
+            cursor.execute("""
+                SELECT CDFUN, NOMEFUN, USERID
+                FROM FC08000
+                WHERE (NOMEFUN IS NOT NULL AND TRIM(NOMEFUN) <> '')
+                   OR (USERID IS NOT NULL AND TRIM(USERID) <> '')
+                ORDER BY NOMEFUN NULLS LAST, USERID
+            """)
+            todas = list(cursor.fetchall())
 
-        # Converte para Title Case para exibição mais limpa
+        def _limpa(s):
+            n = strip(s) or ''
+            return '' if n in ('.', '..') else n
+
+        # ── Passo 1: agrupa por USERID (chave primária para usuários com login) ──
+        por_userid: dict = {}
+        for cdfun, nomefun, userid in todas:
+            nome = _limpa(nomefun)
+            uid  = _limpa(userid)
+            display = nome or uid
+            if not display or not uid:
+                continue
+            e = por_userid.get(uid)
+            if e is None:
+                por_userid[uid] = {'id': cdfun, 'nome': display, 'userid': uid}
+            else:
+                if len(display) > len(e['nome']):
+                    e['nome'] = display
+
+        # ── Passo 2: melhora nomes buscando rows sem USERID do mesmo CDFUN ──
+        cdfun_para_uid = {v['id']: k for k, v in por_userid.items()}
+        for cdfun, nomefun, userid in todas:
+            if _limpa(userid):
+                continue
+            nome = _limpa(nomefun)
+            if not nome or cdfun not in cdfun_para_uid:
+                continue
+            uid_key = cdfun_para_uid[cdfun]
+            e = por_userid[uid_key]
+            if len(nome) > len(e['nome']):
+                e['nome'] = nome
+
+        # ── Passo 3: inclui entradas SEM USERID cujo CDFUN não está mapeado ──
+        cdfuns_uid = {v['id'] for v in por_userid.values()}
+        por_cdfun_nome: dict = {}
+        for cdfun, nomefun, userid in todas:
+            if _limpa(userid) or cdfun in cdfuns_uid:
+                continue
+            nome = _limpa(nomefun)
+            if not nome:
+                continue
+            key = (cdfun, nome)
+            if key not in por_cdfun_nome:
+                por_cdfun_nome[key] = {'id': cdfun, 'nome': nome, 'userid': ''}
+
         def _title(s: str) -> str:
             stops = {'da', 'de', 'do', 'das', 'dos', 'e'}
             parts = s.title().split()
             return ' '.join(p if p.lower() not in stops else p.lower() for p in parts)
 
-        for v in por_cdfun.values():
+        resultado = list(por_userid.values()) + list(por_cdfun_nome.values())
+        for v in resultado:
             v['nome'] = _title(v['nome'])
 
-        atendentes = sorted(por_cdfun.values(), key=lambda x: x['nome'])
+        atendentes = sorted(resultado, key=lambda x: x['nome'])
         cursor.close()
         conn.close()
         return jsonify({'atendentes': atendentes, 'total': len(atendentes)})
