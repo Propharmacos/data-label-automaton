@@ -932,43 +932,40 @@ def listar_atendentes():
     try:
         conn   = get_db()
         cursor = conn.cursor()
-        # ── Passo 1: CDFUNs ativos nas filiais 392/279 ───────────────────────────
+        # ── Passo 1: CDFUNs que criaram orçamentos/requisições na filial 392 ────
         cursor.execute("SELECT DISTINCT CDFUN FROM FC15000 WHERE CDFIL = 392 AND CDFUN IS NOT NULL")
         cdfuns = {r[0] for r in cursor.fetchall()}
-        cursor.execute("SELECT DISTINCT CDFUN FROM FC15000 WHERE CDFIL = 279 AND CDFUN IS NOT NULL")
-        cdfuns.update(r[0] for r in cursor.fetchall())
         cursor.execute("SELECT DISTINCT CDFUN FROM FC12000 WHERE CDFIL = 392 AND CDFUN IS NOT NULL")
         cdfuns.update(r[0] for r in cursor.fetchall())
-        cursor.execute("SELECT DISTINCT CDFUN FROM FC12000 WHERE CDFIL = 279 AND CDFUN IS NOT NULL")
-        cdfuns.update(r[0] for r in cursor.fetchall())
+        # Katia (1) e Bruno (535) sempre presentes independente de atividade
+        cdfuns.update([1, 535])
 
-        # ── Passo 2: para cada CDFUN, busca o nome mais longo e o USERID ──────
-        # Uma query por CDFUN evita deduplicação em memória e garante o nome certo.
+        # ── Passo 2: para cada CDFUN, busca TODAS as rows do FC08000 e escolhe
+        #    o nome mais longo em Python (evita depender de CHAR_LENGTH no Firebird)
         resultado = []
         for cdfun in cdfuns:
-            # Nome mais longo para este CDFUN
             cursor.execute("""
-                SELECT FIRST 1 NOMEFUN FROM FC08000
-                WHERE CDFUN = ? AND NOMEFUN IS NOT NULL AND TRIM(NOMEFUN) <> ''
-                ORDER BY CHAR_LENGTH(NOMEFUN) DESC
+                SELECT NOMEFUN, USERID FROM FC08000
+                WHERE CDFUN = ?
+                  AND ((NOMEFUN IS NOT NULL AND TRIM(NOMEFUN) <> '')
+                       OR  (USERID IS NOT NULL AND TRIM(USERID) <> ''))
             """, (cdfun,))
-            nome_row = cursor.fetchone()
-            nome = strip(nome_row[0]) if nome_row else ''
-            if nome in ('.', '..'):
-                nome = ''
+            rows_fc = cursor.fetchall()
 
-            # USERID para este CDFUN (qualquer row que tenha)
-            cursor.execute("""
-                SELECT FIRST 1 USERID FROM FC08000
-                WHERE CDFUN = ? AND USERID IS NOT NULL AND TRIM(USERID) <> ''
-            """, (cdfun,))
-            uid_row = cursor.fetchone()
-            uid = strip(uid_row[0]) if uid_row else ''
+            melhor_nome = ''
+            melhor_uid  = ''
+            for nomefun_r, userid_r in rows_fc:
+                n = (strip(nomefun_r) or '').strip()
+                u = (strip(userid_r)  or '').strip()
+                if u and not melhor_uid:
+                    melhor_uid = u
+                if n and n not in ('.', '..') and len(n) > len(melhor_nome):
+                    melhor_nome = n
 
-            display = nome or uid
+            display = melhor_nome or melhor_uid
             if not display:
                 continue
-            resultado.append({'id': cdfun, 'nome': display, 'userid': uid})
+            resultado.append({'id': cdfun, 'nome': display, 'userid': melhor_uid})
 
         def _title(s: str) -> str:
             stops = {'da', 'de', 'do', 'das', 'dos', 'e'}
