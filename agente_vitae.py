@@ -940,26 +940,49 @@ def listar_atendentes():
         # Katia (1) e Bruno (535) sempre presentes independente de atividade
         cdfuns.update([1, 535])
 
-        # ── Passo 2: para cada CDFUN, busca TODAS as rows do FC08000 e escolhe
-        #    o nome mais longo em Python (evita depender de CHAR_LENGTH no Firebird)
+        # Overrides para admins FC cujos dados variam entre filiais
+        NOME_OVERRIDES = {
+            1:   ('KATIA FERREIRA FEITOSA', 'KATIA'),
+            535: ('BRUNO PERUZETTO',        'BRUNOPERUZETTO'),
+        }
+
+        # ── Passo 2: para cada CDFUN resolve o nome correto ─────────────────
+        #    Âncora no USERID: múltiplos USERIDs no FC08000 para o mesmo CDFUN
+        #    indicam funcionários de filiais diferentes com o mesmo código.
+        #    Usamos o primeiro USERID encontrado como âncora e descartamos rows
+        #    com USERID diferente (seriam pessoas de outras filiais).
         resultado = []
         for cdfun in cdfuns:
-            cursor.execute("""
-                SELECT NOMEFUN, USERID FROM FC08000
-                WHERE CDFUN = ?
-                  AND ((NOMEFUN IS NOT NULL AND TRIM(NOMEFUN) <> '')
-                       OR  (USERID IS NOT NULL AND TRIM(USERID) <> ''))
-            """, (cdfun,))
+            if cdfun in NOME_OVERRIDES:
+                nome_ovr, uid_ovr = NOME_OVERRIDES[cdfun]
+                resultado.append({'id': cdfun, 'nome': nome_ovr, 'userid': uid_ovr})
+                continue
+
+            cursor.execute(
+                "SELECT NOMEFUN, USERID FROM FC08000 WHERE CDFUN = ?",
+                (cdfun,)
+            )
             rows_fc = cursor.fetchall()
 
+            # Determina o USERID âncora (primeiro não-vazio encontrado)
+            uid_ancora = ''
+            for _, u_r in rows_fc:
+                u = (strip(u_r) or '').strip()
+                if u:
+                    uid_ancora = u
+                    break
+
             melhor_nome = ''
-            melhor_uid  = ''
+            melhor_uid  = uid_ancora
             for nomefun_r, userid_r in rows_fc:
                 n = (strip(nomefun_r) or '').strip()
                 u = (strip(userid_r)  or '').strip()
-                if u and not melhor_uid:
-                    melhor_uid = u
-                if n and n not in ('.', '..') and len(n) > len(melhor_nome):
+                if not n or n in ('.', '..'):
+                    continue
+                # Descarta rows de outro funcionário (outra filial, mesmo CDFUN)
+                if uid_ancora and u and u != uid_ancora:
+                    continue
+                if len(n) > len(melhor_nome):
                     melhor_nome = n
 
             display = melhor_nome or melhor_uid
