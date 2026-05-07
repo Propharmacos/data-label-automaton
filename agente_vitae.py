@@ -932,25 +932,29 @@ def listar_atendentes():
     try:
         conn   = get_db()
         cursor = conn.cursor()
-        # Sem filtro de USERID/FUNATIVO — admins FC podem não ter USERID
+        # Inclui qualquer registro com NOMEFUN ou USERID preenchido
+        # Admins FC podem ter NOMEFUN nulo — usa USERID como nome de exibição
         cursor.execute("""
             SELECT CDFUN, NOMEFUN, USERID
             FROM FC08000
-            WHERE NOMEFUN IS NOT NULL
-              AND TRIM(NOMEFUN) <> ''
-            ORDER BY NOMEFUN
+            WHERE (NOMEFUN IS NOT NULL AND TRIM(NOMEFUN) <> '')
+               OR (USERID  IS NOT NULL AND TRIM(USERID)  <> '')
+            ORDER BY NOMEFUN NULLS LAST, USERID
         """)
-        # Deduplica por CDFUN: mantém o registro com nome mais longo (mais completo)
+        # Deduplica por CDFUN: mantém o registro com nome mais longo
         por_cdfun = {}
         for row in cursor.fetchall():
             cdfun, nomefun, userid = row
             nome = strip(nomefun) or ''
-            uid  = strip(userid) or ''
-            if not nome or nome == '.':
+            uid  = strip(userid)  or ''
+            if nome == '.':
+                nome = ''
+            display = nome or uid   # fallback: usa USERID se NOMEFUN vazio
+            if not display:
                 continue
             existente = por_cdfun.get(cdfun)
-            if existente is None or len(nome) > len(existente['nome']):
-                por_cdfun[cdfun] = {'id': cdfun, 'nome': nome, 'userid': uid}
+            if existente is None or len(display) > len(existente['nome']):
+                por_cdfun[cdfun] = {'id': cdfun, 'nome': display, 'userid': uid}
 
         atendentes = sorted(por_cdfun.values(), key=lambda x: x['nome'])
         cursor.close()
