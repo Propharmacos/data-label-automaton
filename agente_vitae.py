@@ -954,6 +954,13 @@ def listar_atendentes():
             rows_392 = cursor.fetchall()
         except Exception:
             rows_392 = []
+            # Cursor fica corrompido no Firebird após erro de coluna inexistente;
+            # recria para que o fallback funcione normalmente
+            try:
+                cursor.close()
+            except Exception:
+                pass
+            cursor = conn.cursor()
 
         if rows_392:
             # Agrupa por CDFUN e escolhe o nome mais longo dentro da filial 392
