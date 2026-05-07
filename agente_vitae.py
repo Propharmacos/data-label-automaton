@@ -932,31 +932,33 @@ def listar_atendentes():
     try:
         conn   = get_db()
         cursor = conn.cursor()
-        # ── Estratégia: usa atividade real nas filiais 392/279 como filtro ────
-        # FC08000 é compartilhado entre todas as filiais do grupo (sem CDFIL).
-        # O mesmo CDFUN pode pertencer a pessoas diferentes em filiais distintas.
-        # Solução: pega apenas CDFUNs que criaram orçamentos ou requisições nas
-        # filiais 392/279 — esses são os funcionários reais dessas unidades.
-        cursor.execute("""
-            SELECT DISTINCT f.CDFUN, f.NOMEFUN, f.USERID
-            FROM FC08000 f
-            WHERE f.CDFUN IN (
-                SELECT DISTINCT CDFUN FROM FC15000
-                WHERE CDFIL IN (392, 279) AND CDFUN IS NOT NULL
-                UNION
-                SELECT DISTINCT CDFUN FROM FC12000
-                WHERE CDFIL IN (392, 279) AND CDFUN IS NOT NULL
-            )
-            AND ((f.NOMEFUN IS NOT NULL AND TRIM(f.NOMEFUN) <> '')
-                 OR (f.USERID IS NOT NULL AND TRIM(f.USERID) <> ''))
-            ORDER BY f.NOMEFUN NULLS LAST, f.USERID
-        """)
-        todas = list(cursor.fetchall())
+        # ── Passo 1: CDFUNs ativos nas filiais 392/279 (queries rápidas) ────────
+        cursor.execute("SELECT DISTINCT CDFUN FROM FC15000 WHERE CDFIL = 392 AND CDFUN IS NOT NULL")
+        cdfuns = {r[0] for r in cursor.fetchall()}
+        cursor.execute("SELECT DISTINCT CDFUN FROM FC15000 WHERE CDFIL = 279 AND CDFUN IS NOT NULL")
+        cdfuns.update(r[0] for r in cursor.fetchall())
+        cursor.execute("SELECT DISTINCT CDFUN FROM FC12000 WHERE CDFIL = 392 AND CDFUN IS NOT NULL")
+        cdfuns.update(r[0] for r in cursor.fetchall())
+        cursor.execute("SELECT DISTINCT CDFUN FROM FC12000 WHERE CDFIL = 279 AND CDFUN IS NOT NULL")
+        cdfuns.update(r[0] for r in cursor.fetchall())
 
-        # Admins com USERID que ainda não criaram orçamentos: inclui separado
-        cdfuns_filial = {r[0] for r in todas}
+        # ── Passo 2: dados dos funcionários dessas filiais ────────────────────
+        todas = []
+        if cdfuns:
+            ph = ','.join('?' * len(cdfuns))
+            cursor.execute(f"""
+                SELECT CDFUN, NOMEFUN, USERID
+                FROM FC08000
+                WHERE CDFUN IN ({ph})
+                  AND ((NOMEFUN IS NOT NULL AND TRIM(NOMEFUN) <> '')
+                       OR (USERID IS NOT NULL AND TRIM(USERID) <> ''))
+                ORDER BY NOMEFUN NULLS LAST, USERID
+            """, list(cdfuns))
+            todas = list(cursor.fetchall())
+
+        # ── Passo 3: admins com USERID que não têm orçamento registrado ──────
         cursor.execute("""
-            SELECT DISTINCT CDFUN, NOMEFUN, USERID
+            SELECT CDFUN, NOMEFUN, USERID
             FROM FC08000
             WHERE USERID IS NOT NULL AND TRIM(USERID) <> ''
               AND ((NOMEFUN IS NOT NULL AND TRIM(NOMEFUN) <> '')
@@ -964,9 +966,8 @@ def listar_atendentes():
             ORDER BY NOMEFUN NULLS LAST
         """)
         for row in cursor.fetchall():
-            if row[0] not in cdfuns_filial:
+            if row[0] not in cdfuns:
                 todas.append(row)
-                cdfuns_filial.add(row[0])
 
         def _limpa(s):
             n = strip(s) or ''
