@@ -942,9 +942,15 @@ def listar_atendentes():
 
         resultado = []
 
-        # ── Passo 1: busca direta no FC08000 WHERE CDFIL=392 ────────────────
-        #    Evita colisão de CDFUN entre filiais — cada row pertence à filial 392
-        try:
+        # ── Passo 1: verifica se FC08000 tem coluna CDFIL (sem risco de corromper conexão)
+        cursor.execute("""
+            SELECT COUNT(*) FROM RDB$RELATION_FIELDS
+            WHERE RDB$RELATION_NAME = 'FC08000'
+              AND TRIM(RDB$FIELD_NAME) = 'CDFIL'
+        """)
+        fc08000_tem_cdfil = (cursor.fetchone() or [0])[0] > 0
+
+        if fc08000_tem_cdfil:
             cursor.execute("""
                 SELECT CDFUN, NOMEFUN, USERID FROM FC08000
                 WHERE CDFIL = 392
@@ -953,15 +959,8 @@ def listar_atendentes():
                   AND TRIM(NOMEFUN) <> ''
             """)
             rows_392 = cursor.fetchall()
-        except Exception:
+        else:
             rows_392 = []
-            # Cursor fica corrompido no Firebird após erro de coluna inexistente;
-            # recria para que o fallback funcione normalmente
-            try:
-                cursor.close()
-            except Exception:
-                pass
-            cursor = conn.cursor()
 
         if rows_392:
             # Agrupa por CDFUN e escolhe o nome mais longo dentro da filial 392
