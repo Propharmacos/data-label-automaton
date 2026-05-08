@@ -59,10 +59,17 @@ echo.
 echo Iniciando agente na porta 5001...
 start "Agente Vitae - porta 5001" cmd /k "cd /d C:\ServidorRotulos && python agente_vitae.py"
 timeout /t 4 /nobreak >nul
+echo [OK] Agente iniciado
+
+:: Iniciar ngrok
+echo Iniciando ngrok...
+start "Ngrok - Tunnel" cmd /k "ngrok http --domain=authentic-unworried-ounce.ngrok-free.dev 5001"
+timeout /t 3 /nobreak >nul
+echo [OK] Ngrok iniciado
 
 echo.
 echo =========================================
-echo   Agente reiniciado!
+echo   Tudo rodando!
 echo.
 echo   Health:     https://authentic-unworried-ounce.ngrok-free.dev/api/health
 echo   Atendentes: https://authentic-unworried-ounce.ngrok-free.dev/api/atendentes
