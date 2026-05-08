@@ -63,7 +63,7 @@ echo [OK] Agente iniciado
 
 :: Iniciar ngrok
 echo Iniciando ngrok...
-start "Ngrok - Tunnel" cmd /k "ngrok http --domain=authentic-unworried-ounce.ngrok-free.dev 5001"
+start "Ngrok - Vitae" cmd /k ""C:\Users\Administrador.PROCARAIBAS\Desktop\ngrok.exe" http --config="C:\Users\Administrador.PROCARAIBAS\ngrok-vitae.yml" --domain=authentic-unworried-ounce.ngrok-free.dev 5001"
 timeout /t 3 /nobreak >nul
 echo [OK] Ngrok iniciado
 
