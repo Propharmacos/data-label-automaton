@@ -41,6 +41,12 @@ move /Y agente_vitae.py.tmp agente_vitae.py >nul
 echo [OK] agente_vitae.py atualizado! ^(%TAMANHO% bytes^)
 echo.
 
+:: Download do ativar_agente_completo.bat
+echo Baixando ativar_agente_completo.bat...
+curl -s -L -o ativar_agente_completo.bat -H "Authorization: token %GH_TOKEN%" -H "User-Agent: Mozilla/5.0" "https://raw.githubusercontent.com/marketingpropharmacos/data-label-automaton/main/ativar_agente_completo.bat"
+echo [OK] ativar_agente_completo.bat atualizado!
+echo.
+
 :: Matar TODOS os processos Python (inclui filhos) - unico jeito garantido
 echo Encerrando todos os processos Python...
 taskkill /F /IM python.exe /T >nul 2>&1
