@@ -562,6 +562,56 @@ def buscar_produtos_recentes():
         return jsonify({'produtos': [], 'erro': str(e)}), 500
 
 
+@app.route('/api/catalogo', methods=['GET', 'OPTIONS'])
+def get_catalogo():
+    """
+    Retorna todos os produtos ATIVOS de um setor para o catálogo do e-commerce.
+    ?setor=650   — setor do FC03000 (obrigatório)
+    Exclui automaticamente produtos com SITUA != 'A' ou INDDEL = 'S'.
+    """
+    if request.method == 'OPTIONS':
+        return '', 204
+
+    setor = (request.args.get('setor') or '').strip()
+    if not setor:
+        return jsonify({'produtos': [], 'erro': 'setor obrigatório'}), 400
+
+    try:
+        conn   = get_db()
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT CDPRO, DESCR, DESCRPRD, PRVEN, GRUPO, DIASVAL
+            FROM FC03000
+            WHERE SETOR  = ?
+              AND SITUA  = 'A'
+              AND INDDEL = 'N'
+            ORDER BY DESCR
+        """, (setor,))
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        produtos = []
+        for row in rows:
+            cdpro, descr, descrprd, prven, grupo, diasval = row
+            produtos.append({
+                'id':          f'fc-{int(cdpro)}',
+                'cdpro':       int(cdpro),
+                'nome':        strip(descr) or '',
+                'nomeReduzido': strip(descrprd) or '',
+                'preco':       round(float(prven or 0), 2),
+                'grupo':       strip(grupo) or '',
+                'diasValidade': diasval or 0,
+            })
+
+        return jsonify({'produtos': produtos, 'setor': setor, 'total': len(produtos)})
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'produtos': [], 'erro': str(e)}), 500
+
+
 @app.route('/api/produtos/<int:cdpro>', methods=['GET'])
 def get_produto(cdpro):
     """Retorna dados completos de um produto/ativo pelo código."""
