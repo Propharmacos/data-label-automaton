@@ -458,6 +458,76 @@ def buscar_produtos():
         return jsonify({'produtos': [], 'total': 0, 'erro': str(e)}), 500
 
 
+@app.route('/api/produtos/recentes', methods=['GET', 'OPTIONS'])
+def buscar_produtos_recentes():
+    """
+    Busca CDPROs mais usados recentemente para um produto.
+    Consulta histórico de FC15110 (componentes de orçamentos) JOIN FC15000.
+    ?q=<texto>     — termo de busca
+    ?cdfil=392     — filial (default 392)
+    ?limit=5       — max resultados (default 5)
+    Retorna lista ordenada por: data_mais_recente DESC, usos DESC
+    """
+    if request.method == 'OPTIONS':
+        return '', 204
+
+    q     = (request.args.get('q') or '').strip()
+    cdfil = int(request.args.get('cdfil', 392))
+    limit = min(int(request.args.get('limit', 5)), 10)
+
+    if len(q) < 2:
+        return jsonify({'produtos': []})
+
+    try:
+        conn   = get_db()
+        cursor = conn.cursor()
+
+        cursor.execute(f"""
+            SELECT FIRST {limit}
+                c.CDPRO,
+                MAX(COALESCE(p.DESCR, c.DESCR)) AS DESCPRO,
+                COUNT(DISTINCT c.NRORC)          AS USOS,
+                MAX(o.DTENTR)                    AS ULTIMA_USO,
+                MAX(p.PRVEN)                     AS PRECO
+            FROM FC15110 c
+            JOIN FC15000 o ON o.NRORC = c.NRORC AND o.CDFIL = c.CDFIL
+            LEFT JOIN FC03000 p ON p.CDPRO = c.CDPRO
+            WHERE c.CDFIL  = ?
+              AND c.TPCMP  = 'C'
+              AND c.CDPRO  IS NOT NULL
+              AND (UPPER(c.DESCR) CONTAINING UPPER(?) OR UPPER(p.DESCR) CONTAINING UPPER(?))
+            GROUP BY c.CDPRO
+            ORDER BY MAX(o.DTENTR) DESC, COUNT(DISTINCT c.NRORC) DESC
+        """, (cdfil, q, q))
+
+        rows = cursor.fetchall()
+        conn.close()
+
+        produtos = []
+        for row in rows:
+            cdpro, descpro, usos, ultima_uso, preco = row
+            ultima_str = ''
+            if ultima_uso:
+                if hasattr(ultima_uso, 'strftime'):
+                    ultima_str = ultima_uso.strftime('%Y-%m-%d')
+                else:
+                    ultima_str = str(ultima_uso)[:10]
+            produtos.append({
+                'id':          int(cdpro),
+                'nome':        (descpro or '').strip(),
+                'nomeReduzido': (descpro or '').strip(),
+                'precoVenda':  float(preco) if preco else 0.0,
+                'usos':        int(usos),
+                'ultimoUso':   ultima_str,
+            })
+
+        return jsonify({'produtos': produtos})
+
+    except Exception as e:
+        traceback.print_exc()
+        return jsonify({'produtos': [], 'erro': str(e)}), 500
+
+
 @app.route('/api/produtos/<int:cdpro>', methods=['GET'])
 def get_produto(cdpro):
     """Retorna dados completos de um produto/ativo pelo código."""
