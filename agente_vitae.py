@@ -55,6 +55,34 @@ def get_db():
     )
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
+def sem_acento(text: str) -> str:
+    """Remove acentos para busca CONTAINING no Firebird (que é sensível a acentos)."""
+    nfkd = unicodedata.normalize('NFKD', text)
+    return ''.join(c for c in nfkd if not unicodedata.combining(c))
+
+# Mapeamento de nomes do catálogo Pro Vitae → termo de busca no FC
+# Necessário quando o produto tem nome completamente diferente no FC
+FC_NAME_MAP = {
+    'deoxicolico':   'desoxicolato',
+    'deoxicólico':   'desoxicolato',
+    'deoxycholic':   'desoxicolato',
+    'hialuronico':   'hialuronico',   # garante sem acento
+    'hialurônico':   'hialuronico',
+    'folico':        'folico',
+    'fólico':        'folico',
+}
+
+def normalizar_busca(q: str) -> str:
+    """Remove acentos e aplica mapeamento de nomes para melhorar busca CONTAINING."""
+    q_limpo = sem_acento(q.strip())
+    palavras = q_limpo.split()
+    resultado = []
+    for p in palavras:
+        p_lower = p.lower()
+        mapeado = FC_NAME_MAP.get(p_lower)
+        resultado.append(mapeado if mapeado else p)
+    return ' '.join(resultado)
+
 def serialize(v):
     """Converte tipos do Firebird para JSON-safe."""
     if isinstance(v, str):
@@ -335,20 +363,23 @@ def buscar_produtos():
     if len(q) < 2:
         return jsonify({'produtos': [], 'total': 0})
 
+    # Normaliza acentos e aplica mapeamento de nomes antes da busca CONTAINING
+    q_norm = normalizar_busca(q)
+
     try:
         conn = get_db()
         cursor = conn.cursor()
 
         # Busca por código numérico (CDPRO) ou por nome (DESCR + DESCRPRD + sinônimos FC03100)
-        if q.isdigit():
+        if q_norm.isdigit():
             where  = ["CDPRO = ?"]
-            params = [int(q)]
+            params = [int(q_norm)]
             sinonimo_params = []
             sinonimo_clauses = []
         else:
             params = []
             sinonimo_params = []
-            palavras = [p for p in q.split() if len(p) >= 2]
+            palavras = [p for p in q_norm.split() if len(p) >= 2]
             word_clauses = []
             sinonimo_clauses = []
             for p in palavras:
@@ -478,6 +509,9 @@ def buscar_produtos_recentes():
     if len(q) < 2:
         return jsonify({'produtos': []})
 
+    # Normaliza acentos e aplica mapeamento de nomes antes da busca CONTAINING
+    q_norm = normalizar_busca(q)
+
     try:
         conn   = get_db()
         cursor = conn.cursor()
@@ -498,7 +532,7 @@ def buscar_produtos_recentes():
               AND (UPPER(c.DESCR) CONTAINING UPPER(?) OR UPPER(p.DESCR) CONTAINING UPPER(?))
             GROUP BY c.CDPRO
             ORDER BY MAX(o.DTENTR) DESC, COUNT(DISTINCT c.NRORC) DESC
-        """, (cdfil, q, q))
+        """, (cdfil, q_norm, q_norm))
 
         rows = cursor.fetchall()
         conn.close()
