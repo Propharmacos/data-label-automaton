@@ -833,74 +833,102 @@ def get_requisicao(nrreq):
 def get_orcamento(nrorc):
     """
     Retorna dados completos de um orçamento pelo número.
-    Cabeçalho: FC15000 | Itens: FC15100
+    Cabeçalho: FC15000 | Barras: FC15100 | Componentes: FC15110
+    ?cdfil=392  (padrão: 392 — filial Pro Vitae)
     """
+    if request.method == 'OPTIONS':
+        return '', 204
     try:
         conn   = get_db()
         cursor = conn.cursor()
 
-        cursor.execute("""
-            SELECT FIRST 1
-                o.NRORC, o.CDCLI, o.DTENTR, o.VRRQU, o.VRDSC,
-                o.CDFUN, o.FLAGENV,
-                c.NOMECLI, f.NOMEFUN
-            FROM FC15000 o
-            LEFT JOIN FC07000 c ON c.CDCLI = o.CDCLI
-            LEFT JOIN FC08000 f ON f.CDFUN = o.CDFUN
-            WHERE o.NRORC = ?
-        """, (int(nrorc),))
+        cdfil_req = request.args.get('cdfil')
+
+        # Header: se cdfil especificado, usa; senão pega o mais recente
+        if cdfil_req:
+            cursor.execute("""
+                SELECT FIRST 1
+                    o.NRORC, o.CDFIL, o.CDCLI, o.DTENTR, o.VRRQU, o.VRDSC,
+                    o.CDFUN, o.FLAGENV,
+                    c.NOMECLI, f.NOMEFUN
+                FROM FC15000 o
+                LEFT JOIN FC07000 c ON c.CDCLI = o.CDCLI
+                LEFT JOIN FC08000 f ON f.CDFUN = o.CDFUN
+                WHERE o.NRORC = ? AND o.CDFIL = ?
+                ORDER BY o.DTENTR DESC
+            """, (int(nrorc), int(cdfil_req)))
+        else:
+            cursor.execute("""
+                SELECT FIRST 1
+                    o.NRORC, o.CDFIL, o.CDCLI, o.DTENTR, o.VRRQU, o.VRDSC,
+                    o.CDFUN, o.FLAGENV,
+                    c.NOMECLI, f.NOMEFUN
+                FROM FC15000 o
+                LEFT JOIN FC07000 c ON c.CDCLI = o.CDCLI
+                LEFT JOIN FC08000 f ON f.CDFUN = o.CDFUN
+                WHERE o.NRORC = ?
+                ORDER BY o.DTENTR DESC
+            """, (int(nrorc),))
 
         row = cursor.fetchone()
         if not row:
             cursor.close(); conn.close()
             return jsonify({'erro': f'Orçamento {nrorc} não encontrado'}), 404
 
-        nrorc_v, cdcli, dtentr, vrrqu, vrdsc, cdfun, flagenv, nomecli, nomefun = row
+        nrorc_v, cdfil_v, cdcli, dtentr, vrrqu, vrdsc, cdfun, flagenv, nomecli, nomefun = row
 
-        # ── Itens FC15100 + nome do produto via FC03000 ──
+        # Itens: FC15100 (barra) + FC15110 ITEMID=1 TPCMP=C (componente principal) + FC03000 (nome)
         cursor.execute("""
-            SELECT i.SERIEO, i.CDPRO, i.NOMEPA, i.PRCOBR, i.QTFOR,
-                   i.PFCRM, i.NRCRM, i.UFCRM, i.POSOL,
-                   p.NOMEPRO
+            SELECT i.SERIEO,
+                   c.CDPRO,
+                   COALESCE(p.DESCR, c.DESCR) AS DESCPRO,
+                   i.PRCOBR, i.QTFOR,
+                   i.PFCRM, i.NRCRM, i.UFCRM, i.POSOL
             FROM FC15100 i
-            LEFT JOIN FC03000 p ON p.CDPRO = i.CDPRO
-            WHERE i.NRORC = ?
+            LEFT JOIN FC15110 c ON c.NRORC  = i.NRORC
+                               AND c.CDFIL  = i.CDFIL
+                               AND c.SERIEO = i.SERIEO
+                               AND c.TPCMP  = 'C'
+                               AND c.ITEMID = 1
+            LEFT JOIN FC03000 p ON p.CDPRO  = c.CDPRO
+            WHERE i.NRORC = ? AND i.CDFIL = ?
             ORDER BY i.SERIEO
-        """, (int(nrorc),))
+        """, (int(nrorc), cdfil_v))
         rows_itens = cursor.fetchall()
 
         # Agrupa por CDPRO para deduplicar séries do mesmo produto
         por_cdpro: dict = {}
         sem_cdpro = []
         for r in rows_itens:
-            serieo, cdpro, nomepa_i, prcobr, qtfor, pfcrm, nrcrm, ufcrm, posol, nomepro = r
+            serieo, cdpro, descpro, prcobr, qtfor, pfcrm, nrcrm, ufcrm, posol = r
             preco = round(float(prcobr or 0), 2)
             qtd   = float(qtfor or 1)
+            nome  = strip(descpro) or strip(posol) or f'Barra {serieo}'
             if cdpro:
                 key = int(cdpro)
                 if key not in por_cdpro:
                     por_cdpro[key] = {
-                        'cdpro':    key,
-                        'nome':     strip(nomepro) or strip(nomepa_i) or f'Produto {key}',
-                        'preco':    preco,
-                        'qtd':      qtd,
-                        'posol':    strip(posol) or '',
-                        'pfcrm':    strip(pfcrm) or '',
-                        'nrcrm':    str(strip(nrcrm) or ''),
-                        'ufcrm':    strip(ufcrm) or '',
+                        'cdpro': key,
+                        'nome':  nome,
+                        'preco': preco,
+                        'qtd':   qtd,
+                        'posol': strip(posol) or '',
+                        'pfcrm': strip(pfcrm) or '',
+                        'nrcrm': str(strip(nrcrm) or ''),
+                        'ufcrm': strip(ufcrm) or '',
                     }
                 else:
                     por_cdpro[key]['qtd'] += qtd
             else:
                 sem_cdpro.append({
-                    'cdpro':    None,
-                    'nome':     strip(nomepa_i) or strip(posol) or 'Item',
-                    'preco':    preco,
-                    'qtd':      qtd,
-                    'posol':    strip(posol) or '',
-                    'pfcrm':    strip(pfcrm) or '',
-                    'nrcrm':    str(strip(nrcrm) or ''),
-                    'ufcrm':    strip(ufcrm) or '',
+                    'cdpro': None,
+                    'nome':  nome,
+                    'preco': preco,
+                    'qtd':   qtd,
+                    'posol': strip(posol) or '',
+                    'pfcrm': strip(pfcrm) or '',
+                    'nrcrm': str(strip(nrcrm) or ''),
+                    'ufcrm': strip(ufcrm) or '',
                 })
 
         itens = list(por_cdpro.values()) + sem_cdpro
@@ -908,6 +936,7 @@ def get_orcamento(nrorc):
         cursor.close(); conn.close()
         return jsonify({
             'nrorc':      nrorc_v,
+            'cdfil':      cdfil_v,
             'cdcli':      cdcli,
             'cliente':    strip(nomecli) or '',
             'data':       str(dtentr)[:10] if dtentr else '',
@@ -1569,6 +1598,7 @@ def get_historico():
                 resultado.append({
                     'tipo':       'orcamento',
                     'numero':     nrorc,
+                    'cdfil':      cdfil,
                     'cdcli':      cdcli_v,
                     'cliente':    strip(nomecli) or '',
                     'data':       str(dtentr)[:10] if dtentr else '',
