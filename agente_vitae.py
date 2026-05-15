@@ -428,7 +428,7 @@ def buscar_produtos():
         sql = f"""
             SELECT FIRST 30
                 CDPRO, DESCR, DESCRPRD, SITUA, INDDEL,
-                PRVEN, PRENMAX, PRCOM, GRUPO, SETOR, DIASVAL, CDDCI
+                PRVEN, PRVENMAX, PRCOM, GRUPO, SETOR, DIASVAL, CDDCI
             FROM FC03000
             WHERE {' AND '.join(where)}
             ORDER BY DESCR
@@ -447,7 +447,7 @@ def buscar_produtos():
             sin_extra_sql = f"""
                 SELECT FIRST 10
                     CDPRO, DESCR, DESCRPRD, SITUA, INDDEL,
-                    PRVEN, PRENMAX, PRCOM, GRUPO, SETOR, DIASVAL, CDDCI
+                    PRVEN, PRVENMAX, PRCOM, GRUPO, SETOR, DIASVAL, CDDCI
                 FROM FC03000
                 WHERE CDPRO IN ({placeholders})
                 {"AND SITUA = 'A' AND INDDEL = 'N'" if ativos_apenas else ""}
@@ -463,9 +463,9 @@ def buscar_produtos():
 
         produtos = []
         for row in all_rows:
-            cdpro, descr, descrprd, situa, inddel, prven, prenmax, prcom, grupo_v, setor_v, diasval, cddci = row
+            cdpro, descr, descrprd, situa, inddel, prven, prvenmax, prcom, grupo_v, setor_v, diasval, cddci = row
             preco_venda  = round(float(prven or 0), 2)
-            preco_maximo = round(float(prenmax or 0), 2)
+            preco_maximo = round(float(prvenmax or 0), 2)
             preco_compra = round(float(prcom or 0), 2)
             produtos.append({
                 'id': cdpro,
@@ -583,7 +583,7 @@ def get_catalogo():
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT CDPRO, DESCR, DESCRPRD, PRVEN, PRENMAX, GRUPO, DIASVAL
+            SELECT CDPRO, DESCR, DESCRPRD, PRVEN, PRVENMAX, GRUPO, DIASVAL
             FROM FC03000
             WHERE SETOR  = ?
               AND SITUA  = 'A'
@@ -596,9 +596,9 @@ def get_catalogo():
 
         produtos = []
         for row in rows:
-            cdpro, descr, descrprd, prven, prenmax, grupo, diasval = row
+            cdpro, descr, descrprd, prven, prvenmax, grupo, diasval = row
             preco_venda  = round(float(prven or 0), 2)
-            preco_maximo = round(float(prenmax or 0), 2)
+            preco_maximo = round(float(prvenmax or 0), 2)
             produtos.append({
                 'id':          f'fc-{int(cdpro)}',
                 'cdpro':       int(cdpro),
